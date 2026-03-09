@@ -1,26 +1,38 @@
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
+import { loadExtensionConfig, hasExtensionConfig, type NormalizedExtensionConfig } from '../common/config';
+import { resolveHostPaths } from '../common/hostConfig';
 
 const autolink = () => {
-    // --- Interfaces ---
-    interface TamerConfig {
-        ios?: {
-            podspecPath?: string;
-            moduleClassName?: string; // e.g. "MyAwesomeModule" or "MyOrg.MyAwesomeModule"
-        };
-    }
-
     interface DiscoveredPackage {
         name: string;
-        config: TamerConfig;
+        config: NormalizedExtensionConfig;
         packagePath: string;
     }
 
-    // --- Constants & Paths ---
-    const projectRoot = process.cwd();
-    const nodeModulesPath = path.join(projectRoot, 'node_modules');
-    const iosProjectPath = path.join(projectRoot, 'ios');
+    let resolved: ReturnType<typeof resolveHostPaths>;
+    try {
+        resolved = resolveHostPaths();
+    } catch (error: any) {
+        console.error(`❌ Error loading configuration: ${error.message}`);
+        process.exit(1);
+    }
+
+    const projectRoot = resolved.projectRoot;
+    let nodeModulesPath = path.join(projectRoot, 'node_modules');
+    const workspaceRoot = path.join(projectRoot, '..', '..');
+    const rootNodeModules = path.join(workspaceRoot, 'node_modules');
+    if (fs.existsSync(path.join(workspaceRoot, 'package.json')) && fs.existsSync(rootNodeModules) && path.basename(path.dirname(projectRoot)) === 'packages') {
+        nodeModulesPath = rootNodeModules;
+    } else if (!fs.existsSync(nodeModulesPath)) {
+        const altRoot = path.join(projectRoot, '..', '..');
+        const altNodeModules = path.join(altRoot, 'node_modules');
+        if (fs.existsSync(path.join(altRoot, 'package.json')) && fs.existsSync(altNodeModules)) {
+            nodeModulesPath = altNodeModules;
+        }
+    }
+    const iosProjectPath = resolved.iosDir;
 
     // --- Core Logic ---
 
@@ -62,7 +74,7 @@ const autolink = () => {
         console.log(`✅ Updated autolinked section in ${path.basename(filePath)}`);
     }
 
-    function findTamerPackages(): DiscoveredPackage[] {
+    function findExtensionPackages(): DiscoveredPackage[] {
         const packages: DiscoveredPackage[] = [];
         if (!fs.existsSync(nodeModulesPath)) {
             console.warn('⚠️ node_modules directory not found. Skipping autolinking.');
@@ -74,17 +86,10 @@ const autolink = () => {
         for (const dirName of packageDirs) {
             const fullPath = path.join(nodeModulesPath, dirName);
             const checkPackage = (name: string, packagePath: string) => {
-                const tamerConfigPath = path.join(packagePath, 'tamer.json');
-                if (fs.existsSync(tamerConfigPath)) {
-                    try {
-                        const configRaw = fs.readFileSync(tamerConfigPath, 'utf8');
-                        const config = JSON.parse(configRaw);
-                        if (config.ios) {
-                            packages.push({ name, config, packagePath });
-                        }
-                    } catch (e: any) {
-                        console.warn(`⚠️  Skipping package "${name}" due to invalid tamer.json: ${e.message}`);
-                    }
+                if (!hasExtensionConfig(packagePath)) return;
+                const config = loadExtensionConfig(packagePath);
+                if (config?.ios) {
+                    packages.push({ name, config, packagePath });
                 }
             };
 
@@ -93,8 +98,7 @@ const autolink = () => {
                     const scopedDirs = fs.readdirSync(fullPath);
                     for (const scopedDirName of scopedDirs) {
                         const scopedPackagePath = path.join(fullPath, scopedDirName);
-                        const name = `${dirName}/${scopedDirName}`;
-                        checkPackage(name, scopedPackagePath);
+                        checkPackage(`${dirName}/${scopedDirName}`, scopedPackagePath);
                     }
                 } catch (e: any) {
                     console.warn(`⚠️ Could not read scoped package directory ${fullPath}: ${e.message}`);
@@ -131,19 +135,7 @@ const autolink = () => {
      * dependency issues when modules are provided by CocoaPods.
      */
     function updateLynxInitProcessor(packages: DiscoveredPackage[]): void {
-        // Attempt to locate the app's generated Swift file. Prefer ios/<AppName>/LynxInitProcessor.swift
-        let appNameFromConfig: string | undefined;
-        try {
-            const cfgPath = path.join(process.cwd(), 'tamer.config.json');
-            if (fs.existsSync(cfgPath)) {
-                const cfgRaw = fs.readFileSync(cfgPath, 'utf8');
-                const cfg = JSON.parse(cfgRaw);
-                appNameFromConfig = cfg.ios?.appName;
-            }
-        } catch (e: any) {
-            // ignore and fallback
-        }
-
+        const appNameFromConfig = resolved.config.ios?.appName;
         const candidatePaths: string[] = [];
         if (appNameFromConfig) {
             candidatePaths.push(path.join(iosProjectPath, appNameFromConfig, 'LynxInitProcessor.swift'));
@@ -153,7 +145,7 @@ const autolink = () => {
         const found = candidatePaths.find(p => fs.existsSync(p));
         const lynxInitPath: string = (found ?? candidatePaths[0]) as string;
 
-        const iosPackages = packages.filter(p => p.config.ios && (p.config.ios as any).moduleClassName);
+        const iosPackages = packages.filter(p => p.config.ios?.moduleClassName);
 
         // --- Generate import statements for discovered native packages ---
         function updateImportsSection(filePath: string, pkgs: DiscoveredPackage[]) {
@@ -224,8 +216,8 @@ const autolink = () => {
             return;
         }
 
-        const blocks = iosPackages.map((pkg, idx) => {
-            const classNameRaw = (pkg.config.ios as any).moduleClassName as string;
+        const blocks = iosPackages.map((pkg) => {
+            const classNameRaw = pkg.config.ios!.moduleClassName;
 
             return [
                 `        // Register module from package: ${pkg.name}`,
@@ -258,8 +250,8 @@ const autolink = () => {
 
     // --- Main Execution ---
     function run() {
-        console.log('🔎 Finding Tamer4Lynx native packages for iOS...');
-        const packages = findTamerPackages();
+        console.log('🔎 Finding Lynx extension packages (lynx.ext.json / tamer.json)...');
+        const packages = findExtensionPackages();
 
         if (packages.length > 0) {
             console.log(`Found ${packages.length} package(s): ${packages.map(p => p.name).join(', ')}`);
@@ -270,20 +262,7 @@ const autolink = () => {
         updatePodfile(packages);
         updateLynxInitProcessor(packages);
 
-        // Attempt to run `pod install` automatically when a Podfile is present
-        // prefer running in ios/<AppName> if present
-        let appNameFromConfig: string | undefined;
-        try {
-            const cfgPath = path.join(process.cwd(), 'tamer.config.json');
-            if (fs.existsSync(cfgPath)) {
-                const cfgRaw = fs.readFileSync(cfgPath, 'utf8');
-                const cfg = JSON.parse(cfgRaw);
-                appNameFromConfig = cfg.ios?.appName;
-            }
-        } catch (e: any) {
-            // ignore and fallback
-        }
-
+        const appNameFromConfig = resolved.config.ios?.appName;
         if (appNameFromConfig) {
             const appPodfile = path.join(iosProjectPath, appNameFromConfig, 'Podfile');
             if (fs.existsSync(appPodfile)) {

@@ -1,74 +1,100 @@
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
+import { resolveHostPaths, resolveDevAppPaths } from '../common/hostConfig';
+import android_autolink from './autolink';
+import android_create from './create';
+import android_syncDevClient from './syncDevClient';
 
+export type BundleTarget = 'host' | 'dev-app';
 
-let projectRoot: string;
-let lynxProject: string | undefined = undefined;
-
-/**
- * This script automates the process of bundling the application and moving the output
- * to the correct Android assets directory.
- */
-function bundleAndDeploy() {
-
-
-
-    try {
-        const configPath = path.join(process.cwd(), "tamer.config.json");
-        if (!fs.existsSync(configPath)) {
-            throw new Error("tamer.config.json not found in the project root.");
+function findRepoRoot(start: string): string {
+    let dir = path.resolve(start);
+    const root = path.parse(dir).root;
+    while (dir !== root) {
+        const pkgPath = path.join(dir, 'package.json');
+        if (fs.existsSync(pkgPath)) {
+            try {
+                const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+                if (pkg.workspaces) return dir;
+            } catch {}
         }
-        const configRaw = fs.readFileSync(configPath, "utf8");
-        const config = JSON.parse(configRaw);
+        dir = path.dirname(dir);
+    }
+    return start;
+}
 
-        if (!config?.lynxProject ) {
-            lynxProject = process.cwd();
-        } else lynxProject = path.join(process.cwd(), config?.lynxProject );
+async function bundleAndDeploy(opts: { target?: string } = {}) {
+    const target = (opts.target ?? 'host') as BundleTarget;
+    const origCwd = process.cwd();
 
-        
+    let resolved: ReturnType<typeof resolveHostPaths>;
+    try {
+        if (target === 'dev-app') {
+            const repoRoot = findRepoRoot(origCwd);
+            resolved = resolveDevAppPaths(repoRoot);
+            const devAppDir = resolved.projectRoot;
+            const androidDir = resolved.androidDir;
+            if (!fs.existsSync(androidDir)) {
+                console.log('📱 Creating Tamer Dev App Android project...');
+                await android_create({ target: 'dev-app' });
+            }
+            process.chdir(devAppDir);
+        } else {
+            resolved = resolveHostPaths();
+        }
     } catch (error: any) {
         console.error(`❌ Error loading configuration: ${error.message}`);
         process.exit(1);
     }
 
-    // const androidRoot = projectRoot!;
-    const lynxRoot = lynxProject!;
-    const sourceBundlePath = path.join(lynxRoot, 'dist', 'main.lynx.bundle');
-    const destinationDir = path.join(process.cwd(), 'android', 'app', 'src', 'main', 'assets');
-    const destinationBundlePath = path.join(destinationDir, 'main.lynx.bundle');
+    const { lynxProjectDir, lynxBundlePath, androidAssetsDir, devClientBundlePath, devMode } = resolved;
+    const destinationDir = androidAssetsDir;
 
-    try {
-        // 1. Run the build command
-        console.log('📦 Starting the build process...');
-        execSync('npm run build', { stdio: 'inherit', cwd: lynxRoot });
-        console.log('✅ Build completed successfully.');
-
-    } catch (error) {
-        console.error('❌ Build process failed. Please check the errors above.');
-        process.exit(1); // Exit if the build fails
+    android_autolink();
+    if (devMode === 'embedded') {
+        await android_syncDevClient();
     }
 
     try {
-        // 2. Check if the source bundle exists
-        if (!fs.existsSync(sourceBundlePath)) {
-            console.error(`❌ Build output not found at: ${sourceBundlePath}`);
-            console.error('Please ensure your build process correctly generates "main.lynx.bundle" in the "dist" directory.');
+        console.log('📦 Building Lynx project...');
+        execSync('npm run build', { stdio: 'inherit', cwd: lynxProjectDir });
+        console.log('✅ Build completed successfully.');
+    } catch (error) {
+        console.error('❌ Build process failed.');
+        process.exit(1);
+    }
+
+    if (target === 'dev-app') {
+        process.chdir(origCwd);
+    }
+
+    if (target !== 'dev-app' && devMode === 'embedded' && devClientBundlePath && !fs.existsSync(devClientBundlePath)) {
+        const devClientDir = path.dirname(path.dirname(devClientBundlePath));
+        try {
+            console.log('📦 Building dev launcher (tamer-dev-client)...');
+            execSync('npm run build', { stdio: 'inherit', cwd: devClientDir });
+            console.log('✅ Dev launcher build completed.');
+        } catch (error) {
+            console.error('❌ Dev launcher build failed.');
             process.exit(1);
         }
+    }
 
-        // 3. Ensure the destination directory exists
-        console.log(`📂 Ensuring destination directory exists at: ${destinationDir}`);
+    try {
         fs.mkdirSync(destinationDir, { recursive: true });
-
-        // 4. Copy the bundle to the assets directory
-        console.log(`🚚 Copying bundle to Android assets...`);
-        fs.copyFileSync(sourceBundlePath, destinationBundlePath);
-        console.log(`✨ Successfully copied bundle to: ${destinationBundlePath}`);
-
+        if (target !== 'dev-app' && devMode === 'embedded' && devClientBundlePath && fs.existsSync(devClientBundlePath)) {
+            fs.copyFileSync(devClientBundlePath, path.join(destinationDir, 'dev-client.lynx.bundle'));
+            console.log(`✨ Copied dev-client.lynx.bundle to assets`);
+        }
+        if (!fs.existsSync(lynxBundlePath)) {
+            console.error(`❌ Build output not found at: ${lynxBundlePath}`);
+            process.exit(1);
+        }
+        fs.copyFileSync(lynxBundlePath, path.join(destinationDir, resolved.lynxBundleFile));
+        console.log(`✨ Copied ${resolved.lynxBundleFile} to assets`);
     } catch (error: any) {
-        console.error('❌ Failed to copy the bundle file.');
-        console.error(error.message);
+        console.error(`❌ Failed to copy bundle: ${error.message}`);
         process.exit(1);
     }
 }

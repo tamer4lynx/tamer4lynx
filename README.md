@@ -1,20 +1,29 @@
 # Tamer4Lynx
 
-A CLI tool for creating, linking, and bundling native modules in Lynx projects.
+A CLI tool for creating, linking, and bundling Lynx native extensions. Aligned with the [Lynx Autolink RFC](https://github.com/lynx-family/lynx/discussions/2653).
 
-## Configuration
+**Standalone app generation** follows patterns from [Lynx Explorer](https://github.com/lynx-family/lynx/tree/develop/explorer), patched for Maven-based standalone builds (no monorepo required). See [lynx#695](https://github.com/lynx-family/lynx/issues/695) for context.
+
 ## Installation
 
-Install globally using npm:
+Install globally to use from any project:
+
+```bash
+npm i -g tamer4lynx
+```
+
+Or from GitHub:
 
 ```bash
 npm i -g nanofuxion/tamer4lynx
 ```
 
-Or with Bun:
+Then run from your project directory (where `tamer.config.json` lives):
 
 ```bash
-bun add -g nanofuxion/tamer4lynx
+t4l init
+t4l start
+t4l android build --install
 ```
 
 Tamer4Lynx uses configuration files to manage your project.
@@ -56,9 +65,17 @@ Example output:
     "appName": "MyApp",
     "bundleId": "com.example.MyApp"
   },
-  "lynxProject": "packages/example"
+  "lynxProject": "packages/example",
+  "paths": {
+    "androidDir": "android",
+    "iosDir": "ios",
+    "lynxBundleRoot": "dist",
+    "lynxBundleFile": "main.lynx.bundle"
+  }
 }
 ```
+
+**Dynamic Lynx discovery:** If `lynxProject` is omitted, Tamer4Lynx auto-discovers the Lynx project by scanning workspaces for `lynx.config.ts` or `@lynx-js/rspeedy`. Bundle output path is read from `lynx.config.ts` `output.distPath.root` when present.
 
 ---
 
@@ -78,6 +95,26 @@ This will include the asset directly in your app bundle.
 t4l --help
 t4l --version
 ```
+
+---
+
+### **Extension Commands (RFC-compliant)**
+
+#### Create a Lynx Extension
+
+```bash
+t4l create
+```
+
+Scaffolds a new extension project with `lynx.ext.json`, Android/iOS native code, and optional Element/Service support.
+
+#### Code Generation
+
+```bash
+t4l codegen
+```
+
+Run from an extension package root to generate code from `@lynxmodule` declarations in `.d.ts` files.
 
 ---
 
@@ -155,16 +192,41 @@ For the best experience, add a `postinstall` script to your project's `package.j
 
 ---
 
-## Native Module (`tamer.json`)
+## Extension Configuration
 
-Place this file in the root of each native module package you create.
+Extensions are discovered via **lynx.ext.json** (RFC standard) or **tamer.json** (legacy).
+
+### lynx.ext.json (recommended)
 
 ```json
 {
+  "platforms": {
     "android": {
-        "moduleClassName": "com.my-awesome-module.MyAwesomeModule",
-        "sourceDir": "android"
-    }
+      "packageName": "com.example.mymodule",
+      "moduleClassName": "com.example.mymodule.MyModule",
+      "sourceDir": "android"
+    },
+    "ios": {
+      "podspecPath": "ios/mymodule",
+      "moduleClassName": "MyModule"
+    },
+    "web": {}
+  }
+}
+```
+
+### tamer.json (legacy, still supported)
+
+```json
+{
+  "android": {
+    "moduleClassName": "com.my-awesome-module.MyAwesomeModule",
+    "sourceDir": "android"
+  },
+  "ios": {
+    "podspecPath": "ios/mymodule",
+    "moduleClassName": "MyModule"
+  }
 }
 ```
 
@@ -173,7 +235,10 @@ Place this file in the root of each native module package you create.
 ## Roadmap
 
 * [x] Fix iOS linking
-* [ ] Restructure `create.ts` files
+* [x] lynx.ext.json support (RFC #2653)
+* [x] create-lynx-extension command
+* [x] codegen command
+* [ ] Full codegen (Android Spec, iOS Spec, web)
 
 ---
 

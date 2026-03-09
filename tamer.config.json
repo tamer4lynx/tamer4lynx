@@ -8,5 +8,18 @@
     "appName": "MyApp",
     "bundleId": "com.nanofuxion.MyApp"
   },
-  "lynxProject": "packages/example"
+  "icon": {
+    "source": "assets/icon.png"
+  },
+  "lynxProject": "packages/example",
+  "paths": {
+    "androidDir": "android",
+    "iosDir": "ios",
+    "lynxBundleRoot": "dist",
+    "lynxBundleFile": "main.lynx.bundle"
+  },
+  "devServer": {
+    "host": "10.0.2.2",
+    "port": 3000
+  }
 }

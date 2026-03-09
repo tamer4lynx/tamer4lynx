@@ -1,21 +1,33 @@
-## Rspeedy project
+# Example – Expo-like Lynx app
 
-This is a ReactLynx project bootstrapped with `create-rspeedy`.
+ReactLynx app built with Tamer4Lynx. Includes HMR, WebSocket support via lynxwebsockets, and native modules (jiggle).
 
-## Getting Started
+## Getting started
 
-First, install the dependencies:
-
-```bash
-pnpm install
-```
-
-Then, run the development server:
+From the **project root** (not packages/example):
 
 ```bash
-pnpm run dev
+npm install
+npm run build        # build t4l CLI
+t4l android create  # one-time
+t4l start           # dev server with HMR + WebSocket
 ```
 
-Scan the QRCode in the terminal with your LynxExplorer App to see the result.
+In another terminal, build and run the app:
 
-You can start editing the page by modifying `src/App.tsx`. The page auto-updates as you edit the file.
+```bash
+t4l android build --install
+```
+
+Or use npm scripts from the root: `npm run start`, `npm run android:build:install`
+
+## Scripts
+
+- `t4l start` – Dev server (rspeedy dev) + WebSocket server for native app
+- `t4l android build` – Build APK (autolink + bundle + gradle)
+- `t4l android build -i` – Build and install on device
+
+## Dependencies
+
+- **lynxwebsockets** – Native WebSocket polyfill for Lynx (required for HMR and WebSocket in native app)
+- **jiggle** – Vibration/haptic native module

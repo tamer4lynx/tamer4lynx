@@ -1,65 +1,75 @@
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
+import { resolveHostPaths } from '../common/hostConfig';
+import ios_autolink from './autolink';
 
-function bundleAndDeploy() {
-    let lynxProject: string;
-    let appName: string;
-
+function bundleAndDeploy(opts: { target?: string } = {}) {
+    const target = opts.target ?? 'host';
+    let resolved: ReturnType<typeof resolveHostPaths>;
     try {
-        const configPath = path.join(process.cwd(), "tamer.config.json");
-        if (!fs.existsSync(configPath)) {
-            throw new Error("tamer.config.json not found in the project root.");
-        }
-        const configRaw = fs.readFileSync(configPath, "utf8");
-        const config = JSON.parse(configRaw);
-
-        lynxProject = config.lynxProject ? path.join(process.cwd(), config.lynxProject ) : process.cwd();
-        appName = config.ios?.appName;
-
-        if (!appName) {
+        resolved = resolveHostPaths();
+        if (!resolved.config.ios?.appName) {
             throw new Error('"ios.appName" must be defined in tamer.config.json');
         }
-
     } catch (error: any) {
         console.error(`❌ Error loading configuration: ${error.message}`);
         process.exit(1);
     }
 
-    const sourceBundlePath = path.join(lynxProject, 'dist', 'main.lynx.bundle');
-    const destinationDir = path.join(process.cwd(), 'ios', appName);
-    const destinationBundlePath = path.join(destinationDir, 'main.lynx.bundle');
+    const appName = resolved.config.ios!.appName!;
+    const sourceBundlePath = resolved.lynxBundlePath;
+    const destinationDir = path.join(resolved.iosDir, appName);
+    const destinationBundlePath = path.join(destinationDir, resolved.lynxBundleFile);
+
+    if (target === 'dev-app') {
+        console.error('❌ iOS dev-app target not yet implemented.');
+        process.exit(1);
+    }
+
+    ios_autolink();
+
+    if (resolved.devMode === 'embedded' && resolved.devClientBundlePath) {
+        const devAppDir = path.dirname(path.dirname(resolved.devClientBundlePath));
+        try {
+            console.log('📦 Building tamer-dev-app...');
+            execSync('npm run build', { stdio: 'inherit', cwd: devAppDir });
+            console.log('✅ Dev client build completed.');
+        } catch (error) {
+            console.error('❌ Dev client build failed.');
+            process.exit(1);
+        }
+    }
 
     try {
-        // 1. Run the build command
         console.log('📦 Starting the build process...');
-        execSync('npm run build', { stdio: 'inherit', cwd: lynxProject });
+        execSync('npm run build', { stdio: 'inherit', cwd: resolved.lynxProjectDir });
         console.log('✅ Build completed successfully.');
-
     } catch (error) {
         console.error('❌ Build process failed. Please check the errors above.');
         process.exit(1);
     }
 
     try {
-        // 2. Check if the source bundle exists
         if (!fs.existsSync(sourceBundlePath)) {
             console.error(`❌ Build output not found at: ${sourceBundlePath}`);
-            console.error('Please ensure your build process correctly generates "main.lynx.bundle" in the "dist" directory.');
             process.exit(1);
         }
 
-        // 3. Ensure the destination directory exists
         if (!fs.existsSync(destinationDir)) {
-           console.error(`Destination directory not found at: ${destinationDir}`)
-           process.exit(1)
+            console.error(`Destination directory not found at: ${destinationDir}`);
+            process.exit(1);
         }
 
-        // 4. Copy the bundle to the iOS project directory
+        if (resolved.devMode === 'embedded' && resolved.devClientBundlePath && fs.existsSync(resolved.devClientBundlePath)) {
+            const devClientDest = path.join(destinationDir, 'dev-client.lynx.bundle');
+            fs.copyFileSync(resolved.devClientBundlePath, devClientDest);
+            console.log(`✨ Copied dev-client.lynx.bundle to iOS project`);
+        }
+
         console.log(`🚚 Copying bundle to iOS project...`);
         fs.copyFileSync(sourceBundlePath, destinationBundlePath);
         console.log(`✨ Successfully copied bundle to: ${destinationBundlePath}`);
-
     } catch (error: any) {
         console.error('❌ Failed to copy the bundle file.');
         console.error(error.message);

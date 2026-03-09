@@ -58,11 +58,10 @@ async function init() {
         ios: {
             appName: iosAppName || undefined,
             bundleId: iosBundleId || undefined
-        }
+        },
+        paths: { androidDir: "android", iosDir: "ios" }
     };
-    if (lynxProject) {
-        config.lynxProject = lynxProject;
-    }
+    if (lynxProject) config.lynxProject = lynxProject;
 
     const configPath = path.join(process.cwd(), "tamer.config.json");
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));

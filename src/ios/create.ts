@@ -3,25 +3,19 @@ import path from "path";
 import { execSync } from "child_process";
 import { setupCocoaPods } from "./getPod";
 import { randomBytes } from "crypto";
+import { loadHostConfig, resolveIconPaths } from "../common/hostConfig";
 
 const create = () => {
-	// --- Helper to generate Xcode-style 24-char IDs ---
 	const generateId = () => randomBytes(12).toString('hex').toUpperCase();
 
-	// --- Configuration Loading ---
 	let appName: string;
 	let bundleId: string;
+	let config: ReturnType<typeof loadHostConfig>;
 
 	try {
-		const configPath = path.join(process.cwd(), "tamer.config.json");
-		if (!fs.existsSync(configPath)) {
-			throw new Error("tamer.config.json not found in the project root.");
-		}
-		const configRaw = fs.readFileSync(configPath, "utf8");
-		const config = JSON.parse(configRaw);
-		appName = config.ios?.appName;
-		bundleId = config.ios?.bundleId;
-
+		config = loadHostConfig();
+		appName = config.ios?.appName!;
+		bundleId = config.ios?.bundleId!;
 		if (!appName && !bundleId) {
 			throw new Error('"ios.appName" and "ios.bundleId" must be defined in tamer.config.json');
 		}
@@ -30,8 +24,8 @@ const create = () => {
 		process.exit(1);
 	}
 
-	// --- Project Setup ---
-	const rootDir = path.join(process.cwd(), "ios");
+	const iosDir = config.paths?.iosDir ?? "ios";
+	const rootDir = path.join(process.cwd(), iosDir);
 	const projectDir = path.join(rootDir, appName);
 	const xcodeprojDir = path.join(rootDir, `${appName}.xcodeproj`);
 	const bridgingHeader = `${appName}-Bridging-Header.h`;
@@ -259,15 +253,38 @@ final class LynxInitProcessor {
 #import <SDWebImage/SDWebImage.h>
 #import <SDWebImageWebPCoder/SDWebImageWebPCoder.h>
 	`);
-	 // Create a minimal asset catalog
-	fs.mkdirSync(path.join(projectDir, "Assets.xcassets", "AppIcon.appiconset"), { recursive: true });
-	writeFile(path.join(projectDir, "Assets.xcassets", "AppIcon.appiconset", "Contents.json"), `
+	const appIconDir = path.join(projectDir, "Assets.xcassets", "AppIcon.appiconset");
+	fs.mkdirSync(appIconDir, { recursive: true });
+	const iconPaths = resolveIconPaths(process.cwd(), config);
+	if (iconPaths?.ios) {
+		const entries = fs.readdirSync(iconPaths.ios, { withFileTypes: true });
+		for (const e of entries) {
+			const dest = path.join(appIconDir, e.name);
+			if (e.isDirectory()) {
+				fs.cpSync(path.join(iconPaths.ios!, e.name), dest, { recursive: true });
+			} else {
+				fs.copyFileSync(path.join(iconPaths.ios!, e.name), dest);
+			}
+		}
+		console.log("✅ Copied iOS icon from tamer.config.json icon.ios");
+	} else if (iconPaths?.source) {
+		const ext = path.extname(iconPaths.source) || ".png";
+		const icon1024 = `Icon-1024${ext}`;
+		fs.copyFileSync(iconPaths.source, path.join(appIconDir, icon1024));
+		writeFile(path.join(appIconDir, "Contents.json"), JSON.stringify({
+			images: [{ filename: icon1024, idiom: "universal", platform: "ios", size: "1024x1024" }],
+			info: { author: "xcode", version: 1 }
+		}, null, 2));
+		console.log("✅ Copied app icon from tamer.config.json icon.source");
+	} else {
+		writeFile(path.join(appIconDir, "Contents.json"), `
 {
   "images" : [ { "idiom" : "universal", "platform" : "ios", "size" : "1024x1024" } ],
   "info" : { "author" : "xcode", "version" : 1 }
 }
 	`);
-	
+	}
+
 	// --- Xcode Project File (VALID TEMPLATE) ---
 	fs.mkdirSync(xcodeprojDir, { recursive: true });
 	writeFile(path.join(xcodeprojDir, "project.pbxproj"), `

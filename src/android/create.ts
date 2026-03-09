@@ -1,28 +1,58 @@
 import fs from "fs";
 import path from "path";
-import os from "os"; // Import the 'os' module
+import os from "os";
 import { setupGradleWrapper } from "./getGradle";
+import { loadHostConfig, resolveDevMode, resolveIconPaths } from "../common/hostConfig";
+import {
+  fetchAndPatchApplication,
+  fetchAndPatchTemplateProvider,
+  getDevClientManager,
+  getProjectActivity,
+  getStandaloneMainActivity,
+} from "../explorer/patches";
+import { getDevServerPrefs } from "../explorer/devLauncher";
+import { getLynxExplorerInputSource } from "./coreElements";
 
-const create = () => {
-    // --- Configuration Loading ---
+function findRepoRoot(start: string): string {
+  let dir = path.resolve(start);
+  const root = path.parse(dir).root;
+  while (dir !== root) {
+    const pkgPath = path.join(dir, "package.json");
+    if (fs.existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+        if (pkg.workspaces) return dir;
+      } catch {}
+    }
+    dir = path.dirname(dir);
+  }
+  return start;
+}
 
-    let osName: string = "android"; // Renamed to avoid conflict with 'os' module
+const create = async (opts: { target?: string } = {}) => {
+    const target = opts.target ?? "host";
+    const origCwd = process.cwd();
+    if (target === "dev-app") {
+      const repoRoot = findRepoRoot(origCwd);
+      const devAppDir = path.join(repoRoot, "packages", "tamer-dev-app");
+      if (!fs.existsSync(path.join(devAppDir, "tamer.config.json"))) {
+        console.error("❌ packages/tamer-dev-app/tamer.config.json not found.");
+        process.exit(1);
+      }
+      process.chdir(devAppDir);
+    }
+
     let appName: string;
     let packageName: string;
     let androidSdk: string | undefined;
+    let config: ReturnType<typeof loadHostConfig>;
 
     try {
-        const configPath = path.join(process.cwd(), "tamer.config.json");
-        if (!fs.existsSync(configPath)) {
-            throw new Error("tamer.config.json not found in the project root.");
-        }
-        const configRaw = fs.readFileSync(configPath, "utf8");
-        const config = JSON.parse(configRaw);
-        packageName = config.android?.packageName;
-        appName = config.android?.appName;
+        config = loadHostConfig();
+        packageName = config.android?.packageName!;
+        appName = config.android?.appName!;
         androidSdk = config.android?.sdk;
 
-        // MODIFICATION: Normalize the SDK path if it starts with a tilde (~)
         if (androidSdk && androidSdk.startsWith("~")) {
             androidSdk = androidSdk.replace(/^~/, os.homedir());
         }
@@ -37,16 +67,15 @@ const create = () => {
         process.exit(1);
     }
 
-    // --- Project Setup ---
-
-    const kotlinDir = packageName.replace(/\./g, "/");
+    const packagePath = packageName.replace(/\./g, "/");
     const gradleVersion = "8.14.2";
-
-    const rootDir = path.join(process.cwd(), osName);
+    const androidDir = config.paths?.androidDir ?? "android";
+    const rootDir = path.join(process.cwd(), androidDir);
     const appDir = path.join(rootDir, "app");
     const mainDir = path.join(appDir, "src", "main");
-    const javaDir = path.join(mainDir, "kotlin", kotlinDir);
-    const kotlinGeneratedDir = path.join(javaDir, "generated");
+    const javaDir = path.join(mainDir, "java", packagePath);
+    const kotlinDir = path.join(mainDir, "kotlin", packagePath);
+    const kotlinGeneratedDir = path.join(kotlinDir, "generated");
     const assetsDir = path.join(mainDir, "assets");
     const themesDir = path.join(mainDir, "res", "values");
     const gradleDir = path.join(rootDir, "gradle");
@@ -101,6 +130,7 @@ activity = "1.8.0"
 constraintlayout = "2.1.4"
 okhttp = "4.9.0"
 primjs = "2.12.0"
+zxing = "4.3.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -127,6 +157,7 @@ androidx-constraintlayout = { group = "androidx.constraintlayout", name = "const
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 primjs = { module = "org.lynxsdk.lynx:primjs", version.ref = "primjs" }
 webpsupport = { module = "com.facebook.fresco:webpsupport", version.ref = "fresco" }
+zxing = { module = "com.journeyapps:zxing-android-embedded", version.ref = "zxing" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -239,6 +270,10 @@ android {
         jvmTarget = "17"
     }
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     sourceSets {
         getByName("main") {
             jniLibs.srcDirs("src/main/jniLibs")
@@ -268,6 +303,7 @@ dependencies {
     implementation(libs.lynx.service.log)
     implementation(libs.lynx.service.http)
     implementation(libs.okhttp)
+    implementation(libs.zxing)
     kapt(libs.lynx.processor)
     implementation(libs.commons.lang3)
     implementation(libs.commons.compress)
@@ -294,23 +330,44 @@ dependencies {
 `
     );
 
-    // AndroidManifest.xml
-    writeFile(
-        path.join(mainDir, "AndroidManifest.xml"),
-        `
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.INTERNET" />
-    <application
-        android:name=".Application"
-        android:label="${appName}"
-        android:usesCleartextTraffic="true"
-        android:theme="@style/Theme.MyApp">
+    const devMode = resolveDevMode(config);
+    const hasDevLauncher = devMode === "embedded";
+    const manifestActivities = hasDevLauncher
+      ? `
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".ProjectActivity" android:exported="false" android:taskAffinity="" android:launchMode="singleTask" android:documentLaunchMode="always" />
+`
+      : `
+        <activity android:name=".MainActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+`;
+    const manifestPermissions = hasDevLauncher
+      ? `    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />`
+      : `    <uses-permission android:name="android.permission.INTERNET" />`;
+    const iconPaths = resolveIconPaths(process.cwd(), config);
+    const manifestIconAttrs = iconPaths
+      ? "        android:icon=\"@mipmap/ic_launcher\"\n        android:roundIcon=\"@mipmap/ic_launcher\"\n"
+      : "";
+    writeFile(
+        path.join(mainDir, "AndroidManifest.xml"),
+        `
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+${manifestPermissions}
+    <application
+        android:name=".App"
+        android:label="${appName}"
+${manifestIconAttrs}        android:usesCleartextTraffic="true"
+        android:theme="@style/Theme.MyApp">${manifestActivities}
     </application>
 </manifest>
 `
@@ -337,134 +394,56 @@ object GeneratedLynxExtensions {
 `
     );
 
-    // Application.kt (Cleaned up to use the generated file)
-    writeFile(
-        path.join(javaDir, "Application.kt"),
-        `
-package ${packageName}
-
-import android.app.Application
-import com.facebook.drawee.backends.pipeline.Fresco
-import com.facebook.imagepipeline.core.ImagePipelineConfig
-import com.facebook.imagepipeline.memory.PoolConfig
-import com.facebook.imagepipeline.memory.PoolFactory
-import com.lynx.service.http.LynxHttpService
-import com.lynx.service.image.LynxImageService
-import com.lynx.service.log.LynxLogService
-import com.lynx.tasm.LynxEnv
-import com.lynx.tasm.service.LynxServiceCenter
-import ${packageName}.generated.GeneratedLynxExtensions
-
-class Application : Application() {
-    override fun onCreate() {
-        super.onCreate()
-        initLynxService()
-        initLynxEnv()
-    }
-
-    private fun initLynxService() {
-        // init Fresco which is needed by LynxImageService
-        val factory = PoolFactory(PoolConfig.newBuilder().build())
-        val builder =
-            ImagePipelineConfig.newBuilder(applicationContext).setPoolFactory(factory)
-        Fresco.initialize(applicationContext, builder.build())
-
-        LynxServiceCenter.inst().registerService(LynxImageService.getInstance())
-        LynxServiceCenter.inst().registerService(LynxLogService)
-        LynxServiceCenter.inst().registerService(LynxHttpService)
-    }
-
-    private fun initLynxEnv() {
-        // Register all autolinked modules and components first
-        GeneratedLynxExtensions.register(this)
-
-        LynxEnv.inst().init(
-            this,
-            null,
-            TemplateProvider(this),
-            null
-        )
-    }
-}
-`
-    );
-
-    // TemplateProvider.kt
-    writeFile(
-        path.join(javaDir, "TemplateProvider.kt"),
-        `
-package ${packageName}
-
-import android.content.Context
-import com.lynx.tasm.provider.AbsTemplateProvider
-import java.io.ByteArrayOutputStream
-import java.io.IOException
-
-class TemplateProvider(context: Context) : AbsTemplateProvider() {
-    private val mContext: Context = context.applicationContext
-
-    override fun loadTemplate(uri: String, callback: Callback) {
-        Thread {
-            try {
-                mContext.assets.open(uri).use { inputStream ->
-                    ByteArrayOutputStream().use { byteArrayOutputStream ->
-                        val buffer = ByteArray(1024)
-                        var length: Int
-                        while (inputStream.read(buffer).also { length = it } != -1) {
-                            byteArrayOutputStream.write(buffer, 0, length)
-                        }
-                        callback.onSuccess(byteArrayOutputStream.toByteArray())
-                    }
-                }
-            } catch (e: IOException) {
-                callback.onFailed(e.message)
-            }
-        }.start()
-    }
-}
-`
-    );
-
-    // MainActivity.kt
-    writeFile(
-        path.join(javaDir, "MainActivity.kt"),
-        `
-package ${packageName}
-
-import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
-import androidx.core.view.updatePadding
-import com.lynx.tasm.LynxView
-import com.lynx.tasm.LynxViewBuilder
-
-class MainActivity : AppCompatActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
-        val lynxView = buildLynxView()
-        setContentView(lynxView)
-        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(lynxView) { view, insets ->
-            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
-            val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-            view.updatePadding(bottom = if (imeVisible) imeHeight else 0)
-            insets
+    const devServer = config.devServer
+      ? {
+          host: config.devServer.host ?? "10.0.2.2",
+          port: config.devServer.port ?? config.devServer.httpPort ?? 3000,
         }
-        val uri = "main.lynx.bundle"
-        lynxView.renderTemplateUrl(uri, "")
+      : undefined;
+    const vars = { packageName, appName, devMode, devServer };
+    const [applicationSource, templateProviderSource] = await Promise.all([
+      fetchAndPatchApplication(vars),
+      fetchAndPatchTemplateProvider(vars),
+    ]);
+    writeFile(path.join(javaDir, "App.java"), applicationSource);
+    writeFile(path.join(javaDir, "TemplateProvider.java"), templateProviderSource);
+    writeFile(path.join(kotlinDir, "MainActivity.kt"), getStandaloneMainActivity(vars));
+    if (hasDevLauncher) {
+      writeFile(path.join(kotlinDir, "ProjectActivity.kt"), getProjectActivity(vars));
+    }
+    const coreDir = path.join(kotlinDir, "core");
+    writeFile(path.join(coreDir, "LynxExplorerInput.kt"), getLynxExplorerInputSource(packageName));
+    const devClientManagerSource = getDevClientManager(vars);
+    if (devClientManagerSource) {
+      writeFile(path.join(kotlinDir, "DevClientManager.kt"), devClientManagerSource);
+      writeFile(path.join(kotlinDir, "DevServerPrefs.kt"), getDevServerPrefs(vars));
     }
 
-    private fun buildLynxView(): LynxView {
-        val viewBuilder = LynxViewBuilder()
-        viewBuilder.setTemplateProvider(TemplateProvider(this))
-        return viewBuilder.build(this)
+    if (iconPaths) {
+      const resDir = path.join(mainDir, "res");
+      if (iconPaths.android) {
+        const src = iconPaths.android;
+        const entries = fs.readdirSync(src, { withFileTypes: true });
+        for (const e of entries) {
+          const dest = path.join(resDir, e.name);
+          if (e.isDirectory()) {
+            fs.cpSync(path.join(src, e.name), dest, { recursive: true });
+          } else {
+            fs.mkdirSync(resDir, { recursive: true });
+            fs.copyFileSync(path.join(src, e.name), dest);
+          }
+        }
+        console.log("✅ Copied Android icon from tamer.config.json icon.android");
+      } else if (iconPaths.source) {
+        const mipmapDensities = ["mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"];
+        for (const d of mipmapDensities) {
+          const dir = path.join(resDir, `mipmap-${d}`);
+          fs.mkdirSync(dir, { recursive: true });
+          fs.copyFileSync(iconPaths.source, path.join(dir, "ic_launcher.png"));
+        }
+        console.log("✅ Copied app icon from tamer.config.json icon.source");
+      }
     }
-}
-`
-    );
 
     // Create an empty assets directory so the project builds correctly
     fs.mkdirSync(assetsDir, { recursive: true });
@@ -501,6 +480,7 @@ class MainActivity : AppCompatActivity() {
         await setupGradleWrapper(rootDir, gradleVersion);
     }
 
-    finalizeProjectSetup();
+    await finalizeProjectSetup();
+    if (target === "dev-app") process.chdir(origCwd);
 };
 export default create;

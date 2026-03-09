@@ -1,39 +1,20 @@
 import fs from 'fs';
 import path from 'path';
+import { loadExtensionConfig, hasExtensionConfig, type NormalizedExtensionConfig } from '../common/config';
+import { resolveHostPaths } from '../common/hostConfig';
+import { getLynxExplorerInputSource } from './coreElements';
 
 const autolink = () => {
-
-    // --- Interfaces ---
-
-    interface TamerConfig {
-        android?: {
-            moduleClassName?: string;
-            sourceDir?: string;
-        };
-        ios?: {};
-    }
-
     interface DiscoveredPackage {
         name: string;
-        config: TamerConfig;
+        config: NormalizedExtensionConfig;
         packagePath: string;
     }
 
-    // --- Configuration Loading ---
-
-    let os: string = 'android';
-    let packageName: string;
-
+    let resolved: ReturnType<typeof resolveHostPaths>;
     try {
-        const configPath = path.join(process.cwd(), 'tamer.config.json');
-        if (!fs.existsSync(configPath)) {
-            throw new Error('tamer.config.json not found in the project root.');
-        }
-        const configRaw = fs.readFileSync(configPath, 'utf8');
-        const config = JSON.parse(configRaw);
-        packageName = config.android?.packageName;
-
-        if (!packageName) {
+        resolved = resolveHostPaths();
+        if (!resolved.config.android?.packageName) {
             throw new Error('"android.packageName" must be defined in tamer.config.json');
         }
     } catch (error: any) {
@@ -41,11 +22,21 @@ const autolink = () => {
         process.exit(1);
     }
 
-    // --- Constants & Paths ---
-
-    const projectRoot = process.cwd();
-    const nodeModulesPath = path.join(projectRoot, 'node_modules');
-    const appAndroidPath = path.join(projectRoot, os);
+    const { androidDir: appAndroidPath, config } = resolved;
+    const packageName = config.android!.packageName!;
+    const projectRoot = resolved.projectRoot;
+    let nodeModulesPath = path.join(projectRoot, 'node_modules');
+    const workspaceRoot = path.join(projectRoot, '..', '..');
+    const rootNodeModules = path.join(workspaceRoot, 'node_modules');
+    if (fs.existsSync(path.join(workspaceRoot, 'package.json')) && fs.existsSync(rootNodeModules) && path.basename(path.dirname(projectRoot)) === 'packages') {
+        nodeModulesPath = rootNodeModules;
+    } else if (!fs.existsSync(nodeModulesPath)) {
+        const altRoot = path.join(projectRoot, '..', '..');
+        const altNodeModules = path.join(altRoot, 'node_modules');
+        if (fs.existsSync(path.join(altRoot, 'package.json')) && fs.existsSync(altNodeModules)) {
+            nodeModulesPath = altNodeModules;
+        }
+    }
 
     // --- Core Logic ---
 
@@ -81,10 +72,7 @@ const autolink = () => {
         console.log(`✅ Updated autolinked section in ${path.basename(filePath)}`);
     }
 
-    /**
-     * Finds all packages in node_modules that contain a tamer.json file.
-     */
-    function findTamerPackages(): DiscoveredPackage[] {
+    function findExtensionPackages(): DiscoveredPackage[] {
         const packages: DiscoveredPackage[] = [];
         if (!fs.existsSync(nodeModulesPath)) {
             console.warn('⚠️ node_modules directory not found. Skipping autolinking.');
@@ -96,32 +84,24 @@ const autolink = () => {
         for (const dirName of packageDirs) {
             const fullPath = path.join(nodeModulesPath, dirName);
             const checkPackage = (name: string, packagePath: string) => {
-                const tamerConfigPath = path.join(packagePath, 'tamer.json');
-                if (fs.existsSync(tamerConfigPath)) {
-                    try {
-                        const configRaw = fs.readFileSync(tamerConfigPath, 'utf8');
-                        const config = JSON.parse(configRaw);
-                        packages.push({ name, config, packagePath });
-                    } catch (e: any) {
-                        console.warn(`⚠️  Skipping package "${name}" due to invalid tamer.json: ${e.message}`);
-                    }
+                if (!hasExtensionConfig(packagePath)) return;
+                const config = loadExtensionConfig(packagePath);
+                if (config?.android) {
+                    packages.push({ name, config, packagePath });
                 }
             };
 
             if (dirName.startsWith('@')) {
-                // Handle scoped packages like @my-org/my-package
                 try {
                     const scopedDirs = fs.readdirSync(fullPath);
                     for (const scopedDirName of scopedDirs) {
                         const scopedPackagePath = path.join(fullPath, scopedDirName);
-                        const name = `${dirName}/${scopedDirName}`;
-                        checkPackage(name, scopedPackagePath);
+                        checkPackage(`${dirName}/${scopedDirName}`, scopedPackagePath);
                     }
                 } catch (e: any) {
                     console.warn(`⚠️ Could not read scoped package directory ${fullPath}: ${e.message}`);
                 }
             } else {
-                // Handle regular packages
                 checkPackage(dirName, fullPath);
             }
         }
@@ -195,26 +175,69 @@ const autolink = () => {
         const kotlinExtensionsPath = path.join(generatedDir, 'GeneratedLynxExtensions.kt');
 
         const modulePackages = packages.filter(p => p.config.android?.moduleClassName);
+        const elementPackages = packages.filter(p => p.config.android?.elements && Object.keys(p.config.android.elements).length > 0)
+            .map(p => ({
+                ...p,
+                config: {
+                    ...p.config,
+                    android: {
+                        ...p.config.android,
+                        elements: Object.fromEntries(
+                            Object.entries(p.config.android!.elements!).filter(([tag]) => tag !== 'explorer-input' && tag !== 'input')
+                        ),
+                    },
+                },
+            }))
+            .filter(p => Object.keys(p.config.android?.elements ?? {}).length > 0);
 
-        const imports = modulePackages
+        const coreElementImport = `import ${projectPackage}.core.LynxExplorerInput`;
+        const coreElementRegistration = `        LynxEnv.inst().addBehavior(object : com.lynx.tasm.behavior.Behavior("input") {
+            override fun createUI(context: com.lynx.tasm.behavior.LynxContext): com.lynx.tasm.behavior.ui.LynxUI<*> {
+                return LynxExplorerInput(context)
+            }
+        })
+        LynxEnv.inst().addBehavior(object : com.lynx.tasm.behavior.Behavior("explorer-input") {
+            override fun createUI(context: com.lynx.tasm.behavior.LynxContext): com.lynx.tasm.behavior.ui.LynxUI<*> {
+                return LynxExplorerInput(context)
+            }
+        })`;
+
+        const moduleImports = modulePackages
             .map(p => `import ${p.config.android!.moduleClassName}`)
             .join('\n');
 
-        const registrations = modulePackages
+        const elementImports = elementPackages.flatMap(p =>
+            Object.values(p.config.android!.elements!).map(cls => `import ${cls}`)
+        ).filter((v, i, a) => a.indexOf(v) === i);
+
+        const moduleRegistrations = modulePackages
             .map(p => {
                 const fullClassName = p.config.android!.moduleClassName!;
-                // Use the package name as the module name to avoid collisions
-                const moduleName = p.name;
                 const simpleClassName = fullClassName.split('.').pop()!;
                 return `        LynxEnv.inst().registerModule("${simpleClassName}", ${simpleClassName}::class.java)`;
             })
             .join('\n');
 
+        const behaviorRegistrations = elementPackages.flatMap(p =>
+            Object.entries(p.config.android!.elements!).map(([tag, fullClassName]) => {
+                const simpleClassName = fullClassName.split('.').pop()!;
+                return `        LynxEnv.inst().addBehavior(object : com.lynx.tasm.behavior.Behavior("${tag}") {
+            override fun createUI(context: com.lynx.tasm.behavior.LynxContext): com.lynx.tasm.behavior.ui.LynxUI<*> {
+                return ${simpleClassName}(context)
+            }
+        })`;
+            })
+        ).join('\n');
+
+        const allRegistrations = [moduleRegistrations, behaviorRegistrations, coreElementRegistration].filter(Boolean).join('\n');
+
         const kotlinContent = `package ${projectPackage}.generated
 
 import android.content.Context
 import com.lynx.tasm.LynxEnv
-${imports}
+${coreElementImport}
+${moduleImports}
+${elementImports}
 
 /**
  * This file is generated by the Tamer4Lynx autolinker.
@@ -222,7 +245,7 @@ ${imports}
  */
 object GeneratedLynxExtensions {
     fun register(context: Context) {
-${registrations || '        // No native modules found to register.'}
+${allRegistrations}
     }
 }
 `;
@@ -236,8 +259,8 @@ ${registrations || '        // No native modules found to register.'}
     // --- Main Execution ---
 
     function run() {
-        console.log('🔎 Finding Tamer4Lynx native packages...');
-        const packages = findTamerPackages();
+        console.log('🔎 Finding Lynx extension packages (lynx.ext.json / tamer.json)...');
+        const packages = findExtensionPackages();
 
         if (packages.length > 0) {
             console.log(`Found ${packages.length} package(s): ${packages.map(p => p.name).join(', ')}`);
@@ -247,9 +270,49 @@ ${registrations || '        // No native modules found to register.'}
 
         updateSettingsGradle(packages);
         updateAppBuildGradle(packages);
+
+        const coreDir = path.join(appAndroidPath, 'app', 'src', 'main', 'kotlin', packageName.replace(/\./g, '/'), 'core');
+        const coreElementPath = path.join(coreDir, 'LynxExplorerInput.kt');
+        fs.mkdirSync(coreDir, { recursive: true });
+        fs.writeFileSync(coreElementPath, getLynxExplorerInputSource(packageName));
+        console.log('✅ Synced core input/explorer-input element');
+
         generateKotlinExtensionsFile(packages, packageName);
 
+        syncManifestPermissions(packages);
+
         console.log('✨ Autolinking complete.');
+    }
+
+    function syncManifestPermissions(packages: DiscoveredPackage[]): void {
+        const manifestPath = path.join(appAndroidPath, 'app', 'src', 'main', 'AndroidManifest.xml');
+        if (!fs.existsSync(manifestPath)) return;
+
+        const allPermissions = new Set<string>();
+        for (const pkg of packages) {
+            const perms = pkg.config.android?.permissions;
+            if (Array.isArray(perms)) {
+                for (const p of perms) {
+                    const name = p.startsWith('android.permission.') ? p : `android.permission.${p}`;
+                    allPermissions.add(name);
+                }
+            }
+        }
+        if (allPermissions.size === 0) return;
+
+        let manifest = fs.readFileSync(manifestPath, 'utf8');
+        const existingMatch = [...manifest.matchAll(/<uses-permission android:name="(android\.permission\.\w+)"\s*\/>/g)];
+        const existing = new Set(existingMatch.map((m) => m[1]));
+        const toAdd = [...allPermissions].filter((p) => !existing.has(p));
+        if (toAdd.length === 0) return;
+
+        const newLines = toAdd.map((p) => `    <uses-permission android:name="${p}" />`).join('\n');
+        manifest = manifest.replace(
+            /(\s*)(<application)/,
+            `${newLines}\n$1$2`
+        );
+        fs.writeFileSync(manifestPath, manifest);
+        console.log(`✅ Synced manifest permissions: ${toAdd.map((p) => p.split('.').pop()).join(', ')}`);
     }
 
     run();
