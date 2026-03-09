@@ -44,3 +44,4 @@ packages/*/android/.settings
 
 # temporarily ignore these files
 /base
+/reference

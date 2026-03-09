@@ -138,6 +138,13 @@ t4l android link
 t4l android bundle
 ```
 
+#### Build Dev App (when tamer-dev-client is installed)
+
+```bash
+t4l build-dev-app
+t4l build-dev-app --install
+```
+
 ---
 
 ### **iOS Commands**
@@ -248,6 +255,8 @@ Working native modules for both **Android** and **iOS**:
 
 - [Jiggle: Vibration module (Android & iOS)](https://github.com/nanofuxion/jiggle)
 - [Lynx-Websockets: Websocket module (Android & iOS)](https://github.com/nanofuxion/lynxwebsockets)
+- [tamer-dev-app: Dev app for HMR and project debugging](https://github.com/nanofuxion/tamer-dev-app)
+- [tamer-dev-client: Dev launcher UI and bundle](https://github.com/nanofuxion/tamer-dev-client)
 
 **Note:** These modules are included as git submodules. The iOS autolinking feature is now fully functional and will automatically run `pod install` for you.
 
