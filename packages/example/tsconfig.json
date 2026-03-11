@@ -18,5 +18,6 @@
       "tamer-router/generated-routes": ["node_modules/.tamer-router/_generated_routes.tsx"]
     }
   },
-  "exclude": ["dist/"],
+  "include": ["src/**/*", "lynx.config.ts"],
+  "exclude": ["dist/"]
 }

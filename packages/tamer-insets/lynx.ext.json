@@ -1,0 +1,9 @@
+{
+  "platforms": {
+    "android": {
+      "packageName": "com.nanofuxion.tamerinsets",
+      "moduleClassName": "com.nanofuxion.tamerinsets.TamerInsetsModule",
+      "sourceDir": "android"
+    }
+  }
+}

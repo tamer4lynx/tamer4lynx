@@ -17,12 +17,11 @@
     "jiggle": "*",
     "lynxwebsockets": "*",
     "react-router": "^6.28.0",
-    "tamer-app-shell": "file:../tamer-app-shell",
     "tamer-dev-client": "*",
     "tamer-insets": "file:../tamer-insets",
+    "tamer-screen": "file:../tamer-screen",
     "tamer-plugin": "*",
     "tamer-router": "*",
-    "tamer-screen": "file:../tamer-screen",
     "ws": "^8.18.3"
   },
   "devDependencies": {

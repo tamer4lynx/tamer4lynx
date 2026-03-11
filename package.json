@@ -19,7 +19,6 @@
     "packages/example",
     "packages/jiggle",
     "packages/lynxwebsockets",
-    "packages/tamer-app-shell",
     "packages/tamer-dev-client",
     "packages/tamer-dev-app",
     "packages/tamer-insets",
