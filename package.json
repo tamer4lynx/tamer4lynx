@@ -21,10 +21,13 @@
     "packages/lynxwebsockets",
     "packages/tamer-dev-client",
     "packages/tamer-dev-app",
+    "packages/tamer-icons",
     "packages/tamer-insets",
     "packages/tamer-plugin",
     "packages/tamer-router",
-    "packages/tamer-screen"
+    "packages/tamer-screen",
+    "packages/tamer-system-ui",
+    "packages/tamer-app-shell"
   ],
   "keywords": [
     "lynx",

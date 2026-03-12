@@ -25,3 +25,6 @@
 [submodule "packages/tamer-system-ui"]
 	path = packages/tamer-system-ui
 	url = https://github.com/nanofuxion/tamer-system-ui.git
+[submodule "packages/tamer-app-shell"]
+	path = packages/tamer-app-shell
+	url = https://github.com/nanofuxion/tamer-app-shell.git
