@@ -17,15 +17,29 @@ export interface HostConfigIcon {
   ios?: string;
 }
 
+export interface DeepLinkConfig {
+  scheme: string;
+  host?: string;
+  pathPrefix?: string;
+  activity?: string;
+}
+
+export interface IosUrlSchemeConfig {
+  scheme: string;
+  role?: string;
+}
+
 export interface HostConfig {
   android?: {
     appName?: string;
     packageName?: string;
     sdk?: string;
+    deepLinks?: DeepLinkConfig[];
   };
   ios?: {
     appName?: string;
     bundleId?: string;
+    urlSchemes?: IosUrlSchemeConfig[];
   };
   icon?: string | HostConfigIcon;
   paths?: HostConfigPaths;

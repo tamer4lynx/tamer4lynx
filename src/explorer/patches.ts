@@ -1,5 +1,4 @@
 import type { DevMode } from "../common/hostConfig";
-import { discoverNativeExtensions } from "../common/config";
 import { fetchExplorerFile } from "./ref";
 
 export type PatchVars = {
@@ -261,8 +260,6 @@ class DevClientManager(private val context: Context, private val onReload: Runna
 
 export function getProjectActivity(vars: PatchVars): string {
   const hasDevClient = vars.devMode === "embedded";
-  const extensions = vars.projectRoot ? discoverNativeExtensions(vars.projectRoot) : [];
-  const hasTamerInsets = extensions.some((e) => e.packageName === "tamer-insets");
 
   const devClientInit = hasDevClient
     ? `
@@ -281,81 +278,78 @@ export function getProjectActivity(vars: PatchVars): string {
     ? `
 import ${vars.packageName}.DevClientManager`
     : "";
-  const routerImport = `
-import com.nanofuxion.tamerrouter.TamerRouterNativeModule`;
-  const insetsImport = hasTamerInsets ? `
-import com.nanofuxion.tamerinsets.TamerInsetsModule` : "";
-  const insetsHandlerImport = hasTamerInsets ? `
-import android.os.Handler
-import android.os.Looper` : "";
-  const insetsAttach = hasTamerInsets ? `
-        TamerInsetsModule.attachHostView(lynxView)` : "";
-  const insetsDetach = hasTamerInsets ? `
-        TamerInsetsModule.attachHostView(null)` : "";
-  const insetsHandlerField = hasTamerInsets ? `
-    private val handler = Handler(Looper.getMainLooper())` : "";
-  const insetsDelayedOnCreate = hasTamerInsets
-    ? `
-        listOf(150L, 400L, 800L).forEach { delay ->
-            handler.postDelayed({ TamerInsetsModule.reRequestInsets() }, delay)
-        }`
-    : "";
-  const insetsOnWindowFocus = hasTamerInsets ? `
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) TamerInsetsModule.reRequestInsets()
-    }
-` : "";
 
-  const insetsListenerBlock = hasTamerInsets
-    ? ""
-    : `
+  const reloadMethod = hasDevClient
+    ? `
+    private fun reloadProjectView() {
+        GeneratedActivityLifecycle.onViewDetached()
+        GeneratedLynxExtensions.onHostViewChanged(null)
+        lynxView?.destroy()
+
+        val nextView = buildLynxView()
+        lynxView = nextView
+        setContentView(nextView)
+        GeneratedActivityLifecycle.onViewAttached(nextView)
+        GeneratedLynxExtensions.onHostViewChanged(nextView)
+        nextView.renderTemplateUrl("main.lynx.bundle", "")
+        GeneratedActivityLifecycle.onCreateDelayed(handler)
+    }
+`
+    : "";
+
+  return `package ${vars.packageName}
+
+import android.content.Intent
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.MotionEvent
+import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.updatePadding
+import com.lynx.tasm.LynxView
+import com.lynx.tasm.LynxViewBuilder${devClientImports}
+import ${vars.packageName}.generated.GeneratedLynxExtensions
+import ${vars.packageName}.generated.GeneratedActivityLifecycle
+
+class ProjectActivity : AppCompatActivity() {
+    private var lynxView: LynxView? = null
+${devClientField}    private val handler = Handler(Looper.getMainLooper())
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        GeneratedActivityLifecycle.onCreate(intent)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
+        lynxView = buildLynxView()
+        setContentView(lynxView)
         ViewCompat.setOnApplyWindowInsetsListener(lynxView!!) { view, insets ->
             val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
             val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
             view.updatePadding(bottom = if (imeVisible) imeHeight else 0)
             insets
-        }`;
-
-  const insetsImports = hasTamerInsets
-    ? ""
-    : `
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
-import androidx.core.view.ViewCompat`;
-
-  const insetsDelayedReload = hasTamerInsets && hasDevClient
-    ? `
-        listOf(150L, 400L, 800L).forEach { delay ->
-            handler.postDelayed({ TamerInsetsModule.reRequestInsets() }, delay)
-        }`
-    : "";
-  const reloadMethod = hasDevClient
-    ? `
-    private fun reloadProjectView() {
-        val oldView = lynxView
-        TamerRouterNativeModule.attachHostView(null)${insetsDetach}
-        oldView?.destroy()
-
-        val nextView = buildLynxView()
-        lynxView = nextView
-        setContentView(nextView)
-        TamerRouterNativeModule.attachHostView(nextView)${insetsAttach.replace("lynxView", "nextView")}
-        nextView.renderTemplateUrl("main.lynx.bundle", "")${insetsDelayedReload}
+        }
+        GeneratedActivityLifecycle.onViewAttached(lynxView)
+        GeneratedLynxExtensions.onHostViewChanged(lynxView)
+        lynxView?.renderTemplateUrl("main.lynx.bundle", "")${devClientInit}
+        GeneratedActivityLifecycle.onCreateDelayed(handler)
     }
-`
-    : "";
 
-  const onResumeBlock = hasTamerInsets
-    ? `
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        GeneratedActivityLifecycle.onWindowFocusChanged(hasFocus)
+    }
+${reloadMethod}
     override fun onResume() {
         super.onResume()
-        lynxView?.let { TamerInsetsModule.reRequestInsets() }
+        GeneratedActivityLifecycle.onResume()
     }
-`
-    : "";
 
-  const touchBlurBlock = `
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         if (ev.action == MotionEvent.ACTION_DOWN) maybeClearFocusedInput(ev)
         return super.dispatchTouchEvent(ev)
@@ -375,36 +369,16 @@ import androidx.core.view.ViewCompat`;
             }
         }
     }
-`;
 
-  return `package ${vars.packageName}
-
-import android.os.Bundle${insetsHandlerImport}
-import android.view.MotionEvent
-import android.view.inputmethod.InputMethodManager
-import android.widget.EditText
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsControllerCompat${insetsImports}
-import com.lynx.tasm.LynxView
-import com.lynx.tasm.LynxViewBuilder${devClientImports}${routerImport}${insetsImport}
-
-class ProjectActivity : AppCompatActivity() {
-    private var lynxView: LynxView? = null
-${devClientField}${insetsHandlerField}
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
-        lynxView = buildLynxView()
-        setContentView(lynxView)${insetsListenerBlock}
-        TamerRouterNativeModule.attachHostView(lynxView)${insetsAttach}
-        lynxView?.renderTemplateUrl("main.lynx.bundle", "")${devClientInit}${insetsDelayedOnCreate}
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        GeneratedActivityLifecycle.onNewIntent(intent)
     }
-${insetsOnWindowFocus}${reloadMethod}${onResumeBlock}${touchBlurBlock}
+
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        TamerRouterNativeModule.requestBack { consumed ->
+        GeneratedActivityLifecycle.onBackPressed { consumed ->
             if (!consumed) {
                 runOnUiThread { super.onBackPressed() }
             }
@@ -412,7 +386,8 @@ ${insetsOnWindowFocus}${reloadMethod}${onResumeBlock}${touchBlurBlock}
     }
 
     override fun onDestroy() {
-        TamerRouterNativeModule.attachHostView(null)${insetsDetach}
+        GeneratedActivityLifecycle.onViewDetached()
+        GeneratedLynxExtensions.onHostViewChanged(null)
         lynxView?.destroy()
         lynxView = null${devClientCleanup}
         super.onDestroy()
@@ -437,10 +412,6 @@ class PortraitCaptureActivity : CaptureActivity()
 }
 
 export function getStandaloneMainActivity(vars: PatchVars): string {
-  const extensions = vars.projectRoot ? discoverNativeExtensions(vars.projectRoot) : [];
-  const hasTamerInsets = extensions.some((e) => e.packageName === "tamer-insets");
-  const hasTamerRouter = extensions.some((e) => e.packageName === "tamer-router");
-  const hasHostViewModules = extensions.some((e) => e.attachHostView);
   const hasDevClient = vars.devMode === "embedded";
   const devClientImports = hasDevClient
     ? `
@@ -455,7 +426,6 @@ import com.google.zxing.integration.android.IntentResult
 import com.nanofuxion.tamerdevclient.DevClientModule
 `
     : "";
-  const devClientUriInit = hasDevClient ? "" : "";
   const devClientInit = hasDevClient
     ? `
         DevClientModule.attachHostActivity(this)
@@ -504,50 +474,13 @@ import com.nanofuxion.tamerdevclient.DevClientModule
     }
 `
     : "";
-  const routerImport = hasTamerRouter
-    ? `
-import com.nanofuxion.tamerrouter.TamerRouterNativeModule`
-    : "";
-  const insetsImport = hasTamerInsets
-    ? `
-import com.nanofuxion.tamerinsets.TamerInsetsModule`
-    : "";
-  const generatedExtImport = hasHostViewModules
-    ? `
-import ${vars.packageName}.generated.GeneratedLynxExtensions`
-    : "";
-  const insetsListenerBlock = hasTamerInsets
-    ? ""
-    : `
-        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(lynxView!!) { view, insets ->
-            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
-            val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-            view.updatePadding(bottom = if (imeVisible) imeHeight else 0)
-            insets
-        }`;
-  const routerAttach = hasTamerRouter
-    ? `
-        TamerRouterNativeModule.attachHostView(lynxView)`
-    : "";
-  const insetsAttach = hasTamerInsets
-    ? `
-        TamerInsetsModule.attachHostView(lynxView)`
-    : "";
-  const generatedExtAttach = hasHostViewModules
-    ? `
-        GeneratedLynxExtensions.onHostViewChanged(lynxView)`
-    : "";
-  const generatedExtDetach = hasHostViewModules
-    ? `
-        GeneratedLynxExtensions.onHostViewChanged(null)`
-    : "";
 
   const devClientCleanup = hasDevClient
     ? `
     override fun onDestroy() {
-        reloadReceiver?.let { unregisterReceiver(it) }${hasTamerRouter ? `
-        TamerRouterNativeModule.attachHostView(null)` : ""}${hasTamerInsets ? `
-        TamerInsetsModule.attachHostView(null)` : ""}${generatedExtDetach}
+        reloadReceiver?.let { unregisterReceiver(it) }
+        GeneratedActivityLifecycle.onViewDetached()
+        GeneratedLynxExtensions.onHostViewChanged(null)
         lynxView?.destroy()
         lynxView = null
         DevClientModule.attachReloadProjectLauncher(null)
@@ -556,41 +489,58 @@ import ${vars.packageName}.generated.GeneratedLynxExtensions`
     }
 `
     : "";
-  const backOverride = hasTamerRouter
-    ? `
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        TamerRouterNativeModule.requestBack { consumed ->
-            if (!consumed) {
-                runOnUiThread { super.onBackPressed() }
-            }
-        }
-    }
-`
-    : "";
 
-  const onPauseBlock = (hasTamerInsets && hasDevClient) || hasHostViewModules
-    ? `
-    override fun onPause() {
-        super.onPause()${hasTamerInsets ? `
-        TamerInsetsModule.attachHostView(null)` : ""}${generatedExtDetach}
+  return `package ${vars.packageName}
+
+import android.os.Build
+import android.os.Bundle
+import android.view.MotionEvent
+import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.updatePadding
+import com.lynx.tasm.LynxView
+import com.lynx.tasm.LynxViewBuilder${devClientImports}
+import ${vars.packageName}.generated.GeneratedLynxExtensions
+import ${vars.packageName}.generated.GeneratedActivityLifecycle
+
+class MainActivity : AppCompatActivity() {
+${devClientField}    private var lynxView: LynxView? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
+        lynxView = buildLynxView()
+        setContentView(lynxView)
+        ViewCompat.setOnApplyWindowInsetsListener(lynxView!!) { view, insets ->
+            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
+            val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            view.updatePadding(bottom = if (imeVisible) imeHeight else 0)
+            insets
+        }
+        GeneratedActivityLifecycle.onViewAttached(lynxView)
+        GeneratedLynxExtensions.onHostViewChanged(lynxView)
+        lynxView?.renderTemplateUrl(${hasDevClient ? 'currentUri' : '"main.lynx.bundle"'}, "")${devClientInit}
     }
-`
-    : "";
-  const onResumeBlock = hasTamerInsets || hasHostViewModules
-    ? `
+
+    override fun onPause() {
+        super.onPause()
+        GeneratedActivityLifecycle.onPause()
+    }
+
     override fun onResume() {
         super.onResume()
-        lynxView?.let {${hasTamerInsets ? `
-            TamerInsetsModule.attachHostView(it)
-            TamerInsetsModule.reRequestInsets()` : ""}${hasHostViewModules ? `
-            GeneratedLynxExtensions.onHostViewChanged(it)` : ""}
+        lynxView?.let {
+            GeneratedLynxExtensions.onHostViewChanged(it)
         }
+        GeneratedActivityLifecycle.onResume()
     }
-`
-    : "";
 
-  const touchBlurBlockMain = `
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         if (ev.action == MotionEvent.ACTION_DOWN) maybeClearFocusedInput(ev)
         return super.dispatchTouchEvent(ev)
@@ -610,36 +560,16 @@ import ${vars.packageName}.generated.GeneratedLynxExtensions`
             }
         }
     }
-`;
 
-  return `package ${vars.packageName}
-
-import android.os.Build
-import android.os.Bundle
-import android.view.MotionEvent
-import android.view.inputmethod.InputMethodManager
-import android.widget.EditText
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
-import androidx.core.view.updatePadding
-import com.lynx.tasm.LynxView
-import com.lynx.tasm.LynxViewBuilder${devClientImports}${routerImport}${insetsImport}${generatedExtImport}
-
-class MainActivity : AppCompatActivity() {
-${devClientField}    private var lynxView: LynxView? = null
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
-        lynxView = buildLynxView()
-        setContentView(lynxView)${insetsListenerBlock}${routerAttach}${insetsAttach}${generatedExtAttach}
-        ${devClientUriInit}lynxView?.renderTemplateUrl(${hasDevClient ? 'currentUri' : 'uri'}, "")${devClientInit}
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        GeneratedActivityLifecycle.onBackPressed { consumed ->
+            if (!consumed) {
+                runOnUiThread { super.onBackPressed() }
+            }
+        }
     }
-${onPauseBlock}${onResumeBlock}${touchBlurBlockMain}
-${backOverride}
+
     private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
         viewBuilder.setTemplateProvider(TemplateProvider(this))

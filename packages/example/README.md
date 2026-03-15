@@ -1,6 +1,6 @@
 # Example – Expo-like Lynx app
 
-ReactLynx app built with Tamer4Lynx. Includes HMR, WebSocket support via lynxwebsockets, and native modules (jiggle).
+ReactLynx app built with Tamer4Lynx. Includes HMR, WebSocket support via tamer-transports, and native modules (jiggle).
 
 ## Getting started
 
@@ -29,5 +29,5 @@ Or use npm scripts from the root: `npm run start`, `npm run android:build:instal
 
 ## Dependencies
 
-- **lynxwebsockets** – Native WebSocket polyfill for Lynx (required for HMR and WebSocket in native app)
+- **tamer-transports** – Native fetch, WebSocket, and EventSource polyfills for Lynx (required for HMR and WebSocket in native app)
 - **jiggle** – Vibration/haptic native module

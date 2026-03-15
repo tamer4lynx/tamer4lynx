@@ -15,7 +15,10 @@
 
     "baseUrl": ".",
     "paths": {
-      "tamer-router/generated-routes": ["node_modules/.tamer-router/_generated_routes.tsx"]
+      "tamer-router/generated-routes": ["node_modules/.tamer-router/_generated_routes.tsx"],
+      "tamer-auth": ["../tamer-auth/src/index.ts"],
+      "tamer-linking": ["../tamer-linking/src/index.ts"],
+      "tamer-display-browser": ["../tamer-display-browser/src/index.ts"]
     }
   },
   "include": ["intrinsic-element.d.ts", "src/**/*", "lynx.config.ts"],

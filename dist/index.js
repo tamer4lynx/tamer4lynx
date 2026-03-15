@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 
 // index.ts
-import fs19 from "fs";
-import path19 from "path";
+import fs20 from "fs";
+import path20 from "path";
 import { program } from "commander";
 
 // package.json
 var version = "0.0.1";
 
 // src/android/create.ts
-import fs4 from "fs";
-import path4 from "path";
+import fs3 from "fs";
+import path3 from "path";
 import os2 from "os";
 
 // src/android/getGradle.ts
@@ -309,109 +309,6 @@ function resolveDevAppPaths(repoRoot) {
   };
 }
 
-// src/common/config.ts
-import fs3 from "fs";
-import path3 from "path";
-var LYNX_EXT_JSON = "lynx.ext.json";
-var TAMER_JSON = "tamer.json";
-function loadLynxExtJson(packagePath) {
-  const p = path3.join(packagePath, LYNX_EXT_JSON);
-  if (!fs3.existsSync(p)) return null;
-  try {
-    return JSON.parse(fs3.readFileSync(p, "utf8"));
-  } catch {
-    return null;
-  }
-}
-function loadTamerJson(packagePath) {
-  const p = path3.join(packagePath, TAMER_JSON);
-  if (!fs3.existsSync(p)) return null;
-  try {
-    return JSON.parse(fs3.readFileSync(p, "utf8"));
-  } catch {
-    return null;
-  }
-}
-function loadExtensionConfig(packagePath) {
-  const lynxExt = loadLynxExtJson(packagePath);
-  const tamer = loadTamerJson(packagePath);
-  const raw = lynxExt ?? tamer;
-  if (!raw) return null;
-  const normalized = {};
-  if (raw.platforms?.android || raw.android) {
-    const a = raw.platforms?.android ?? raw.android;
-    const moduleClassName = a?.moduleClassName ?? raw.android?.moduleClassName;
-    const elements = a?.elements ?? raw.android?.elements;
-    const permissions = a?.permissions ?? raw.android?.permissions;
-    const attachHostView = a?.attachHostView ?? raw.android?.attachHostView;
-    if (moduleClassName || elements || permissions || attachHostView) {
-      normalized.android = {
-        ...moduleClassName && { moduleClassName },
-        sourceDir: a?.sourceDir ?? raw.android?.sourceDir ?? "android",
-        ...elements && Object.keys(elements).length > 0 && { elements },
-        ...permissions && Array.isArray(permissions) && permissions.length > 0 && { permissions },
-        ...attachHostView && { attachHostView: true }
-      };
-    }
-  }
-  if (raw.platforms?.ios || raw.ios) {
-    const i = raw.platforms?.ios ?? raw.ios;
-    const moduleClassName = i?.moduleClassName ?? raw.ios?.moduleClassName;
-    if (moduleClassName) {
-      normalized.ios = {
-        moduleClassName,
-        podspecPath: i?.podspecPath ?? raw.ios?.podspecPath ?? "."
-      };
-    }
-  }
-  if (Object.keys(normalized).length === 0) return null;
-  return normalized;
-}
-function hasExtensionConfig(packagePath) {
-  return fs3.existsSync(path3.join(packagePath, LYNX_EXT_JSON)) || fs3.existsSync(path3.join(packagePath, TAMER_JSON));
-}
-function getNodeModulesPath(projectRoot) {
-  let nodeModulesPath = path3.join(projectRoot, "node_modules");
-  const workspaceRoot = path3.join(projectRoot, "..", "..");
-  const rootNodeModules = path3.join(workspaceRoot, "node_modules");
-  if (fs3.existsSync(path3.join(workspaceRoot, "package.json")) && fs3.existsSync(rootNodeModules) && path3.basename(path3.dirname(projectRoot)) === "packages") {
-    nodeModulesPath = rootNodeModules;
-  } else if (!fs3.existsSync(nodeModulesPath)) {
-    const altRoot = path3.join(projectRoot, "..", "..");
-    const altNodeModules = path3.join(altRoot, "node_modules");
-    if (fs3.existsSync(path3.join(altRoot, "package.json")) && fs3.existsSync(altNodeModules)) {
-      nodeModulesPath = altNodeModules;
-    }
-  }
-  return nodeModulesPath;
-}
-function discoverNativeExtensions(projectRoot) {
-  const nodeModulesPath = getNodeModulesPath(projectRoot);
-  const result = [];
-  if (!fs3.existsSync(nodeModulesPath)) return result;
-  const packageDirs = fs3.readdirSync(nodeModulesPath);
-  const check = (name, packagePath) => {
-    if (!hasExtensionConfig(packagePath)) return;
-    const config = loadExtensionConfig(packagePath);
-    const className = config?.android?.moduleClassName;
-    if (className) result.push({ packageName: name, moduleClassName: className, attachHostView: config?.android?.attachHostView });
-  };
-  for (const dirName of packageDirs) {
-    const fullPath = path3.join(nodeModulesPath, dirName);
-    if (dirName.startsWith("@")) {
-      try {
-        for (const scopedDirName of fs3.readdirSync(fullPath)) {
-          check(`${dirName}/${scopedDirName}`, path3.join(fullPath, scopedDirName));
-        }
-      } catch {
-      }
-    } else {
-      check(dirName, fullPath);
-    }
-  }
-  return result;
-}
-
 // src/explorer/ref.ts
 var LYNX_RAW_BASE = "https://raw.githubusercontent.com/lynx-family/lynx/develop/explorer";
 async function fetchExplorerFile(relativePath) {
@@ -638,8 +535,6 @@ class DevClientManager(private val context: Context, private val onReload: Runna
 }
 function getProjectActivity(vars) {
   const hasDevClient = vars.devMode === "embedded";
-  const extensions = vars.projectRoot ? discoverNativeExtensions(vars.projectRoot) : [];
-  const hasTamerInsets = extensions.some((e) => e.packageName === "tamer-insets");
   const devClientInit = hasDevClient ? `
         devClientManager = DevClientManager(this) { reloadProjectView() }
         devClientManager?.connect()
@@ -651,64 +546,74 @@ function getProjectActivity(vars) {
 ` : "";
   const devClientImports = hasDevClient ? `
 import ${vars.packageName}.DevClientManager` : "";
-  const routerImport = `
-import com.nanofuxion.tamerrouter.TamerRouterNativeModule`;
-  const insetsImport = hasTamerInsets ? `
-import com.nanofuxion.tamerinsets.TamerInsetsModule` : "";
-  const insetsHandlerImport = hasTamerInsets ? `
-import android.os.Handler
-import android.os.Looper` : "";
-  const insetsAttach = hasTamerInsets ? `
-        TamerInsetsModule.attachHostView(lynxView)` : "";
-  const insetsDetach = hasTamerInsets ? `
-        TamerInsetsModule.attachHostView(null)` : "";
-  const insetsHandlerField = hasTamerInsets ? `
-    private val handler = Handler(Looper.getMainLooper())` : "";
-  const insetsDelayedOnCreate = hasTamerInsets ? `
-        listOf(150L, 400L, 800L).forEach { delay ->
-            handler.postDelayed({ TamerInsetsModule.reRequestInsets() }, delay)
-        }` : "";
-  const insetsOnWindowFocus = hasTamerInsets ? `
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) TamerInsetsModule.reRequestInsets()
+  const reloadMethod = hasDevClient ? `
+    private fun reloadProjectView() {
+        GeneratedActivityLifecycle.onViewDetached()
+        GeneratedLynxExtensions.onHostViewChanged(null)
+        lynxView?.destroy()
+
+        val nextView = buildLynxView()
+        lynxView = nextView
+        setContentView(nextView)
+        GeneratedActivityLifecycle.onViewAttached(nextView)
+        GeneratedLynxExtensions.onHostViewChanged(nextView)
+        nextView.renderTemplateUrl("main.lynx.bundle", "")
+        GeneratedActivityLifecycle.onCreateDelayed(handler)
     }
 ` : "";
-  const insetsListenerBlock = hasTamerInsets ? "" : `
+  return `package ${vars.packageName}
+
+import android.content.Intent
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.MotionEvent
+import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.updatePadding
+import com.lynx.tasm.LynxView
+import com.lynx.tasm.LynxViewBuilder${devClientImports}
+import ${vars.packageName}.generated.GeneratedLynxExtensions
+import ${vars.packageName}.generated.GeneratedActivityLifecycle
+
+class ProjectActivity : AppCompatActivity() {
+    private var lynxView: LynxView? = null
+${devClientField}    private val handler = Handler(Looper.getMainLooper())
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        GeneratedActivityLifecycle.onCreate(intent)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
+        lynxView = buildLynxView()
+        setContentView(lynxView)
         ViewCompat.setOnApplyWindowInsetsListener(lynxView!!) { view, insets ->
             val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
             val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
             view.updatePadding(bottom = if (imeVisible) imeHeight else 0)
             insets
-        }`;
-  const insetsImports = hasTamerInsets ? "" : `
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
-import androidx.core.view.ViewCompat`;
-  const insetsDelayedReload = hasTamerInsets && hasDevClient ? `
-        listOf(150L, 400L, 800L).forEach { delay ->
-            handler.postDelayed({ TamerInsetsModule.reRequestInsets() }, delay)
-        }` : "";
-  const reloadMethod = hasDevClient ? `
-    private fun reloadProjectView() {
-        val oldView = lynxView
-        TamerRouterNativeModule.attachHostView(null)${insetsDetach}
-        oldView?.destroy()
-
-        val nextView = buildLynxView()
-        lynxView = nextView
-        setContentView(nextView)
-        TamerRouterNativeModule.attachHostView(nextView)${insetsAttach.replace("lynxView", "nextView")}
-        nextView.renderTemplateUrl("main.lynx.bundle", "")${insetsDelayedReload}
+        }
+        GeneratedActivityLifecycle.onViewAttached(lynxView)
+        GeneratedLynxExtensions.onHostViewChanged(lynxView)
+        lynxView?.renderTemplateUrl("main.lynx.bundle", "")${devClientInit}
+        GeneratedActivityLifecycle.onCreateDelayed(handler)
     }
-` : "";
-  const onResumeBlock = hasTamerInsets ? `
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        GeneratedActivityLifecycle.onWindowFocusChanged(hasFocus)
+    }
+${reloadMethod}
     override fun onResume() {
         super.onResume()
-        lynxView?.let { TamerInsetsModule.reRequestInsets() }
+        GeneratedActivityLifecycle.onResume()
     }
-` : "";
-  const touchBlurBlock = `
+
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         if (ev.action == MotionEvent.ACTION_DOWN) maybeClearFocusedInput(ev)
         return super.dispatchTouchEvent(ev)
@@ -728,35 +633,16 @@ import androidx.core.view.ViewCompat`;
             }
         }
     }
-`;
-  return `package ${vars.packageName}
 
-import android.os.Bundle${insetsHandlerImport}
-import android.view.MotionEvent
-import android.view.inputmethod.InputMethodManager
-import android.widget.EditText
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsControllerCompat${insetsImports}
-import com.lynx.tasm.LynxView
-import com.lynx.tasm.LynxViewBuilder${devClientImports}${routerImport}${insetsImport}
-
-class ProjectActivity : AppCompatActivity() {
-    private var lynxView: LynxView? = null
-${devClientField}${insetsHandlerField}
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
-        lynxView = buildLynxView()
-        setContentView(lynxView)${insetsListenerBlock}
-        TamerRouterNativeModule.attachHostView(lynxView)${insetsAttach}
-        lynxView?.renderTemplateUrl("main.lynx.bundle", "")${devClientInit}${insetsDelayedOnCreate}
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        GeneratedActivityLifecycle.onNewIntent(intent)
     }
-${insetsOnWindowFocus}${reloadMethod}${onResumeBlock}${touchBlurBlock}
+
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        TamerRouterNativeModule.requestBack { consumed ->
+        GeneratedActivityLifecycle.onBackPressed { consumed ->
             if (!consumed) {
                 runOnUiThread { super.onBackPressed() }
             }
@@ -764,7 +650,8 @@ ${insetsOnWindowFocus}${reloadMethod}${onResumeBlock}${touchBlurBlock}
     }
 
     override fun onDestroy() {
-        TamerRouterNativeModule.attachHostView(null)${insetsDetach}
+        GeneratedActivityLifecycle.onViewDetached()
+        GeneratedLynxExtensions.onHostViewChanged(null)
         lynxView?.destroy()
         lynxView = null${devClientCleanup}
         super.onDestroy()
@@ -787,10 +674,6 @@ class PortraitCaptureActivity : CaptureActivity()
 `;
 }
 function getStandaloneMainActivity(vars) {
-  const extensions = vars.projectRoot ? discoverNativeExtensions(vars.projectRoot) : [];
-  const hasTamerInsets = extensions.some((e) => e.packageName === "tamer-insets");
-  const hasTamerRouter = extensions.some((e) => e.packageName === "tamer-router");
-  const hasHostViewModules = extensions.some((e) => e.attachHostView);
   const hasDevClient = vars.devMode === "embedded";
   const devClientImports = hasDevClient ? `
 import android.Manifest
@@ -803,7 +686,6 @@ import com.google.zxing.integration.android.IntentIntegrator
 import com.google.zxing.integration.android.IntentResult
 import com.nanofuxion.tamerdevclient.DevClientModule
 ` : "";
-  const devClientUriInit = hasDevClient ? "" : "";
   const devClientInit = hasDevClient ? `
         DevClientModule.attachHostActivity(this)
         DevClientModule.attachLynxView(lynxView)
@@ -848,32 +730,11 @@ import com.nanofuxion.tamerdevclient.DevClientModule
         scanResult?.contents?.let { DevClientModule.instance?.deliverScanResult(it) }
     }
 ` : "";
-  const routerImport = hasTamerRouter ? `
-import com.nanofuxion.tamerrouter.TamerRouterNativeModule` : "";
-  const insetsImport = hasTamerInsets ? `
-import com.nanofuxion.tamerinsets.TamerInsetsModule` : "";
-  const generatedExtImport = hasHostViewModules ? `
-import ${vars.packageName}.generated.GeneratedLynxExtensions` : "";
-  const insetsListenerBlock = hasTamerInsets ? "" : `
-        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(lynxView!!) { view, insets ->
-            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
-            val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-            view.updatePadding(bottom = if (imeVisible) imeHeight else 0)
-            insets
-        }`;
-  const routerAttach = hasTamerRouter ? `
-        TamerRouterNativeModule.attachHostView(lynxView)` : "";
-  const insetsAttach = hasTamerInsets ? `
-        TamerInsetsModule.attachHostView(lynxView)` : "";
-  const generatedExtAttach = hasHostViewModules ? `
-        GeneratedLynxExtensions.onHostViewChanged(lynxView)` : "";
-  const generatedExtDetach = hasHostViewModules ? `
-        GeneratedLynxExtensions.onHostViewChanged(null)` : "";
   const devClientCleanup = hasDevClient ? `
     override fun onDestroy() {
-        reloadReceiver?.let { unregisterReceiver(it) }${hasTamerRouter ? `
-        TamerRouterNativeModule.attachHostView(null)` : ""}${hasTamerInsets ? `
-        TamerInsetsModule.attachHostView(null)` : ""}${generatedExtDetach}
+        reloadReceiver?.let { unregisterReceiver(it) }
+        GeneratedActivityLifecycle.onViewDetached()
+        GeneratedLynxExtensions.onHostViewChanged(null)
         lynxView?.destroy()
         lynxView = null
         DevClientModule.attachReloadProjectLauncher(null)
@@ -881,33 +742,57 @@ import ${vars.packageName}.generated.GeneratedLynxExtensions` : "";
         super.onDestroy()
     }
 ` : "";
-  const backOverride = hasTamerRouter ? `
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        TamerRouterNativeModule.requestBack { consumed ->
-            if (!consumed) {
-                runOnUiThread { super.onBackPressed() }
-            }
+  return `package ${vars.packageName}
+
+import android.os.Build
+import android.os.Bundle
+import android.view.MotionEvent
+import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.updatePadding
+import com.lynx.tasm.LynxView
+import com.lynx.tasm.LynxViewBuilder${devClientImports}
+import ${vars.packageName}.generated.GeneratedLynxExtensions
+import ${vars.packageName}.generated.GeneratedActivityLifecycle
+
+class MainActivity : AppCompatActivity() {
+${devClientField}    private var lynxView: LynxView? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
+        lynxView = buildLynxView()
+        setContentView(lynxView)
+        ViewCompat.setOnApplyWindowInsetsListener(lynxView!!) { view, insets ->
+            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
+            val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            view.updatePadding(bottom = if (imeVisible) imeHeight else 0)
+            insets
         }
+        GeneratedActivityLifecycle.onViewAttached(lynxView)
+        GeneratedLynxExtensions.onHostViewChanged(lynxView)
+        lynxView?.renderTemplateUrl(${hasDevClient ? "currentUri" : '"main.lynx.bundle"'}, "")${devClientInit}
     }
-` : "";
-  const onPauseBlock = hasTamerInsets && hasDevClient || hasHostViewModules ? `
+
     override fun onPause() {
-        super.onPause()${hasTamerInsets ? `
-        TamerInsetsModule.attachHostView(null)` : ""}${generatedExtDetach}
+        super.onPause()
+        GeneratedActivityLifecycle.onPause()
     }
-` : "";
-  const onResumeBlock = hasTamerInsets || hasHostViewModules ? `
+
     override fun onResume() {
         super.onResume()
-        lynxView?.let {${hasTamerInsets ? `
-            TamerInsetsModule.attachHostView(it)
-            TamerInsetsModule.reRequestInsets()` : ""}${hasHostViewModules ? `
-            GeneratedLynxExtensions.onHostViewChanged(it)` : ""}
+        lynxView?.let {
+            GeneratedLynxExtensions.onHostViewChanged(it)
         }
+        GeneratedActivityLifecycle.onResume()
     }
-` : "";
-  const touchBlurBlockMain = `
+
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         if (ev.action == MotionEvent.ACTION_DOWN) maybeClearFocusedInput(ev)
         return super.dispatchTouchEvent(ev)
@@ -927,35 +812,16 @@ import ${vars.packageName}.generated.GeneratedLynxExtensions` : "";
             }
         }
     }
-`;
-  return `package ${vars.packageName}
 
-import android.os.Build
-import android.os.Bundle
-import android.view.MotionEvent
-import android.view.inputmethod.InputMethodManager
-import android.widget.EditText
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
-import androidx.core.view.updatePadding
-import com.lynx.tasm.LynxView
-import com.lynx.tasm.LynxViewBuilder${devClientImports}${routerImport}${insetsImport}${generatedExtImport}
-
-class MainActivity : AppCompatActivity() {
-${devClientField}    private var lynxView: LynxView? = null
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
-        lynxView = buildLynxView()
-        setContentView(lynxView)${insetsListenerBlock}${routerAttach}${insetsAttach}${generatedExtAttach}
-        ${devClientUriInit}lynxView?.renderTemplateUrl(${hasDevClient ? "currentUri" : "uri"}, "")${devClientInit}
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        GeneratedActivityLifecycle.onBackPressed { consumed ->
+            if (!consumed) {
+                runOnUiThread { super.onBackPressed() }
+            }
+        }
     }
-${onPauseBlock}${onResumeBlock}${touchBlurBlockMain}
-${backOverride}
+
     private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
         viewBuilder.setTemplateProvider(TemplateProvider(this))
@@ -1016,18 +882,18 @@ object DevServerPrefs {
 
 // src/android/create.ts
 function findRepoRoot(start2) {
-  let dir = path4.resolve(start2);
-  const root = path4.parse(dir).root;
+  let dir = path3.resolve(start2);
+  const root = path3.parse(dir).root;
   while (dir !== root) {
-    const pkgPath = path4.join(dir, "package.json");
-    if (fs4.existsSync(pkgPath)) {
+    const pkgPath = path3.join(dir, "package.json");
+    if (fs3.existsSync(pkgPath)) {
       try {
-        const pkg = JSON.parse(fs4.readFileSync(pkgPath, "utf8"));
+        const pkg = JSON.parse(fs3.readFileSync(pkgPath, "utf8"));
         if (pkg.workspaces) return dir;
       } catch {
       }
     }
-    dir = path4.dirname(dir);
+    dir = path3.dirname(dir);
   }
   return start2;
 }
@@ -1036,8 +902,8 @@ var create = async (opts = {}) => {
   const origCwd = process.cwd();
   if (target === "dev-app") {
     const repoRoot = findRepoRoot(origCwd);
-    const devAppDir = path4.join(repoRoot, "packages", "tamer-dev-app");
-    if (!fs4.existsSync(path4.join(devAppDir, "tamer.config.json"))) {
+    const devAppDir = path3.join(repoRoot, "packages", "tamer-dev-app");
+    if (!fs3.existsSync(path3.join(devAppDir, "tamer.config.json"))) {
       console.error("\u274C packages/tamer-dev-app/tamer.config.json not found.");
       process.exit(1);
     }
@@ -1067,30 +933,30 @@ var create = async (opts = {}) => {
   const packagePath = packageName.replace(/\./g, "/");
   const gradleVersion = "8.14.2";
   const androidDir = config.paths?.androidDir ?? "android";
-  const rootDir = path4.join(process.cwd(), androidDir);
-  const appDir = path4.join(rootDir, "app");
-  const mainDir = path4.join(appDir, "src", "main");
-  const javaDir = path4.join(mainDir, "java", packagePath);
-  const kotlinDir = path4.join(mainDir, "kotlin", packagePath);
-  const kotlinGeneratedDir = path4.join(kotlinDir, "generated");
-  const assetsDir = path4.join(mainDir, "assets");
-  const themesDir = path4.join(mainDir, "res", "values");
-  const gradleDir = path4.join(rootDir, "gradle");
-  function writeFile(filePath, content, options) {
-    fs4.mkdirSync(path4.dirname(filePath), { recursive: true });
-    fs4.writeFileSync(
+  const rootDir = path3.join(process.cwd(), androidDir);
+  const appDir = path3.join(rootDir, "app");
+  const mainDir = path3.join(appDir, "src", "main");
+  const javaDir = path3.join(mainDir, "java", packagePath);
+  const kotlinDir = path3.join(mainDir, "kotlin", packagePath);
+  const kotlinGeneratedDir = path3.join(kotlinDir, "generated");
+  const assetsDir = path3.join(mainDir, "assets");
+  const themesDir = path3.join(mainDir, "res", "values");
+  const gradleDir = path3.join(rootDir, "gradle");
+  function writeFile2(filePath, content, options) {
+    fs3.mkdirSync(path3.dirname(filePath), { recursive: true });
+    fs3.writeFileSync(
       filePath,
       content.trimStart(),
       options?.encoding ?? "utf8"
     );
   }
-  if (fs4.existsSync(rootDir)) {
+  if (fs3.existsSync(rootDir)) {
     console.log(`\u{1F9F9} Removing existing directory: ${rootDir}`);
-    fs4.rmSync(rootDir, { recursive: true, force: true });
+    fs3.rmSync(rootDir, { recursive: true, force: true });
   }
   console.log(`\u{1F680} Creating a new Tamer4Lynx project in: ${rootDir}`);
-  writeFile(
-    path4.join(gradleDir, "libs.versions.toml"),
+  writeFile2(
+    path3.join(gradleDir, "libs.versions.toml"),
     `
 [versions]
 agp = "8.9.1"
@@ -1144,8 +1010,8 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version.ref = "kotlin" }
 `
   );
-  writeFile(
-    path4.join(rootDir, "settings.gradle.kts"),
+  writeFile2(
+    path3.join(rootDir, "settings.gradle.kts"),
     `
 pluginManagement {
     repositories {
@@ -1178,8 +1044,8 @@ println("If you have native modules please run tamer android link")
 // GENERATED AUTOLINK END
 `
   );
-  writeFile(
-    path4.join(rootDir, "build.gradle.kts"),
+  writeFile2(
+    path3.join(rootDir, "build.gradle.kts"),
     `
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 plugins {
@@ -1188,8 +1054,8 @@ plugins {
 }
 `
   );
-  writeFile(
-    path4.join(rootDir, "gradle.properties"),
+  writeFile2(
+    path3.join(rootDir, "gradle.properties"),
     `
 org.gradle.jvmargs=-Xmx2048m
 android.useAndroidX=true
@@ -1197,8 +1063,8 @@ kotlin.code.style=official
 android.enableJetifier=true
 `
   );
-  writeFile(
-    path4.join(appDir, "build.gradle.kts"),
+  writeFile2(
+    path3.join(appDir, "build.gradle.kts"),
     `
 plugins {
     alias(libs.plugins.android.application)
@@ -1286,8 +1152,8 @@ dependencies {
 }
 `
   );
-  writeFile(
-    path4.join(themesDir, "themes.xml"),
+  writeFile2(
+    path3.join(themesDir, "themes.xml"),
     `
 <resources>
     <style name="Theme.MyApp" parent="Theme.AppCompat.Light.NoActionBar">
@@ -1320,8 +1186,8 @@ dependencies {
     <uses-permission android:name="android.permission.CAMERA" />` : `    <uses-permission android:name="android.permission.INTERNET" />`;
   const iconPaths = resolveIconPaths(process.cwd(), config);
   const manifestIconAttrs = iconPaths ? '        android:icon="@mipmap/ic_launcher"\n        android:roundIcon="@mipmap/ic_launcher"\n' : "";
-  writeFile(
-    path4.join(mainDir, "AndroidManifest.xml"),
+  writeFile2(
+    path3.join(mainDir, "AndroidManifest.xml"),
     `
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 ${manifestPermissions}
@@ -1334,8 +1200,8 @@ ${manifestIconAttrs}        android:usesCleartextTraffic="true"
 </manifest>
 `
   );
-  writeFile(
-    path4.join(kotlinGeneratedDir, "GeneratedLynxExtensions.kt"),
+  writeFile2(
+    path3.join(kotlinGeneratedDir, "GeneratedLynxExtensions.kt"),
     `
 package ${packageName}.generated
 
@@ -1363,59 +1229,59 @@ object GeneratedLynxExtensions {
     fetchAndPatchApplication(vars),
     fetchAndPatchTemplateProvider(vars)
   ]);
-  writeFile(path4.join(javaDir, "App.java"), applicationSource);
-  writeFile(path4.join(javaDir, "TemplateProvider.java"), templateProviderSource);
-  writeFile(path4.join(kotlinDir, "MainActivity.kt"), getStandaloneMainActivity(vars));
+  writeFile2(path3.join(javaDir, "App.java"), applicationSource);
+  writeFile2(path3.join(javaDir, "TemplateProvider.java"), templateProviderSource);
+  writeFile2(path3.join(kotlinDir, "MainActivity.kt"), getStandaloneMainActivity(vars));
   if (hasDevLauncher) {
-    writeFile(path4.join(kotlinDir, "ProjectActivity.kt"), getProjectActivity(vars));
+    writeFile2(path3.join(kotlinDir, "ProjectActivity.kt"), getProjectActivity(vars));
   }
   const devClientManagerSource = getDevClientManager(vars);
   if (devClientManagerSource) {
-    writeFile(path4.join(kotlinDir, "DevClientManager.kt"), devClientManagerSource);
-    writeFile(path4.join(kotlinDir, "DevServerPrefs.kt"), getDevServerPrefs(vars));
+    writeFile2(path3.join(kotlinDir, "DevClientManager.kt"), devClientManagerSource);
+    writeFile2(path3.join(kotlinDir, "DevServerPrefs.kt"), getDevServerPrefs(vars));
   }
   if (iconPaths) {
-    const resDir = path4.join(mainDir, "res");
+    const resDir = path3.join(mainDir, "res");
     if (iconPaths.android) {
       const src = iconPaths.android;
-      const entries = fs4.readdirSync(src, { withFileTypes: true });
+      const entries = fs3.readdirSync(src, { withFileTypes: true });
       for (const e of entries) {
-        const dest = path4.join(resDir, e.name);
+        const dest = path3.join(resDir, e.name);
         if (e.isDirectory()) {
-          fs4.cpSync(path4.join(src, e.name), dest, { recursive: true });
+          fs3.cpSync(path3.join(src, e.name), dest, { recursive: true });
         } else {
-          fs4.mkdirSync(resDir, { recursive: true });
-          fs4.copyFileSync(path4.join(src, e.name), dest);
+          fs3.mkdirSync(resDir, { recursive: true });
+          fs3.copyFileSync(path3.join(src, e.name), dest);
         }
       }
       console.log("\u2705 Copied Android icon from tamer.config.json icon.android");
     } else if (iconPaths.source) {
       const mipmapDensities = ["mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"];
       for (const d of mipmapDensities) {
-        const dir = path4.join(resDir, `mipmap-${d}`);
-        fs4.mkdirSync(dir, { recursive: true });
-        fs4.copyFileSync(iconPaths.source, path4.join(dir, "ic_launcher.png"));
+        const dir = path3.join(resDir, `mipmap-${d}`);
+        fs3.mkdirSync(dir, { recursive: true });
+        fs3.copyFileSync(iconPaths.source, path3.join(dir, "ic_launcher.png"));
       }
       console.log("\u2705 Copied app icon from tamer.config.json icon.source");
     }
   }
-  fs4.mkdirSync(assetsDir, { recursive: true });
-  fs4.writeFileSync(path4.join(assetsDir, ".gitkeep"), "");
+  fs3.mkdirSync(assetsDir, { recursive: true });
+  fs3.writeFileSync(path3.join(assetsDir, ".gitkeep"), "");
   console.log(`\u2705 Android Kotlin project created at ${rootDir}`);
   async function finalizeProjectSetup() {
     if (androidSdk) {
       try {
         const sdkDirContent = `sdk.dir=${androidSdk.replace(/\\/g, "/")}`;
-        writeFile(path4.join(rootDir, "local.properties"), sdkDirContent);
+        writeFile2(path3.join(rootDir, "local.properties"), sdkDirContent);
         console.log("\u{1F4E6} Created local.properties from tamer.config.json.");
       } catch (err) {
         console.error(`\u274C Failed to create local.properties: ${err.message}`);
       }
     } else {
-      const localPropsPath = path4.join(process.cwd(), "local.properties");
-      if (fs4.existsSync(localPropsPath)) {
+      const localPropsPath = path3.join(process.cwd(), "local.properties");
+      if (fs3.existsSync(localPropsPath)) {
         try {
-          fs4.copyFileSync(localPropsPath, path4.join(rootDir, "local.properties"));
+          fs3.copyFileSync(localPropsPath, path3.join(rootDir, "local.properties"));
           console.log("\u{1F4E6} Copied existing local.properties to the android project.");
         } catch (err) {
           console.error("\u274C Failed to copy local.properties:", err);
@@ -1436,6 +1302,140 @@ var create_default = create;
 // src/android/autolink.ts
 import fs5 from "fs";
 import path5 from "path";
+
+// src/common/config.ts
+import fs4 from "fs";
+import path4 from "path";
+var LYNX_EXT_JSON = "lynx.ext.json";
+var TAMER_JSON = "tamer.json";
+function loadLynxExtJson(packagePath) {
+  const p = path4.join(packagePath, LYNX_EXT_JSON);
+  if (!fs4.existsSync(p)) return null;
+  try {
+    return JSON.parse(fs4.readFileSync(p, "utf8"));
+  } catch {
+    return null;
+  }
+}
+function loadTamerJson(packagePath) {
+  const p = path4.join(packagePath, TAMER_JSON);
+  if (!fs4.existsSync(p)) return null;
+  try {
+    return JSON.parse(fs4.readFileSync(p, "utf8"));
+  } catch {
+    return null;
+  }
+}
+function loadExtensionConfig(packagePath) {
+  const lynxExt = loadLynxExtJson(packagePath);
+  const tamer = loadTamerJson(packagePath);
+  const raw = lynxExt ?? tamer;
+  if (!raw) return null;
+  const normalized = {};
+  if (raw.platforms?.android || raw.android) {
+    const a = raw.platforms?.android ?? raw.android;
+    const moduleClassName = a?.moduleClassName ?? raw.android?.moduleClassName;
+    const moduleClassNames = a?.moduleClassNames ?? raw.android?.moduleClassNames;
+    const elements = a?.elements ?? raw.android?.elements;
+    const permissions = a?.permissions ?? raw.android?.permissions;
+    const attachHostView = a?.attachHostView ?? raw.android?.attachHostView;
+    const activityPatches = a?.activityPatches ?? raw.android?.activityPatches;
+    const classes = Array.isArray(moduleClassNames) && moduleClassNames.length > 0 ? moduleClassNames : moduleClassName ? [moduleClassName] : [];
+    if (classes.length > 0 || elements || permissions || attachHostView || activityPatches) {
+      normalized.android = {
+        ...classes.length === 1 ? { moduleClassName: classes[0] } : classes.length > 1 ? { moduleClassNames: classes } : {},
+        sourceDir: a?.sourceDir ?? raw.android?.sourceDir ?? "android",
+        ...elements && Object.keys(elements).length > 0 && { elements },
+        ...permissions && Array.isArray(permissions) && permissions.length > 0 && { permissions },
+        ...attachHostView && { attachHostView: true },
+        ...activityPatches && { activityPatches }
+      };
+    }
+  }
+  if (raw.platforms?.ios || raw.ios) {
+    const i = raw.platforms?.ios ?? raw.ios;
+    const moduleClassName = i?.moduleClassName ?? raw.ios?.moduleClassName;
+    const moduleClassNames = i?.moduleClassNames ?? raw.ios?.moduleClassNames;
+    const elements = i?.elements ?? raw.ios?.elements;
+    const attachHostView = i?.attachHostView ?? raw.ios?.attachHostView;
+    const classes = Array.isArray(moduleClassNames) && moduleClassNames.length > 0 ? moduleClassNames : moduleClassName ? [moduleClassName] : [];
+    const iosPermissions = i?.iosPermissions ?? raw.ios?.iosPermissions;
+    if (classes.length > 0 || elements || attachHostView || iosPermissions && Object.keys(iosPermissions).length > 0) {
+      normalized.ios = {
+        ...classes.length === 1 ? { moduleClassName: classes[0] } : classes.length > 1 ? { moduleClassNames: classes } : {},
+        podspecPath: i?.podspecPath ?? raw.ios?.podspecPath ?? ".",
+        ...elements && Object.keys(elements).length > 0 && { elements },
+        ...iosPermissions && Object.keys(iosPermissions).length > 0 && { iosPermissions },
+        ...attachHostView && { attachHostView: true }
+      };
+    }
+  }
+  if (Object.keys(normalized).length === 0) return null;
+  return normalized;
+}
+function hasExtensionConfig(packagePath) {
+  return fs4.existsSync(path4.join(packagePath, LYNX_EXT_JSON)) || fs4.existsSync(path4.join(packagePath, TAMER_JSON));
+}
+function getAndroidModuleClassNames(config) {
+  if (!config) return [];
+  if (config.moduleClassNames?.length) return config.moduleClassNames;
+  if (config.moduleClassName) return [config.moduleClassName];
+  return [];
+}
+function getIosModuleClassNames(config) {
+  if (!config) return [];
+  if (config.moduleClassNames?.length) return config.moduleClassNames;
+  if (config.moduleClassName) return [config.moduleClassName];
+  return [];
+}
+function getIosElements(config) {
+  return config?.elements ?? {};
+}
+function getNodeModulesPath(projectRoot) {
+  let nodeModulesPath = path4.join(projectRoot, "node_modules");
+  const workspaceRoot = path4.join(projectRoot, "..", "..");
+  const rootNodeModules = path4.join(workspaceRoot, "node_modules");
+  if (fs4.existsSync(path4.join(workspaceRoot, "package.json")) && fs4.existsSync(rootNodeModules) && path4.basename(path4.dirname(projectRoot)) === "packages") {
+    nodeModulesPath = rootNodeModules;
+  } else if (!fs4.existsSync(nodeModulesPath)) {
+    const altRoot = path4.join(projectRoot, "..", "..");
+    const altNodeModules = path4.join(altRoot, "node_modules");
+    if (fs4.existsSync(path4.join(altRoot, "package.json")) && fs4.existsSync(altNodeModules)) {
+      nodeModulesPath = altNodeModules;
+    }
+  }
+  return nodeModulesPath;
+}
+function discoverNativeExtensions(projectRoot) {
+  const nodeModulesPath = getNodeModulesPath(projectRoot);
+  const result = [];
+  if (!fs4.existsSync(nodeModulesPath)) return result;
+  const packageDirs = fs4.readdirSync(nodeModulesPath);
+  const check = (name, packagePath) => {
+    if (!hasExtensionConfig(packagePath)) return;
+    const config = loadExtensionConfig(packagePath);
+    const classes = getAndroidModuleClassNames(config?.android);
+    for (const className of classes) {
+      result.push({ packageName: name, moduleClassName: className, attachHostView: config?.android?.attachHostView });
+    }
+  };
+  for (const dirName of packageDirs) {
+    const fullPath = path4.join(nodeModulesPath, dirName);
+    if (dirName.startsWith("@")) {
+      try {
+        for (const scopedDirName of fs4.readdirSync(fullPath)) {
+          check(`${dirName}/${scopedDirName}`, path4.join(fullPath, scopedDirName));
+        }
+      } catch {
+      }
+    } else {
+      check(dirName, fullPath);
+    }
+  }
+  return result;
+}
+
+// src/android/autolink.ts
 var autolink = () => {
   let resolved;
   try {
@@ -1560,14 +1560,14 @@ ${implementationLines || "    // No native dependencies found to link."}`;
     const packagePath = projectPackage.replace(/\./g, "/");
     const generatedDir = path5.join(appAndroidPath, "app", "src", "main", "kotlin", packagePath, "generated");
     const kotlinExtensionsPath = path5.join(generatedDir, "GeneratedLynxExtensions.kt");
-    const modulePackages = packages.filter((p) => p.config.android?.moduleClassName);
+    const modulePackages = packages.filter((p) => getAndroidModuleClassNames(p.config.android).length > 0);
     const elementPackages = packages.filter((p) => p.config.android?.elements && Object.keys(p.config.android.elements).length > 0);
-    const moduleImports = modulePackages.map((p) => `import ${p.config.android.moduleClassName}`).join("\n");
+    const allModuleClasses = modulePackages.flatMap((p) => getAndroidModuleClassNames(p.config.android));
+    const moduleImports = allModuleClasses.map((c) => `import ${c}`).join("\n");
     const elementImports = elementPackages.flatMap(
       (p) => Object.values(p.config.android.elements).map((cls) => `import ${cls}`)
     ).filter((v, i, a) => a.indexOf(v) === i).join("\n");
-    const moduleRegistrations = modulePackages.map((p) => {
-      const fullClassName = p.config.android.moduleClassName;
+    const moduleRegistrations = allModuleClasses.map((fullClassName) => {
       const simpleClassName = fullClassName.split(".").pop();
       return `        LynxEnv.inst().registerModule("${simpleClassName}", ${simpleClassName}::class.java)`;
     }).join("\n");
@@ -1583,10 +1583,12 @@ ${implementationLines || "    // No native dependencies found to link."}`;
     ).join("\n");
     const allRegistrations = [moduleRegistrations, behaviorRegistrations].filter(Boolean).join("\n");
     const hostViewPackages = modulePackages.filter((p) => p.config.android?.attachHostView);
-    const hostViewLines = hostViewPackages.map((p) => {
-      const simpleClassName = p.config.android.moduleClassName.split(".").pop();
-      return `        ${simpleClassName}.attachHostView(view)`;
-    }).join("\n");
+    const hostViewLines = hostViewPackages.flatMap(
+      (p) => getAndroidModuleClassNames(p.config.android).map((fullClassName) => {
+        const simpleClassName = fullClassName.split(".").pop();
+        return `        ${simpleClassName}.attachHostView(view)`;
+      })
+    ).join("\n");
     const hostViewMethod = hostViewPackages.length > 0 ? `
     fun onHostViewChanged(view: android.view.View?) {
 ${hostViewLines}
@@ -1612,6 +1614,119 @@ ${allRegistrations}
     fs5.writeFileSync(kotlinExtensionsPath, kotlinContent.trimStart());
     console.log(`\u2705 Generated Kotlin extensions at ${kotlinExtensionsPath}`);
   }
+  function generateActivityLifecycleFile(packages, projectPackage) {
+    const packageKotlinPath = projectPackage.replace(/\./g, "/");
+    const generatedDir = path5.join(appAndroidPath, "app", "src", "main", "kotlin", packageKotlinPath, "generated");
+    const outputPath = path5.join(generatedDir, "GeneratedActivityLifecycle.kt");
+    const hooks = {
+      onCreate: [],
+      onNewIntent: [],
+      onResume: [],
+      onPause: [],
+      onDestroy: [],
+      onViewAttached: [],
+      onViewDetached: [],
+      onBackPressed: [],
+      onWindowFocusChanged: [],
+      onCreateDelayed: []
+    };
+    for (const pkg of packages) {
+      const patches = pkg.config.android?.activityPatches;
+      if (!patches) continue;
+      for (const [hook, call] of Object.entries(patches)) {
+        if (hook in hooks) hooks[hook].push(call);
+      }
+    }
+    const bodyLines = (arr) => arr.length > 0 ? arr.map((c) => `        ${c}`).join("\n") : "        // no patches";
+    const backPressedBody = hooks.onBackPressed.length > 0 ? hooks.onBackPressed.map((c) => `        ${c}(fallback)`).join("\n") : "        fallback(false)";
+    const windowFocusBody = hooks.onWindowFocusChanged.length > 0 ? `        if (hasFocus) {
+${hooks.onWindowFocusChanged.map((c) => `            ${c}`).join("\n")}
+        }` : "        // no patches";
+    const createDelayedBody = hooks.onCreateDelayed.length > 0 ? `        listOf(150L, 400L, 800L).forEach { delay ->
+            handler.postDelayed({
+${hooks.onCreateDelayed.map((c) => `                ${c}`).join("\n")}
+            }, delay)
+        }` : "        // no patches";
+    const kotlinContent = `package ${projectPackage}.generated
+
+import android.content.Intent
+import com.lynx.tasm.LynxView
+
+/**
+ * This file is generated by the Tamer4Lynx autolinker.
+ * Do not edit this file manually.
+ */
+object GeneratedActivityLifecycle {
+    fun onCreate(intent: Intent?) {
+${bodyLines(hooks.onCreate)}
+    }
+
+    fun onNewIntent(intent: Intent?) {
+${bodyLines(hooks.onNewIntent)}
+    }
+
+    fun onViewAttached(lynxView: LynxView?) {
+${bodyLines(hooks.onViewAttached)}
+    }
+
+    fun onViewDetached() {
+${bodyLines(hooks.onViewDetached)}
+    }
+
+    fun onResume() {
+${bodyLines(hooks.onResume)}
+    }
+
+    fun onPause() {
+${bodyLines(hooks.onPause)}
+    }
+
+    fun onDestroy() {
+${bodyLines(hooks.onDestroy)}
+    }
+
+    fun onBackPressed(fallback: (Boolean) -> Unit) {
+${backPressedBody}
+    }
+
+    fun onWindowFocusChanged(hasFocus: Boolean) {
+${windowFocusBody}
+    }
+
+    fun onCreateDelayed(handler: android.os.Handler) {
+${createDelayedBody}
+    }
+}
+`;
+    fs5.mkdirSync(generatedDir, { recursive: true });
+    fs5.writeFileSync(outputPath, kotlinContent);
+    console.log(`\u2705 Generated activity lifecycle patches at ${outputPath}`);
+  }
+  function syncDeepLinkIntentFilters() {
+    const deepLinks = config.android?.deepLinks;
+    if (!deepLinks || deepLinks.length === 0) return;
+    const manifestPath = path5.join(appAndroidPath, "app", "src", "main", "AndroidManifest.xml");
+    if (!fs5.existsSync(manifestPath)) return;
+    const intentFilters = deepLinks.map((link) => {
+      const dataAttrs = [
+        `android:scheme="${link.scheme}"`,
+        link.host ? `android:host="${link.host}"` : "",
+        link.pathPrefix ? `android:pathPrefix="${link.pathPrefix}"` : ""
+      ].filter(Boolean).join(" ");
+      return `        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data ${dataAttrs} />
+        </intent-filter>`;
+    }).join("\n");
+    updateGeneratedSection(
+      manifestPath,
+      intentFilters,
+      "        <!-- GENERATED DEEP LINKS START -->",
+      "        <!-- GENERATED DEEP LINKS END -->"
+    );
+  }
   function run() {
     console.log("\u{1F50E} Finding Lynx extension packages (lynx.ext.json / tamer.json)...");
     const packages = findExtensionPackages();
@@ -1623,7 +1738,9 @@ ${allRegistrations}
     updateSettingsGradle(packages);
     updateAppBuildGradle(packages);
     generateKotlinExtensionsFile(packages, packageName);
+    generateActivityLifecycleFile(packages, packageName);
     syncManifestPermissions(packages);
+    syncDeepLinkIntentFilters();
     console.log("\u2728 Autolinking complete.");
   }
   function syncManifestPermissions(packages) {
@@ -1905,7 +2022,7 @@ async function setupCocoaPods(rootDir) {
 // src/ios/create.ts
 import { randomBytes } from "crypto";
 var create2 = () => {
-  const generateId = () => randomBytes(12).toString("hex").toUpperCase();
+  const generateId2 = () => randomBytes(12).toString("hex").toUpperCase();
   let appName;
   let bundleId;
   let config;
@@ -1925,7 +2042,7 @@ var create2 = () => {
   const projectDir = path10.join(rootDir, appName);
   const xcodeprojDir = path10.join(rootDir, `${appName}.xcodeproj`);
   const bridgingHeader = `${appName}-Bridging-Header.h`;
-  function writeFile(filePath, content) {
+  function writeFile2(filePath, content) {
     fs10.mkdirSync(path10.dirname(filePath), { recursive: true });
     fs10.writeFileSync(filePath, content.trimStart(), "utf8");
   }
@@ -1935,56 +2052,55 @@ var create2 = () => {
   }
   console.log(`\u{1F680} Creating a new Tamer4Lynx project in: ${rootDir}`);
   const ids = {
-    project: generateId(),
-    mainGroup: generateId(),
-    appGroup: generateId(),
-    productsGroup: generateId(),
-    frameworksGroup: generateId(),
-    appFile: generateId(),
-    appDelegateRef: generateId(),
-    sceneDelegateRef: generateId(),
-    viewControllerRef: generateId(),
-    mainStoryboardRef: generateId(),
-    assetsRef: generateId(),
-    launchStoryboardRef: generateId(),
-    lynxProviderRef: generateId(),
-    lynxInitRef: generateId(),
-    bridgingHeaderRef: generateId(),
-    mainStoryboardBaseRef: generateId(),
-    launchStoryboardBaseRef: generateId(),
-    nativeTarget: generateId(),
-    appDelegateBuildFile: generateId(),
-    sceneDelegateBuildFile: generateId(),
-    viewControllerBuildFile: generateId(),
-    lynxProviderBuildFile: generateId(),
-    lynxInitBuildFile: generateId(),
-    mainStoryboardBuildFile: generateId(),
-    assetsBuildFile: generateId(),
-    launchStoryboardBuildFile: generateId(),
-    frameworksBuildPhase: generateId(),
-    resourcesBuildPhase: generateId(),
-    sourcesBuildPhase: generateId(),
-    projectBuildConfigList: generateId(),
-    targetBuildConfigList: generateId(),
-    projectDebugConfig: generateId(),
-    projectReleaseConfig: generateId(),
-    targetDebugConfig: generateId(),
-    targetReleaseConfig: generateId()
+    project: generateId2(),
+    mainGroup: generateId2(),
+    appGroup: generateId2(),
+    productsGroup: generateId2(),
+    frameworksGroup: generateId2(),
+    appFile: generateId2(),
+    appDelegateRef: generateId2(),
+    sceneDelegateRef: generateId2(),
+    viewControllerRef: generateId2(),
+    mainStoryboardRef: generateId2(),
+    assetsRef: generateId2(),
+    launchStoryboardRef: generateId2(),
+    lynxProviderRef: generateId2(),
+    lynxInitRef: generateId2(),
+    bridgingHeaderRef: generateId2(),
+    mainStoryboardBaseRef: generateId2(),
+    launchStoryboardBaseRef: generateId2(),
+    nativeTarget: generateId2(),
+    appDelegateBuildFile: generateId2(),
+    sceneDelegateBuildFile: generateId2(),
+    viewControllerBuildFile: generateId2(),
+    lynxProviderBuildFile: generateId2(),
+    lynxInitBuildFile: generateId2(),
+    mainStoryboardBuildFile: generateId2(),
+    assetsBuildFile: generateId2(),
+    launchStoryboardBuildFile: generateId2(),
+    frameworksBuildPhase: generateId2(),
+    resourcesBuildPhase: generateId2(),
+    sourcesBuildPhase: generateId2(),
+    projectBuildConfigList: generateId2(),
+    targetBuildConfigList: generateId2(),
+    projectDebugConfig: generateId2(),
+    projectReleaseConfig: generateId2(),
+    targetDebugConfig: generateId2(),
+    targetReleaseConfig: generateId2()
   };
-  writeFile(path10.join(rootDir, "Podfile"), `
+  writeFile2(path10.join(rootDir, "Podfile"), `
 source 'https://cdn.cocoapods.org/'
 
 platform :ios, '13.0'
 
 target '${appName}' do
-  pod 'Lynx', '3.3.0', :subspecs => [
+  pod 'Lynx', '3.6.0', :subspecs => [
 	'Framework',
   ], :modular_headers => true
 
-  pod 'PrimJS', '2.13.2', :subspecs => ['quickjs', 'napi']
+  pod 'PrimJS', '3.6.1', :subspecs => ['quickjs', 'napi']
 
-  # integrate image-service, log-service, and http-service
-  pod 'LynxService', '3.3.0', :subspecs => [
+  pod 'LynxService', '3.6.0', :subspecs => [
 	  'Image',
 	  'Log',
 	  'Http',
@@ -2000,31 +2116,36 @@ end
 
 post_install do |installer|
   installer.pods_project.targets.each do |target|
-	if target.name == 'Lynx'
-	  target.build_configurations.each do |config|
-		flags = [
-		  '-Wno-vla-extension',
-		  '-Wno-vla',
-		  '-Wno-error=vla-extension',
-		  '-Wno-deprecated-declarations',
-		  '-Wno-deprecated',
-		  '-Wno-macro-redefined',
-		  '-Wno-enum-compare',
-		  '-Wno-enum-compare-conditional',
-		  '-Wno-enum-conversion'
-		].join(' ')
-		
-		config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) #{flags}"
-		config.build_settings['OTHER_CFLAGS'] = "$(inherited) #{flags}"
-		config.build_settings['CLANG_WARN_VLA'] = 'NO'
-		config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
-		config.build_settings['CLANG_WARN_ENUM_CONVERSION'] = 'NO'
-	  end
-	end
+    target.build_configurations.each do |config|
+      config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+    end
+
+    if target.name == 'Lynx'
+      target.build_configurations.each do |config|
+        flags = [
+          '-Wno-vla-extension',
+          '-Wno-vla',
+          '-Wno-error=vla-extension',
+          '-Wno-deprecated-declarations',
+          '-Wno-deprecated',
+          '-Wno-macro-redefined',
+          '-Wno-enum-compare',
+          '-Wno-enum-compare-conditional',
+          '-Wno-enum-conversion'
+        ].join(' ')
+
+        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) #{flags}"
+        config.build_settings['OTHER_CFLAGS'] = "$(inherited) #{flags}"
+        config.build_settings['CLANG_WARN_VLA'] = 'NO'
+        config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
+        config.build_settings['CLANG_WARN_ENUM_CONVERSION'] = 'NO'
+      end
+    end
   end
 end
 	`);
-  writeFile(path10.join(projectDir, "AppDelegate.swift"), `
+  writeFile2(path10.join(projectDir, "AppDelegate.swift"), `
 	import UIKit
 
 	@UIApplicationMain
@@ -2037,31 +2158,60 @@ end
 	  }
 	}
 	`);
-  writeFile(path10.join(projectDir, "ViewController.swift"), `
+  writeFile2(path10.join(projectDir, "ViewController.swift"), `
 import UIKit
 
 class ViewController: UIViewController {
+  private var lynxView: LynxView?
 
   override func viewDidLoad() {
 	super.viewDidLoad()
+	view.backgroundColor = .black
+	setupLynxView()
+  }
 
+  override func viewDidLayoutSubviews() {
+	super.viewDidLayoutSubviews()
+	if let lynxView = lynxView {
+	  applyFullscreenLayout(to: lynxView)
+	}
+  }
+
+  private func setupLynxView() {
+	let size = fullscreenBounds().size
 	let lynxView = LynxView { builder in
 	  builder.config = LynxConfig(provider: LynxProvider())
-	  builder.screenSize = self.view.frame.size
+	  builder.screenSize = size
 	  builder.fontScale = 1.0
 	}
+	lynxView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+	self.view.addSubview(lynxView)
+	applyFullscreenLayout(to: lynxView)
+	lynxView.perform(NSSelectorFromString("triggerLayout"))
+	lynxView.loadTemplate(fromURL: "main.lynx", initData: nil)
+	self.lynxView = lynxView
+  }
 
-	lynxView.preferredLayoutWidth = self.view.frame.size.width
-	lynxView.preferredLayoutHeight = self.view.frame.size.height
+  private func applyFullscreenLayout(to lynxView: LynxView) {
+	let bounds = fullscreenBounds()
+	let size = bounds.size
+	lynxView.frame = bounds
+	lynxView.preferredLayoutWidth = size.width
+	lynxView.preferredLayoutHeight = size.height
 	lynxView.layoutWidthMode = .exact
 	lynxView.layoutHeightMode = .exact
-	self.view.addSubview(lynxView)
+  }
 
-	lynxView.loadTemplate(fromURL: "main.lynx", initData: nil)
+  private func fullscreenBounds() -> CGRect {
+	let bounds = self.view.bounds
+	if bounds.width > 0 && bounds.height > 0 {
+	  return bounds
+	}
+	return UIScreen.main.bounds
   }
 }
 	`);
-  writeFile(path10.join(projectDir, "LynxProvider.swift"), `
+  writeFile2(path10.join(projectDir, "LynxProvider.swift"), `
 import Foundation
 
 class LynxProvider: NSObject, LynxTemplateProvider {
@@ -2081,7 +2231,7 @@ class LynxProvider: NSObject, LynxTemplateProvider {
   }
 }
 	`);
-  writeFile(path10.join(projectDir, "LynxInitProcessor.swift"), `
+  writeFile2(path10.join(projectDir, "LynxInitProcessor.swift"), `
 // Copyright 2024 The Lynx Authors. All rights reserved.
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
@@ -2127,7 +2277,7 @@ final class LynxInitProcessor {
 	}
 }
 	`);
-  writeFile(path10.join(projectDir, bridgingHeader), `
+  writeFile2(path10.join(projectDir, bridgingHeader), `
 #import <Lynx/LynxConfig.h>
 #import <Lynx/LynxEnv.h>
 #import <Lynx/LynxTemplateProvider.h>
@@ -2135,6 +2285,42 @@ final class LynxInitProcessor {
 #import <Lynx/LynxModule.h>
 #import <SDWebImage/SDWebImage.h>
 #import <SDWebImageWebPCoder/SDWebImageWebPCoder.h>
+	`);
+  writeFile2(path10.join(projectDir, "Info.plist"), `
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+</dict>
+</plist>
 	`);
   const appIconDir = path10.join(projectDir, "Assets.xcassets", "AppIcon.appiconset");
   fs10.mkdirSync(appIconDir, { recursive: true });
@@ -2154,13 +2340,13 @@ final class LynxInitProcessor {
     const ext = path10.extname(iconPaths.source) || ".png";
     const icon1024 = `Icon-1024${ext}`;
     fs10.copyFileSync(iconPaths.source, path10.join(appIconDir, icon1024));
-    writeFile(path10.join(appIconDir, "Contents.json"), JSON.stringify({
+    writeFile2(path10.join(appIconDir, "Contents.json"), JSON.stringify({
       images: [{ filename: icon1024, idiom: "universal", platform: "ios", size: "1024x1024" }],
       info: { author: "xcode", version: 1 }
     }, null, 2));
     console.log("\u2705 Copied app icon from tamer.config.json icon.source");
   } else {
-    writeFile(path10.join(appIconDir, "Contents.json"), `
+    writeFile2(path10.join(appIconDir, "Contents.json"), `
 {
   "images" : [ { "idiom" : "universal", "platform" : "ios", "size" : "1024x1024" } ],
   "info" : { "author" : "xcode", "version" : 1 }
@@ -2168,7 +2354,7 @@ final class LynxInitProcessor {
 	`);
   }
   fs10.mkdirSync(xcodeprojDir, { recursive: true });
-  writeFile(path10.join(xcodeprojDir, "project.pbxproj"), `
+  writeFile2(path10.join(xcodeprojDir, "project.pbxproj"), `
 // !$*UTF8*$!
 {
 	archiveVersion = 1;
@@ -2194,6 +2380,10 @@ final class LynxInitProcessor {
 		${ids.lynxInitRef} /* LynxInitProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LynxInitProcessor.swift"; sourceTree = "<group>"; };
 		${ids.bridgingHeaderRef} /* ${bridgingHeader} */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "${bridgingHeader}"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXInfoPlist section */
+/* Info.plist is managed as a project resource, not a build file */
+/* End PBXInfoPlist section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		${ids.frameworksBuildPhase} /* Frameworks */ = {
@@ -2396,8 +2586,7 @@ final class LynxInitProcessor {
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_FILE = "${appName}/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = "1.0";
 				PRODUCT_BUNDLE_IDENTIFIER = "${bundleId}";
@@ -2413,8 +2602,7 @@ final class LynxInitProcessor {
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_FILE = "${appName}/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = "1.0";
 				PRODUCT_BUNDLE_IDENTIFIER = "${bundleId}";
@@ -2452,7 +2640,7 @@ final class LynxInitProcessor {
 }
 	`);
   fs10.mkdirSync(path10.join(projectDir, "Base.lproj"), { recursive: true });
-  writeFile(path10.join(projectDir, "Base.lproj", "Main.storyboard"), `
+  writeFile2(path10.join(projectDir, "Base.lproj", "Main.storyboard"), `
 <?xml version="1.0" encoding="UTF-8"?>
 <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="13122.16" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="BYZ-38-t0r">
 	<dependencies>
@@ -2575,6 +2763,19 @@ ${replacementBlock}
     }
     return packages;
   }
+  function resolvePodName(pkg) {
+    const podspecDir = pkg.config.ios?.podspecPath || ".";
+    const fullPodspecDir = path11.join(pkg.packagePath, podspecDir);
+    if (fs11.existsSync(fullPodspecDir)) {
+      try {
+        const files = fs11.readdirSync(fullPodspecDir);
+        const podspecFile = files.find((f) => f.endsWith(".podspec"));
+        if (podspecFile) return podspecFile.replace(".podspec", "");
+      } catch {
+      }
+    }
+    return pkg.name.split("/").pop().replace(/-/g, "");
+  }
   function updatePodfile(packages) {
     const podfilePath = path11.join(iosProjectPath, "Podfile");
     let scriptContent = `  # This section is automatically generated by Tamer4Lynx.
@@ -2584,8 +2785,9 @@ ${replacementBlock}
       iosPackages.forEach((pkg) => {
         const podspecPath = pkg.config.ios?.podspecPath || ".";
         const relativePath = path11.relative(iosProjectPath, path11.join(pkg.packagePath, podspecPath));
+        const podName = resolvePodName(pkg);
         scriptContent += `
-  pod '${pkg.name}', :path => '${relativePath}'`;
+  pod '${podName}', :path => '${relativePath}'`;
       });
     } else {
       scriptContent += `
@@ -2602,7 +2804,7 @@ ${replacementBlock}
     candidatePaths.push(path11.join(iosProjectPath, "LynxInitProcessor.swift"));
     const found = candidatePaths.find((p) => fs11.existsSync(p));
     const lynxInitPath = found ?? candidatePaths[0];
-    const iosPackages = packages.filter((p) => p.config.ios?.moduleClassName);
+    const iosPackages = packages.filter((p) => getIosModuleClassNames(p.config.ios).length > 0 || Object.keys(getIosElements(p.config.ios)).length > 0);
     function updateImportsSection(filePath, pkgs) {
       const startMarker = "// GENERATED IMPORTS START";
       const endMarker = "// GENERATED IMPORTS END";
@@ -2612,9 +2814,8 @@ ${replacementBlock}
         return;
       }
       const imports = pkgs.map((pkg) => {
-        const raw = pkg.name.split("/").pop() || pkg.name;
-        const moduleName = raw.replace(/[^A-Za-z0-9_]/g, "_");
-        return `import ${moduleName}`;
+        const podName = resolvePodName(pkg);
+        return `import ${podName}`;
       }).join("\n");
       const fileContent = fs11.readFileSync(filePath, "utf8");
       if (fileContent.indexOf(startMarker) !== -1) {
@@ -2662,15 +2863,111 @@ ${fileContent}`;
       updateGeneratedSection(lynxInitPath, placeholder, "// GENERATED AUTOLINK START", "// GENERATED AUTOLINK END");
       return;
     }
-    const blocks = iosPackages.map((pkg) => {
-      const classNameRaw = pkg.config.ios.moduleClassName;
-      return [
+    const blocks = iosPackages.flatMap((pkg) => {
+      const classNames = getIosModuleClassNames(pkg.config.ios);
+      const moduleBlocks = classNames.map((classNameRaw) => [
         `        // Register module from package: ${pkg.name}`,
         `        globalConfig.register(${classNameRaw}.self)`
-      ].join("\n");
+      ].join("\n"));
+      const elementBlocks = Object.entries(getIosElements(pkg.config.ios)).map(([tagName, classNameRaw]) => [
+        `        // Register element from package: ${pkg.name}`,
+        `        globalConfig.registerUI(${classNameRaw}.self, withName: "${tagName}")`
+      ].join("\n"));
+      return [...moduleBlocks, ...elementBlocks];
     });
     const content = blocks.join("\n\n");
     updateGeneratedSection(lynxInitPath, content, "// GENERATED AUTOLINK START", "// GENERATED AUTOLINK END");
+  }
+  function findInfoPlist() {
+    const appNameFromConfig = resolved.config.ios?.appName;
+    const candidates = [];
+    if (appNameFromConfig) {
+      candidates.push(path11.join(iosProjectPath, appNameFromConfig, "Info.plist"));
+    }
+    candidates.push(path11.join(iosProjectPath, "Info.plist"));
+    return candidates.find((p) => fs11.existsSync(p)) ?? null;
+  }
+  function readPlistXml(plistPath) {
+    return fs11.readFileSync(plistPath, "utf8");
+  }
+  function syncInfoPlistPermissions(packages) {
+    const plistPath = findInfoPlist();
+    if (!plistPath) return;
+    const allPermissions = {};
+    for (const pkg of packages) {
+      const iosPerms = pkg.config.ios?.iosPermissions;
+      if (iosPerms) {
+        for (const [key, desc] of Object.entries(iosPerms)) {
+          if (!allPermissions[key]) {
+            allPermissions[key] = desc;
+          }
+        }
+      }
+    }
+    if (Object.keys(allPermissions).length === 0) return;
+    let plist = readPlistXml(plistPath);
+    let added = 0;
+    for (const [key, desc] of Object.entries(allPermissions)) {
+      if (plist.includes(`<key>${key}</key>`)) continue;
+      const insertion = `	<key>${key}</key>
+	<string>${desc}</string>
+`;
+      plist = plist.replace(
+        /(<\/dict>\s*<\/plist>)/,
+        `${insertion}$1`
+      );
+      added++;
+    }
+    if (added > 0) {
+      fs11.writeFileSync(plistPath, plist, "utf8");
+      console.log(`\u2705 Synced ${added} Info.plist permission description(s)`);
+    }
+  }
+  function syncInfoPlistUrlSchemes() {
+    const urlSchemes = resolved.config.ios?.urlSchemes;
+    if (!urlSchemes || urlSchemes.length === 0) return;
+    const plistPath = findInfoPlist();
+    if (!plistPath) return;
+    let plist = readPlistXml(plistPath);
+    const schemesXml = urlSchemes.map((s) => {
+      const role = s.role ?? "Editor";
+      return `			<dict>
+				<key>CFBundleTypeRole</key>
+				<string>${role}</string>
+				<key>CFBundleURLSchemes</key>
+				<array>
+					<string>${s.scheme}</string>
+				</array>
+			</dict>`;
+    }).join("\n");
+    const generatedBlock = `	<key>CFBundleURLTypes</key>
+	<array>
+		<!-- GENERATED URL SCHEMES START -->
+${schemesXml}
+		<!-- GENERATED URL SCHEMES END -->
+	</array>`;
+    const startMarker = "<!-- GENERATED URL SCHEMES START -->";
+    const endMarker = "<!-- GENERATED URL SCHEMES END -->";
+    if (plist.includes(startMarker) && plist.includes(endMarker)) {
+      const regex = new RegExp(
+        `${startMarker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[\\s\\S]*?${endMarker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+        "g"
+      );
+      plist = plist.replace(regex, `${startMarker}
+${schemesXml}
+		${endMarker}`);
+    } else if (plist.includes("<key>CFBundleURLTypes</key>")) {
+      console.log("\u2139\uFE0F CFBundleURLTypes exists but has no generated markers. Skipping URL scheme sync.");
+      return;
+    } else {
+      plist = plist.replace(
+        /(<\/dict>\s*<\/plist>)/,
+        `${generatedBlock}
+$1`
+      );
+    }
+    fs11.writeFileSync(plistPath, plist, "utf8");
+    console.log(`\u2705 Synced ${urlSchemes.length} iOS URL scheme(s) into Info.plist`);
   }
   function runPodInstall(forcePath) {
     const podfilePath = forcePath ?? path11.join(iosProjectPath, "Podfile");
@@ -2698,6 +2995,8 @@ ${fileContent}`;
     }
     updatePodfile(packages);
     updateLynxInitProcessor(packages);
+    syncInfoPlistPermissions(packages);
+    syncInfoPlistUrlSchemes();
     const appNameFromConfig = resolved.config.ios?.appName;
     if (appNameFromConfig) {
       const appPodfile = path11.join(iosProjectPath, appNameFromConfig, "Podfile");
@@ -3370,8 +3669,1149 @@ async function start(opts) {
 var start_default = start;
 
 // src/common/buildDevApp.ts
+import fs19 from "fs";
+import path19 from "path";
+import { execSync as execSync9 } from "child_process";
+
+// src/ios/syncDevClient.ts
 import fs18 from "fs";
 import path18 from "path";
+import { execSync as execSync8 } from "child_process";
+import { randomBytes as randomBytes2 } from "crypto";
+var APP_NAME = "TamerDevApp";
+var BUNDLE_ID = "com.nanofuxion.tamerdevapp";
+var BRIDGING_HEADER = `${APP_NAME}-Bridging-Header.h`;
+function generateId() {
+  return randomBytes2(12).toString("hex").toUpperCase();
+}
+function writeFile(filePath, content) {
+  fs18.mkdirSync(path18.dirname(filePath), { recursive: true });
+  fs18.writeFileSync(filePath, content, "utf8");
+}
+function getAppDelegateSwift() {
+  return `import UIKit
+
+@UIApplicationMain
+class AppDelegate: UIResponder, UIApplicationDelegate {
+    var window: UIWindow?
+
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+    ) -> Bool {
+        LynxInitProcessor.shared.setupEnvironment()
+
+        window = UIWindow(frame: UIScreen.main.bounds)
+        window?.rootViewController = DevLauncherViewController()
+        window?.makeKeyAndVisible()
+        return true
+    }
+
+    func application(_ app: UIApplication, open url: URL,
+                     options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        if url.scheme == "tamerdevapp", let host = url.host, host == "project" {
+            presentProjectViewController()
+        }
+        return true
+    }
+
+    @objc func presentProjectViewController() {
+        guard let root = window?.rootViewController else { return }
+        let projectVC = ProjectViewController()
+        projectVC.modalPresentationStyle = .fullScreen
+        root.present(projectVC, animated: true)
+    }
+}
+`;
+}
+function getDevLauncherViewControllerSwift() {
+  return `import UIKit
+import Lynx
+import tamerdevclient
+import tamerinsets
+
+class DevLauncherViewController: UIViewController {
+    private var lynxView: LynxView?
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        edgesForExtendedLayout = .all
+        extendedLayoutIncludesOpaqueBars = true
+        additionalSafeAreaInsets = .zero
+        view.insetsLayoutMarginsFromSafeArea = false
+        view.preservesSuperviewLayoutMargins = false
+        viewRespectsSystemMinimumLayoutMargins = false
+        setupLynxView()
+        setupDevClientModule()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        if let lynxView = lynxView {
+            applyFullscreenLayout(to: lynxView)
+        }
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        TamerInsetsModule.reRequestInsets()
+    }
+
+    override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
+
+    private func setupLynxView() {
+        let size = fullscreenBounds().size
+        let lv = LynxView { builder in
+            builder.config = LynxConfig(provider: DevTemplateProvider())
+            builder.screenSize = size
+            builder.fontScale = 1.0
+        }
+        lv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        lv.insetsLayoutMarginsFromSafeArea = false
+        lv.preservesSuperviewLayoutMargins = false
+        view.addSubview(lv)
+        applyFullscreenLayout(to: lv)
+        lv.loadTemplate(fromURL: "dev-client.lynx.bundle", initData: nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self, weak lv] in
+            guard let self, let lv else { return }
+            self.logViewport("devclient post-load", lynxView: lv)
+            self.applyFullscreenLayout(to: lv)
+        }
+        self.lynxView = lv
+    }
+
+    private func applyFullscreenLayout(to lynxView: LynxView) {
+        let bounds = fullscreenBounds()
+        let size = bounds.size
+        lynxView.frame = bounds
+        lynxView.updateScreenMetrics(withWidth: size.width, height: size.height)
+        lynxView.updateViewport(withPreferredLayoutWidth: size.width, preferredLayoutHeight: size.height, needLayout: true)
+        lynxView.preferredLayoutWidth = size.width
+        lynxView.preferredLayoutHeight = size.height
+        lynxView.layoutWidthMode = .exact
+        lynxView.layoutHeightMode = .exact
+        logViewport("devclient apply", lynxView: lynxView)
+    }
+
+    private func fullscreenBounds() -> CGRect {
+        let bounds = view.bounds
+        if bounds.width > 0, bounds.height > 0 {
+            return bounds
+        }
+        return UIScreen.main.bounds
+    }
+
+    private func logViewport(_ label: String, lynxView: LynxView) {
+        let rootWidth = lynxView.rootWidth()
+        let rootHeight = lynxView.rootHeight()
+        let intrinsic = lynxView.intrinsicContentSize
+        NSLog("[DevLauncher] %@ view=%@ safe=%@ lynxFrame=%@ lynxBounds=%@ root=%0.2fx%0.2f intrinsic=%@", label, NSCoder.string(for: view.bounds), NSCoder.string(for: view.safeAreaInsets), NSCoder.string(for: lynxView.frame), NSCoder.string(for: lynxView.bounds), rootWidth, rootHeight, NSCoder.string(for: intrinsic))
+    }
+
+    private func setupDevClientModule() {
+        DevClientModule.presentQRScanner = { [weak self] completion in
+            let scanner = QRScannerViewController()
+            scanner.onResult = { url in
+                scanner.dismiss(animated: true) { completion(url) }
+            }
+            scanner.modalPresentationStyle = .fullScreen
+            self?.present(scanner, animated: true)
+        }
+
+        DevClientModule.reloadProjectHandler = { [weak self] in
+            guard let self = self else { return }
+            let projectVC = ProjectViewController()
+            projectVC.modalPresentationStyle = .fullScreen
+            self.present(projectVC, animated: true)
+        }
+    }
+}
+`;
+}
+function getProjectViewControllerSwift() {
+  return `import UIKit
+import Lynx
+import tamerinsets
+
+class ProjectViewController: UIViewController {
+    private var lynxView: LynxView?
+    private var devClientManager: DevClientManager?
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        edgesForExtendedLayout = .all
+        extendedLayoutIncludesOpaqueBars = true
+        additionalSafeAreaInsets = .zero
+        view.insetsLayoutMarginsFromSafeArea = false
+        view.preservesSuperviewLayoutMargins = false
+        viewRespectsSystemMinimumLayoutMargins = false
+        setupLynxView()
+        devClientManager = DevClientManager(onReload: { [weak self] in
+            self?.reloadLynxView()
+        })
+        devClientManager?.connect()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        if let lynxView = lynxView {
+            applyFullscreenLayout(to: lynxView)
+        }
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+        TamerInsetsModule.reRequestInsets()
+    }
+
+    override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
+
+    private func buildLynxView() -> LynxView {
+        let size = fullscreenBounds().size
+        let lv = LynxView { builder in
+            builder.config = LynxConfig(provider: DevTemplateProvider())
+            builder.screenSize = size
+            builder.fontScale = 1.0
+        }
+        lv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        lv.insetsLayoutMarginsFromSafeArea = false
+        lv.preservesSuperviewLayoutMargins = false
+        applyFullscreenLayout(to: lv)
+        return lv
+    }
+
+    private func setupLynxView() {
+        let lv = buildLynxView()
+        view.addSubview(lv)
+        lv.loadTemplate(fromURL: "main.lynx.bundle", initData: nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self, weak lv] in
+            guard let self, let lv else { return }
+            self.logViewport("project post-load", lynxView: lv)
+            self.applyFullscreenLayout(to: lv)
+        }
+        self.lynxView = lv
+    }
+
+    private func reloadLynxView() {
+        lynxView?.removeFromSuperview()
+        lynxView = nil
+        setupLynxView()
+    }
+
+    private func applyFullscreenLayout(to lynxView: LynxView) {
+        let bounds = fullscreenBounds()
+        let size = bounds.size
+        lynxView.frame = bounds
+        lynxView.updateScreenMetrics(withWidth: size.width, height: size.height)
+        lynxView.updateViewport(withPreferredLayoutWidth: size.width, preferredLayoutHeight: size.height, needLayout: true)
+        lynxView.preferredLayoutWidth = size.width
+        lynxView.preferredLayoutHeight = size.height
+        lynxView.layoutWidthMode = .exact
+        lynxView.layoutHeightMode = .exact
+        logViewport("project apply", lynxView: lynxView)
+    }
+
+    private func fullscreenBounds() -> CGRect {
+        let bounds = view.bounds
+        if bounds.width > 0, bounds.height > 0 {
+            return bounds
+        }
+        return UIScreen.main.bounds
+    }
+
+    private func logViewport(_ label: String, lynxView: LynxView) {
+        let rootWidth = lynxView.rootWidth()
+        let rootHeight = lynxView.rootHeight()
+        let intrinsic = lynxView.intrinsicContentSize
+        NSLog("[ProjectVC] %@ view=%@ safe=%@ lynxFrame=%@ lynxBounds=%@ root=%0.2fx%0.2f intrinsic=%@", label, NSCoder.string(for: view.bounds), NSCoder.string(for: view.safeAreaInsets), NSCoder.string(for: lynxView.frame), NSCoder.string(for: lynxView.bounds), rootWidth, rootHeight, NSCoder.string(for: intrinsic))
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        if isBeingDismissed || isMovingFromParent {
+            devClientManager?.disconnect()
+        }
+    }
+}
+`;
+}
+function getDevTemplateProviderSwift() {
+  return `import Foundation
+import Lynx
+import tamerdevclient
+
+class DevTemplateProvider: NSObject, LynxTemplateProvider {
+    private static let devClientBundle = "dev-client.lynx.bundle"
+
+    func loadTemplate(withUrl url: String!, onComplete callback: LynxTemplateLoadBlock!) {
+        DispatchQueue.global(qos: .background).async {
+            // dev-client.lynx.bundle always loads from the embedded asset
+            if url == Self.devClientBundle || url?.hasSuffix("/" + Self.devClientBundle) == true {
+                self.loadFromBundle(url: Self.devClientBundle, callback: callback)
+                return
+            }
+
+            // Try the dev server first
+            if let devUrl = DevServerPrefs.getUrl(), !devUrl.isEmpty {
+                let origin: String
+                if let parsed = URL(string: devUrl) {
+                    let scheme = parsed.scheme ?? "http"
+                    let host = parsed.host ?? "localhost"
+                    let port = parsed.port.map { ":\\($0)" } ?? ""
+                    origin = "\\(scheme)://\\(host)\\(port)"
+                } else {
+                    origin = devUrl
+                }
+
+                let candidates = ["/\\(url!)", "/tamer-dev-app/\\(url!)"]
+                for candidate in candidates {
+                    if let data = self.httpFetch(url: origin + candidate) {
+                        callback?(data, nil)
+                        return
+                    }
+                }
+            }
+
+            // Fall back to embedded bundle
+            self.loadFromBundle(url: url, callback: callback)
+        }
+    }
+
+    private func loadFromBundle(url: String?, callback: LynxTemplateLoadBlock!) {
+        guard let url = url,
+              let bundleUrl = Bundle.main.url(forResource: url, withExtension: nil),
+              let data = try? Data(contentsOf: bundleUrl) else {
+            let err = NSError(domain: "DevTemplateProvider", code: 404,
+                              userInfo: [NSLocalizedDescriptionKey: "Bundle not found: \\(url ?? "nil")"])
+            callback?(nil, err)
+            return
+        }
+        callback?(data, nil)
+    }
+
+    private func httpFetch(url: String) -> Data? {
+        guard let u = URL(string: url) else { return nil }
+        var req = URLRequest(url: u)
+        req.timeoutInterval = 10
+        var result: Data?
+        let sem = DispatchSemaphore(value: 0)
+        URLSession.shared.dataTask(with: req) { data, response, _ in
+            if let http = response as? HTTPURLResponse, http.statusCode == 200 {
+                result = data
+            }
+            sem.signal()
+        }.resume()
+        sem.wait()
+        return result
+    }
+}
+`;
+}
+function getDevClientManagerSwift() {
+  return `import Foundation
+import tamerdevclient
+
+class DevClientManager {
+    private var webSocketTask: URLSessionWebSocketTask?
+    private let onReload: () -> Void
+    private var session: URLSession?
+
+    init(onReload: @escaping () -> Void) {
+        self.onReload = onReload
+    }
+
+    func connect() {
+        guard let devUrl = DevServerPrefs.getUrl(), !devUrl.isEmpty else { return }
+        guard let base = URL(string: devUrl) else { return }
+
+        let scheme = (base.scheme == "https") ? "wss" : "ws"
+        let host = base.host ?? "localhost"
+        let port = base.port.map { ":\\($0)" } ?? ""
+        let rawPath = base.path.isEmpty ? "/" : base.path
+        let dir = rawPath.hasSuffix("/") ? rawPath : rawPath + "/"
+        guard let wsUrl = URL(string: "\\(scheme)://\\(host)\\(port)\\(dir)__hmr") else { return }
+
+        session = URLSession(configuration: .default)
+        let task = session!.webSocketTask(with: wsUrl)
+        webSocketTask = task
+        task.resume()
+        receive()
+    }
+
+    private func receive() {
+        webSocketTask?.receive { [weak self] result in
+            guard let self = self else { return }
+            switch result {
+            case .success(let msg):
+                if case .string(let text) = msg, text.contains("\\"type\\":\\"reload\\"") {
+                    DispatchQueue.main.async { self.onReload() }
+                }
+                self.receive()
+            case .failure:
+                break
+            }
+        }
+    }
+
+    func disconnect() {
+        webSocketTask?.cancel(with: .normalClosure, reason: nil)
+        webSocketTask = nil
+        session = nil
+    }
+}
+`;
+}
+function getQRScannerViewControllerSwift() {
+  return `import UIKit
+import AVFoundation
+
+class QRScannerViewController: UIViewController {
+    var onResult: ((String?) -> Void)?
+
+    private var captureSession: AVCaptureSession?
+    private var previewLayer: AVCaptureVideoPreviewLayer?
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        setupCamera()
+        addCancelButton()
+    }
+
+    private func setupCamera() {
+        let session = AVCaptureSession()
+        guard let device = AVCaptureDevice.default(for: .video),
+              let input = try? AVCaptureDeviceInput(device: device) else {
+            onResult?(nil)
+            return
+        }
+
+        let output = AVCaptureMetadataOutput()
+        session.addInput(input)
+        session.addOutput(output)
+        output.setMetadataObjectsDelegate(self, queue: .main)
+        output.metadataObjectTypes = [.qr]
+
+        let preview = AVCaptureVideoPreviewLayer(session: session)
+        preview.frame = view.layer.bounds
+        preview.videoGravity = .resizeAspectFill
+        view.layer.insertSublayer(preview, at: 0)
+        previewLayer = preview
+
+        DispatchQueue.global(qos: .userInitiated).async { session.startRunning() }
+        captureSession = session
+    }
+
+    private func addCancelButton() {
+        let btn = UIButton(type: .system)
+        btn.setTitle("Cancel", for: .normal)
+        btn.setTitleColor(.white, for: .normal)
+        btn.titleLabel?.font = .systemFont(ofSize: 18, weight: .medium)
+        btn.addTarget(self, action: #selector(cancel), for: .touchUpInside)
+        btn.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(btn)
+        NSLayoutConstraint.activate([
+            btn.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            btn.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -24),
+        ])
+    }
+
+    @objc private func cancel() {
+        captureSession?.stopRunning()
+        onResult?(nil)
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        if captureSession?.isRunning == false {
+            DispatchQueue.global(qos: .userInitiated).async { self.captureSession?.startRunning() }
+        }
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        captureSession?.stopRunning()
+    }
+}
+
+extension QRScannerViewController: AVCaptureMetadataOutputObjectsDelegate {
+    func metadataOutput(_ output: AVCaptureMetadataOutput,
+                        didOutput objects: [AVMetadataObject],
+                        from connection: AVCaptureConnection) {
+        captureSession?.stopRunning()
+        if let obj = objects.first as? AVMetadataMachineReadableCodeObject,
+           let value = obj.stringValue {
+            onResult?(value)
+        }
+    }
+}
+`;
+}
+function getLynxInitProcessorSwift() {
+  return `// Copyright 2024 The Lynx Authors. All rights reserved.
+// Licensed under the Apache License Version 2.0 that can be found in the
+// LICENSE file in the root directory of this source tree.
+
+import Foundation
+
+// GENERATED IMPORTS START
+// This section is automatically generated by Tamer4Lynx.
+// Manual edits will be overwritten.
+// GENERATED IMPORTS END
+
+final class LynxInitProcessor {
+    static let shared = LynxInitProcessor()
+    private init() {}
+
+    func setupEnvironment() {
+        TamerIconElement.registerFonts()
+        setupLynxEnv()
+        setupLynxService()
+    }
+
+    private func setupLynxEnv() {
+        let env = LynxEnv.sharedInstance()
+        let globalConfig = LynxConfig(provider: env.config.templateProvider)
+
+        // GENERATED AUTOLINK START
+
+        // GENERATED AUTOLINK END
+
+        env.prepareConfig(globalConfig)
+    }
+
+    private func setupLynxService() {
+        let webPCoder = SDImageWebPCoder.shared
+        SDImageCodersManager.shared.addCoder(webPCoder)
+    }
+}
+`;
+}
+function getBridgingHeader() {
+  return `#import <Lynx/LynxConfig.h>
+#import <Lynx/LynxEnv.h>
+#import <Lynx/LynxTemplateProvider.h>
+#import <Lynx/LynxView.h>
+#import <Lynx/LynxModule.h>
+#import <SDWebImage/SDWebImage.h>
+#import <SDWebImageWebPCoder/SDWebImageWebPCoder.h>
+`;
+}
+function getInfoPlist() {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>tamerdevapp</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Used to scan QR codes for connecting to the dev server</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Used to discover Tamer dev servers on your local network</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_tamer._tcp.</string>
+	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+</dict>
+</plist>
+`;
+}
+function getPodfile() {
+  return `source 'https://cdn.cocoapods.org/'
+
+platform :ios, '13.0'
+
+target '${APP_NAME}' do
+  pod 'Lynx', '3.6.0', :subspecs => [
+    'Framework',
+  ], :modular_headers => true
+
+  pod 'PrimJS', '3.6.1', :subspecs => ['quickjs', 'napi']
+
+  pod 'LynxService', '3.6.0', :subspecs => [
+    'Image',
+    'Log',
+    'Http',
+  ]
+  pod 'SDWebImage','5.15.5'
+  pod 'SDWebImageWebPCoder', '0.11.0'
+
+  # GENERATED AUTOLINK DEPENDENCIES START
+  # This section is automatically generated by Tamer4Lynx.
+  # Manual edits will be overwritten.
+  # GENERATED AUTOLINK DEPENDENCIES END
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    target.build_configurations.each do |config|
+      config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+      config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
+    end
+
+    if target.name == 'Lynx'
+      target.build_configurations.each do |config|
+        flags = [
+          '-Wno-vla-extension',
+          '-Wno-vla',
+          '-Wno-error=vla-extension',
+          '-Wno-deprecated-declarations',
+          '-Wno-deprecated',
+          '-Wno-deprecated-implementations',
+          '-Wno-macro-redefined',
+          '-Wno-enum-compare',
+          '-Wno-enum-compare-conditional',
+          '-Wno-enum-conversion'
+        ].join(' ')
+
+        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) #{flags}"
+        config.build_settings['OTHER_CFLAGS'] = "$(inherited) #{flags}"
+        config.build_settings['CLANG_WARN_VLA'] = 'NO'
+        config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
+        config.build_settings['CLANG_WARN_ENUM_CONVERSION'] = 'NO'
+      end
+    end
+  end
+end
+`;
+}
+function getMainStoryboard() {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0"
+    toolsVersion="13122.16" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none"
+    useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES"
+    initialViewController="BYZ-38-t0r">
+  <dependencies>
+    <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="13104.12"/>
+    <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+  </dependencies>
+  <scenes>
+    <scene sceneID="tne-QT-ifu">
+      <objects>
+        <viewController id="BYZ-38-t0r" customClass="DevLauncherViewController"
+            customModuleProvider="target" sceneMemberID="viewController">
+          <view key="view" contentMode="scaleToFill" id="8bC-Xf-vdC">
+            <rect key="frame" x="0.0" y="0.0" width="390" height="844"/>
+            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+            <color key="backgroundColor" systemColor="systemBackgroundColor"/>
+            <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
+          </view>
+        </viewController>
+        <placeholder placeholderIdentifier="IBFirstResponder" id="dkx-z0-nzr"
+            sceneMemberID="firstResponder"/>
+      </objects>
+    </scene>
+  </scenes>
+</document>
+`;
+}
+function getLaunchScreenStoryboard() {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0"
+    toolsVersion="13122.16" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none"
+    useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES"
+    colorMatched="YES" initialViewController="01J-lp-oVM">
+  <device id="retina6_12" orientation="portrait" appearance="light"/>
+  <dependencies>
+    <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="13104.12"/>
+    <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+    <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+  </dependencies>
+  <scenes>
+    <scene sceneID="EHf-IW-A2E">
+      <objects>
+        <viewController id="01J-lp-oVM" sceneMemberID="viewController">
+          <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">
+            <rect key="frame" x="0.0" y="0.0" width="390" height="844"/>
+            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+            <subviews>
+              <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="Bg9-1M-mhb">
+                <rect key="frame" x="0.0" y="0.0" width="390" height="844"/>
+                <color key="backgroundColor" white="0.0" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+              </view>
+            </subviews>
+            <viewLayoutGuide key="safeArea" id="Bcu-3y-fUS"/>
+            <color key="backgroundColor" white="0.0" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+            <constraints>
+              <constraint firstItem="Bg9-1M-mhb" firstAttribute="top" secondItem="Ze5-6b-2t3" secondAttribute="top" id="3M4-v9-a3l"/>
+              <constraint firstItem="Bg9-1M-mhb" firstAttribute="bottom" secondItem="Ze5-6b-2t3" secondAttribute="bottom" id="Sbc-LM-HvA"/>
+              <constraint firstItem="Bg9-1M-mhb" firstAttribute="leading" secondItem="Ze5-6b-2t3" secondAttribute="leading" id="cJ0-4h-f4M"/>
+              <constraint firstAttribute="trailing" secondItem="Bg9-1M-mhb" secondAttribute="trailing" id="g0s-pf-rxW"/>
+            </constraints>
+          </view>
+        </viewController>
+        <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>
+      </objects>
+    </scene>
+  </scenes>
+</document>
+`;
+}
+function generatePbxproj(ids) {
+  return `// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+/* Begin PBXBuildFile section */
+		${ids.appDelegateBuildFile} /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = ${ids.appDelegateRef}; };
+		${ids.devLauncherBuildFile} /* DevLauncherViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = ${ids.devLauncherRef}; };
+		${ids.projectVCBuildFile} /* ProjectViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = ${ids.projectVCRef}; };
+		${ids.templateProviderBuildFile} /* DevTemplateProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = ${ids.templateProviderRef}; };
+		${ids.devClientManagerBuildFile} /* DevClientManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = ${ids.devClientManagerRef}; };
+		${ids.devServerPrefsBuildFile} /* DevServerPrefs in Sources (via DevClientModule) */ = {isa = PBXBuildFile; fileRef = ${ids.devClientModuleRef}; };
+		${ids.qrScannerBuildFile} /* QRScannerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = ${ids.qrScannerRef}; };
+		${ids.lynxInitBuildFile} /* LynxInitProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = ${ids.lynxInitRef}; };
+		${ids.mainStoryboardBuildFile} /* Base in Resources */ = {isa = PBXBuildFile; fileRef = ${ids.mainStoryboardBaseRef}; };
+		${ids.launchStoryboardBuildFile} /* Base in Resources */ = {isa = PBXBuildFile; fileRef = ${ids.launchStoryboardBaseRef}; };
+		${ids.assetsBuildFile} /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ${ids.assetsRef}; };
+		${ids.bundleBuildFile} /* dev-client.lynx.bundle in Resources */ = {isa = PBXBuildFile; fileRef = ${ids.bundleRef}; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		${ids.appFile} /* ${APP_NAME}.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "${APP_NAME}.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		${ids.appDelegateRef} /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate.swift"; sourceTree = "<group>"; };
+		${ids.devLauncherRef} /* DevLauncherViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DevLauncherViewController.swift"; sourceTree = "<group>"; };
+		${ids.projectVCRef} /* ProjectViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProjectViewController.swift"; sourceTree = "<group>"; };
+		${ids.templateProviderRef} /* DevTemplateProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DevTemplateProvider.swift"; sourceTree = "<group>"; };
+		${ids.devClientManagerRef} /* DevClientManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DevClientManager.swift"; sourceTree = "<group>"; };
+		${ids.devClientModuleRef} /* DevClientModule (via pod) */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DevClientModule.swift"; sourceTree = "<group>"; };
+		${ids.qrScannerRef} /* QRScannerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "QRScannerViewController.swift"; sourceTree = "<group>"; };
+		${ids.lynxInitRef} /* LynxInitProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LynxInitProcessor.swift"; sourceTree = "<group>"; };
+		${ids.bridgingHeaderRef} /* ${BRIDGING_HEADER} */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "${BRIDGING_HEADER}"; sourceTree = "<group>"; };
+		${ids.mainStoryboardBaseRef} /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = "Base.lproj/Main.storyboard"; sourceTree = "<group>"; };
+		${ids.launchStoryboardBaseRef} /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = "Base.lproj/LaunchScreen.storyboard"; sourceTree = "<group>"; };
+		${ids.assetsRef} /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Assets.xcassets"; sourceTree = "<group>"; };
+		${ids.bundleRef} /* dev-client.lynx.bundle */ = {isa = PBXFileReference; lastKnownFileType = "file"; path = "dev-client.lynx.bundle"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		${ids.frameworksBuildPhase} /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		${ids.mainGroup} = {
+			isa = PBXGroup;
+			children = (
+				${ids.appGroup} /* ${APP_NAME} */,
+				${ids.productsGroup} /* Products */,
+				${ids.frameworksGroup} /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		${ids.productsGroup} /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				${ids.appFile} /* ${APP_NAME}.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		${ids.frameworksGroup} /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		${ids.appGroup} /* ${APP_NAME} */ = {
+			isa = PBXGroup;
+			children = (
+				${ids.appDelegateRef} /* AppDelegate.swift */,
+				${ids.devLauncherRef} /* DevLauncherViewController.swift */,
+				${ids.projectVCRef} /* ProjectViewController.swift */,
+				${ids.templateProviderRef} /* DevTemplateProvider.swift */,
+				${ids.devClientManagerRef} /* DevClientManager.swift */,
+				${ids.devClientModuleRef} /* DevClientModule.swift */,
+				${ids.qrScannerRef} /* QRScannerViewController.swift */,
+				${ids.lynxInitRef} /* LynxInitProcessor.swift */,
+				${ids.bridgingHeaderRef} /* ${BRIDGING_HEADER} */,
+				${ids.mainStoryboardRef} /* Main.storyboard */,
+				${ids.launchStoryboardRef} /* LaunchScreen.storyboard */,
+				${ids.assetsRef} /* Assets.xcassets */,
+				${ids.bundleRef} /* dev-client.lynx.bundle */,
+			);
+			path = "${APP_NAME}";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		${ids.nativeTarget} /* ${APP_NAME} */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = ${ids.targetBuildConfigList};
+			buildPhases = (
+				${ids.sourcesBuildPhase} /* Sources */,
+				${ids.frameworksBuildPhase} /* Frameworks */,
+				${ids.resourcesBuildPhase} /* Resources */,
+				${ids.fontCopyScriptPhase} /* [Tamer] Copy Icon Fonts */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "${APP_NAME}";
+			productName = "${APP_NAME}";
+			productReference = ${ids.appFile};
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		${ids.project} /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 1530;
+			};
+			buildConfigurationList = ${ids.projectBuildConfigList};
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = ${ids.mainGroup};
+			productRefGroup = ${ids.productsGroup} /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				${ids.nativeTarget} /* ${APP_NAME} */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		${ids.resourcesBuildPhase} /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				${ids.assetsBuildFile} /* Assets.xcassets in Resources */,
+				${ids.mainStoryboardBuildFile} /* Base in Resources */,
+				${ids.launchStoryboardBuildFile} /* Base in Resources */,
+				${ids.bundleBuildFile} /* dev-client.lynx.bundle in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		${ids.fontCopyScriptPhase} /* [Tamer] Copy Icon Fonts */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "[Tamer] Copy Icon Fonts";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "FONTS_SRC=\\"${SRCROOT}/../../tamer-icons/fonts\\"\\nif [ -d \\"$FONTS_SRC\\" ]; then\\n  cp -f \\"$FONTS_SRC/MaterialSymbolsOutlined.ttf\\" \\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/\\" 2>/dev/null || true\\n  cp -f \\"$FONTS_SRC/fa-solid-900.ttf\\" \\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/\\" 2>/dev/null || true\\nfi\\nCP_SRC=\\"${SRCROOT}/../../tamer-icons/android/src/main/assets/fonts/material-codepoints.txt\\"\\n[ -f \\"$CP_SRC\\" ] && cp -f \\"$CP_SRC\\" \\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/\\" 2>/dev/null || true\\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		${ids.sourcesBuildPhase} /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				${ids.appDelegateBuildFile} /* AppDelegate.swift in Sources */,
+				${ids.devLauncherBuildFile} /* DevLauncherViewController.swift in Sources */,
+				${ids.projectVCBuildFile} /* ProjectViewController.swift in Sources */,
+				${ids.templateProviderBuildFile} /* DevTemplateProvider.swift in Sources */,
+				${ids.devClientManagerBuildFile} /* DevClientManager.swift in Sources */,
+				${ids.qrScannerBuildFile} /* QRScannerViewController.swift in Sources */,
+				${ids.lynxInitBuildFile} /* LynxInitProcessor.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		${ids.mainStoryboardRef} /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				${ids.mainStoryboardBaseRef} /* Base */,
+			);
+			name = "Main.storyboard";
+			sourceTree = "<group>";
+		};
+		${ids.launchStoryboardRef} /* LaunchScreen.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				${ids.launchStoryboardBaseRef} /* Base */,
+			);
+			name = "LaunchScreen.storyboard";
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		${ids.projectDebugConfig} /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		${ids.projectReleaseConfig} /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		${ids.targetDebugConfig} /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = "${APP_NAME}/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = "1.0";
+				PRODUCT_BUNDLE_IDENTIFIER = "${BUNDLE_ID}";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "${APP_NAME}/${BRIDGING_HEADER}";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		${ids.targetReleaseConfig} /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = "${APP_NAME}/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = "1.0";
+				PRODUCT_BUNDLE_IDENTIFIER = "${BUNDLE_ID}";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "${APP_NAME}/${BRIDGING_HEADER}";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		${ids.projectBuildConfigList} = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				${ids.projectDebugConfig} /* Debug */,
+				${ids.projectReleaseConfig} /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		${ids.targetBuildConfigList} = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				${ids.targetDebugConfig} /* Debug */,
+				${ids.targetReleaseConfig} /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = ${ids.project} /* Project object */;
+}
+`;
+}
+async function createDevAppProject(iosDir) {
+  const projectDir = path18.join(iosDir, APP_NAME);
+  const xcodeprojDir = path18.join(iosDir, `${APP_NAME}.xcodeproj`);
+  if (fs18.existsSync(iosDir)) {
+    fs18.rmSync(iosDir, { recursive: true, force: true });
+  }
+  console.log(`\u{1F680} Creating TamerDevApp iOS project at: ${iosDir}`);
+  const ids = {};
+  const idKeys = [
+    "project",
+    "mainGroup",
+    "appGroup",
+    "productsGroup",
+    "frameworksGroup",
+    "appFile",
+    "appDelegateRef",
+    "devLauncherRef",
+    "projectVCRef",
+    "templateProviderRef",
+    "devClientManagerRef",
+    "devClientModuleRef",
+    "qrScannerRef",
+    "lynxInitRef",
+    "bridgingHeaderRef",
+    "mainStoryboardRef",
+    "mainStoryboardBaseRef",
+    "launchStoryboardRef",
+    "launchStoryboardBaseRef",
+    "assetsRef",
+    "bundleRef",
+    "nativeTarget",
+    "appDelegateBuildFile",
+    "devLauncherBuildFile",
+    "projectVCBuildFile",
+    "templateProviderBuildFile",
+    "devClientManagerBuildFile",
+    "devServerPrefsBuildFile",
+    "qrScannerBuildFile",
+    "lynxInitBuildFile",
+    "mainStoryboardBuildFile",
+    "launchStoryboardBuildFile",
+    "assetsBuildFile",
+    "bundleBuildFile",
+    "frameworksBuildPhase",
+    "resourcesBuildPhase",
+    "sourcesBuildPhase",
+    "fontCopyScriptPhase",
+    "projectBuildConfigList",
+    "targetBuildConfigList",
+    "projectDebugConfig",
+    "projectReleaseConfig",
+    "targetDebugConfig",
+    "targetReleaseConfig"
+  ];
+  for (const k of idKeys) ids[k] = generateId();
+  writeFile(path18.join(iosDir, "Podfile"), getPodfile());
+  writeFile(path18.join(projectDir, "AppDelegate.swift"), getAppDelegateSwift());
+  writeFile(path18.join(projectDir, "DevLauncherViewController.swift"), getDevLauncherViewControllerSwift());
+  writeFile(path18.join(projectDir, "ProjectViewController.swift"), getProjectViewControllerSwift());
+  writeFile(path18.join(projectDir, "DevTemplateProvider.swift"), getDevTemplateProviderSwift());
+  writeFile(path18.join(projectDir, "DevClientManager.swift"), getDevClientManagerSwift());
+  writeFile(path18.join(projectDir, "QRScannerViewController.swift"), getQRScannerViewControllerSwift());
+  writeFile(path18.join(projectDir, "LynxInitProcessor.swift"), getLynxInitProcessorSwift());
+  writeFile(path18.join(projectDir, BRIDGING_HEADER), getBridgingHeader());
+  writeFile(path18.join(projectDir, "Info.plist"), getInfoPlist());
+  writeFile(path18.join(projectDir, "Base.lproj", "Main.storyboard"), getMainStoryboard());
+  writeFile(path18.join(projectDir, "Base.lproj", "LaunchScreen.storyboard"), getLaunchScreenStoryboard());
+  writeFile(
+    path18.join(projectDir, "Assets.xcassets", "AppIcon.appiconset", "Contents.json"),
+    JSON.stringify({ images: [{ idiom: "universal", platform: "ios", size: "1024x1024" }], info: { author: "xcode", version: 1 } }, null, 2)
+  );
+  writeFile(
+    path18.join(projectDir, "Assets.xcassets", "Contents.json"),
+    JSON.stringify({ info: { author: "xcode", version: 1 } }, null, 2)
+  );
+  writeFile(path18.join(projectDir, "dev-client.lynx.bundle"), "");
+  fs18.mkdirSync(xcodeprojDir, { recursive: true });
+  writeFile(path18.join(xcodeprojDir, "project.pbxproj"), generatePbxproj(ids));
+  console.log(`\u2705 TamerDevApp iOS project created at ${iosDir}`);
+  await setupCocoaPods(iosDir);
+}
+async function syncDevClientIos() {
+  let resolved;
+  try {
+    const repoRoot = findRepoRoot4(process.cwd());
+    resolved = resolveDevAppPaths(repoRoot);
+  } catch (e) {
+    console.error(`\u274C ${e.message}`);
+    process.exit(1);
+  }
+  const iosDir = resolved.iosDir;
+  const workspacePath = path18.join(iosDir, `${APP_NAME}.xcworkspace`);
+  if (!fs18.existsSync(workspacePath)) {
+    await createDevAppProject(iosDir);
+  } else {
+    console.log(`\u2139\uFE0F  iOS dev-app project already exists at ${iosDir}`);
+  }
+  const prev = process.cwd();
+  process.chdir(resolved.projectRoot);
+  try {
+    autolink_default2();
+  } finally {
+    process.chdir(prev);
+  }
+  const devClientDir = resolved.lynxProjectDir;
+  console.log("\u{1F4E6} Building dev-client Lynx bundle...");
+  execSync8("npm run build", { stdio: "inherit", cwd: devClientDir });
+  const bundleSrc = resolved.lynxBundlePath;
+  const bundleDst = path18.join(iosDir, APP_NAME, "dev-client.lynx.bundle");
+  if (fs18.existsSync(bundleSrc)) {
+    fs18.copyFileSync(bundleSrc, bundleDst);
+    console.log(`\u2728 Copied dev-client.lynx.bundle to iOS project`);
+  } else {
+    console.warn(`\u26A0\uFE0F  Bundle not found at ${bundleSrc}`);
+  }
+}
 function findRepoRoot4(start2) {
   let dir = path18.resolve(start2);
   const root = path18.parse(dir).root;
@@ -3388,9 +4828,28 @@ function findRepoRoot4(start2) {
   }
   return start2;
 }
+var syncDevClient_default2 = syncDevClientIos;
+
+// src/common/buildDevApp.ts
+function findRepoRoot5(start2) {
+  let dir = path19.resolve(start2);
+  const root = path19.parse(dir).root;
+  while (dir !== root) {
+    const pkgPath = path19.join(dir, "package.json");
+    if (fs19.existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(fs19.readFileSync(pkgPath, "utf8"));
+        if (pkg.workspaces) return dir;
+      } catch {
+      }
+    }
+    dir = path19.dirname(dir);
+  }
+  return start2;
+}
 async function buildDevApp(opts = {}) {
   const cwd = process.cwd();
-  const repoRoot = findRepoRoot4(cwd);
+  const repoRoot = findRepoRoot5(cwd);
   const devClientPkg = findDevClientPackage(repoRoot) ?? findDevClientPackage(cwd);
   if (!devClientPkg) {
     console.error("\u274C tamer-dev-client is not installed in this project.");
@@ -3399,12 +4858,42 @@ async function buildDevApp(opts = {}) {
   }
   const platform = opts.platform ?? "all";
   if (platform === "ios" || platform === "all") {
-    console.log("\u26A0\uFE0F  iOS dev-app build is not yet implemented. Skipping.");
-    if (platform === "ios") process.exit(0);
+    await syncDevClient_default2();
+    buildIosDevApp(opts.install);
+    if (platform === "ios") return;
   }
   if (platform === "android" || platform === "all") {
     await bundle_default({ target: "dev-app" });
     await build_default({ target: "dev-app", install: opts.install });
+  }
+}
+function buildIosDevApp(install) {
+  const repoRoot = findRepoRoot5(process.cwd());
+  const iosDir = path19.join(repoRoot, "packages", "tamer-dev-app", "ios");
+  const appName = "TamerDevApp";
+  const workspacePath = path19.join(iosDir, `${appName}.xcworkspace`);
+  const projectPath = path19.join(iosDir, `${appName}.xcodeproj`);
+  const xcproject = fs19.existsSync(workspacePath) ? workspacePath : projectPath;
+  const flag = xcproject.endsWith(".xcworkspace") ? "workspace" : "project";
+  const simulatorId = "A07F36D8-873A-41E0-8B90-3DF328A6B614";
+  console.log("\n\u{1F528} Building TamerDevApp for simulator...");
+  execSync9(
+    `xcodebuild -${flag} "${xcproject}" -scheme "${appName}" -configuration Debug -sdk iphonesimulator -destination "platform=iOS Simulator,name=iPhone 16 Pro,OS=18.5" -derivedDataPath build`,
+    { stdio: "inherit", cwd: iosDir }
+  );
+  console.log("\u2705 TamerDevApp built successfully.");
+  if (install) {
+    const appPath = path19.join(iosDir, "build", "Build", "Products", "Debug-iphonesimulator", `${appName}.app`);
+    console.log("\n\u{1F4F2} Installing to simulator...");
+    try {
+      execSync9(`xcrun simctl boot "${simulatorId}" 2>/dev/null`);
+    } catch {
+    }
+    execSync9(`xcrun simctl install "${simulatorId}" "${appPath}"`, { stdio: "inherit" });
+    const bundleId = "com.nanofuxion.tamerdevapp";
+    execSync9(`xcrun simctl launch "${simulatorId}" "${bundleId}"`, { stdio: "inherit" });
+    execSync9("open -a Simulator", { stdio: "inherit" });
+    console.log("\u2705 TamerDevApp launched in simulator.");
   }
 }
 var buildDevApp_default = buildDevApp;
@@ -3477,10 +4966,10 @@ program.command("codegen").description("Generate code from @lynxmodule declarati
   codegen_default();
 });
 program.command("autolink").description("Auto-link native modules to the project").action(async () => {
-  const configPath = path19.join(process.cwd(), "tamer.config.json");
+  const configPath = path20.join(process.cwd(), "tamer.config.json");
   let config = {};
-  if (fs19.existsSync(configPath)) {
-    config = JSON.parse(fs19.readFileSync(configPath, "utf8"));
+  if (fs20.existsSync(configPath)) {
+    config = JSON.parse(fs20.readFileSync(configPath, "utf8"));
   }
   if (config.autolink) {
     delete config.autolink;
@@ -3489,7 +4978,7 @@ program.command("autolink").description("Auto-link native modules to the project
     config.autolink = true;
     console.log("Autolink enabled in tamer.config.json");
   }
-  fs19.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  fs20.writeFileSync(configPath, JSON.stringify(config, null, 2));
   console.log(`Updated ${configPath}`);
 });
 if (process.argv.length <= 2 || process.argv.length === 3 && process.argv[2] === "init") {

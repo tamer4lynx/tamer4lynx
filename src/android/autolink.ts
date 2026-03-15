@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import { loadExtensionConfig, hasExtensionConfig, type NormalizedExtensionConfig } from '../common/config';
-import { resolveHostPaths } from '../common/hostConfig';
+import { loadExtensionConfig, hasExtensionConfig, getAndroidModuleClassNames, type NormalizedExtensionConfig } from '../common/config';
+import { resolveHostPaths, type DeepLinkConfig } from '../common/hostConfig';
 
 const autolink = () => {
     interface DiscoveredPackage {
@@ -173,20 +173,18 @@ const autolink = () => {
         const generatedDir = path.join(appAndroidPath, 'app', 'src', 'main', 'kotlin', packagePath, 'generated');
         const kotlinExtensionsPath = path.join(generatedDir, 'GeneratedLynxExtensions.kt');
 
-        const modulePackages = packages.filter(p => p.config.android?.moduleClassName);
+        const modulePackages = packages.filter(p => getAndroidModuleClassNames(p.config.android).length > 0);
         const elementPackages = packages.filter(p => p.config.android?.elements && Object.keys(p.config.android.elements).length > 0);
 
-        const moduleImports = modulePackages
-            .map(p => `import ${p.config.android!.moduleClassName}`)
-            .join('\n');
+        const allModuleClasses = modulePackages.flatMap(p => getAndroidModuleClassNames(p.config.android));
+        const moduleImports = allModuleClasses.map(c => `import ${c}`).join('\n');
 
         const elementImports = elementPackages.flatMap(p =>
             Object.values(p.config.android!.elements!).map(cls => `import ${cls}`)
         ).filter((v, i, a) => a.indexOf(v) === i).join('\n');
 
-        const moduleRegistrations = modulePackages
-            .map(p => {
-                const fullClassName = p.config.android!.moduleClassName!;
+        const moduleRegistrations = allModuleClasses
+            .map(fullClassName => {
                 const simpleClassName = fullClassName.split('.').pop()!;
                 return `        LynxEnv.inst().registerModule("${simpleClassName}", ${simpleClassName}::class.java)`;
             })
@@ -206,10 +204,12 @@ const autolink = () => {
         const allRegistrations = [moduleRegistrations, behaviorRegistrations].filter(Boolean).join('\n');
 
         const hostViewPackages = modulePackages.filter(p => p.config.android?.attachHostView);
-        const hostViewLines = hostViewPackages.map(p => {
-            const simpleClassName = p.config.android!.moduleClassName!.split('.').pop()!;
-            return `        ${simpleClassName}.attachHostView(view)`;
-        }).join('\n');
+        const hostViewLines = hostViewPackages.flatMap(p =>
+            getAndroidModuleClassNames(p.config.android).map(fullClassName => {
+                const simpleClassName = fullClassName.split('.').pop()!;
+                return `        ${simpleClassName}.attachHostView(view)`;
+            })
+        ).join('\n');
         const hostViewMethod = hostViewPackages.length > 0
             ? `\n    fun onHostViewChanged(view: android.view.View?) {\n${hostViewLines}\n    }`
             : '';
@@ -238,6 +238,141 @@ ${allRegistrations}
     }
 
 
+    /**
+     * Generates GeneratedActivityLifecycle.kt by collecting activityPatches from all packages.
+     */
+    function generateActivityLifecycleFile(packages: DiscoveredPackage[], projectPackage: string): void {
+        const packageKotlinPath = projectPackage.replace(/\./g, '/');
+        const generatedDir = path.join(appAndroidPath, 'app', 'src', 'main', 'kotlin', packageKotlinPath, 'generated');
+        const outputPath = path.join(generatedDir, 'GeneratedActivityLifecycle.kt');
+
+        const hooks = {
+            onCreate: [] as string[],
+            onNewIntent: [] as string[],
+            onResume: [] as string[],
+            onPause: [] as string[],
+            onDestroy: [] as string[],
+            onViewAttached: [] as string[],
+            onViewDetached: [] as string[],
+            onBackPressed: [] as string[],
+            onWindowFocusChanged: [] as string[],
+            onCreateDelayed: [] as string[],
+        };
+
+        for (const pkg of packages) {
+            const patches = pkg.config.android?.activityPatches;
+            if (!patches) continue;
+            for (const [hook, call] of Object.entries(patches)) {
+                if (hook in hooks) (hooks as Record<string, string[]>)[hook]!.push(call);
+            }
+        }
+
+        const bodyLines = (arr: string[]) =>
+            arr.length > 0
+                ? arr.map(c => `        ${c}`).join('\n')
+                : '        // no patches';
+
+        const backPressedBody = hooks.onBackPressed.length > 0
+            ? hooks.onBackPressed.map(c => `        ${c}(fallback)`).join('\n')
+            : '        fallback(false)';
+
+        const windowFocusBody = hooks.onWindowFocusChanged.length > 0
+            ? `        if (hasFocus) {\n${hooks.onWindowFocusChanged.map(c => `            ${c}`).join('\n')}\n        }`
+            : '        // no patches';
+
+        const createDelayedBody = hooks.onCreateDelayed.length > 0
+            ? `        listOf(150L, 400L, 800L).forEach { delay ->\n            handler.postDelayed({\n${hooks.onCreateDelayed.map(c => `                ${c}`).join('\n')}\n            }, delay)\n        }`
+            : '        // no patches';
+
+        const kotlinContent = `package ${projectPackage}.generated
+
+import android.content.Intent
+import com.lynx.tasm.LynxView
+
+/**
+ * This file is generated by the Tamer4Lynx autolinker.
+ * Do not edit this file manually.
+ */
+object GeneratedActivityLifecycle {
+    fun onCreate(intent: Intent?) {
+${bodyLines(hooks.onCreate)}
+    }
+
+    fun onNewIntent(intent: Intent?) {
+${bodyLines(hooks.onNewIntent)}
+    }
+
+    fun onViewAttached(lynxView: LynxView?) {
+${bodyLines(hooks.onViewAttached)}
+    }
+
+    fun onViewDetached() {
+${bodyLines(hooks.onViewDetached)}
+    }
+
+    fun onResume() {
+${bodyLines(hooks.onResume)}
+    }
+
+    fun onPause() {
+${bodyLines(hooks.onPause)}
+    }
+
+    fun onDestroy() {
+${bodyLines(hooks.onDestroy)}
+    }
+
+    fun onBackPressed(fallback: (Boolean) -> Unit) {
+${backPressedBody}
+    }
+
+    fun onWindowFocusChanged(hasFocus: Boolean) {
+${windowFocusBody}
+    }
+
+    fun onCreateDelayed(handler: android.os.Handler) {
+${createDelayedBody}
+    }
+}
+`;
+        fs.mkdirSync(generatedDir, { recursive: true });
+        fs.writeFileSync(outputPath, kotlinContent);
+        console.log(`✅ Generated activity lifecycle patches at ${outputPath}`);
+    }
+
+    /**
+     * Merges deep link intent filters from the host tamer.config.json into AndroidManifest.xml
+     * between <!-- GENERATED DEEP LINKS START --> and <!-- GENERATED DEEP LINKS END --> markers.
+     */
+    function syncDeepLinkIntentFilters(): void {
+        const deepLinks = config.android?.deepLinks;
+        if (!deepLinks || deepLinks.length === 0) return;
+
+        const manifestPath = path.join(appAndroidPath, 'app', 'src', 'main', 'AndroidManifest.xml');
+        if (!fs.existsSync(manifestPath)) return;
+
+        const intentFilters = deepLinks.map((link: DeepLinkConfig) => {
+            const dataAttrs = [
+                `android:scheme="${link.scheme}"`,
+                link.host ? `android:host="${link.host}"` : '',
+                link.pathPrefix ? `android:pathPrefix="${link.pathPrefix}"` : '',
+            ].filter(Boolean).join(' ');
+            return `        <intent-filter>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data ${dataAttrs} />
+        </intent-filter>`;
+        }).join('\n');
+
+        updateGeneratedSection(
+            manifestPath,
+            intentFilters,
+            '        <!-- GENERATED DEEP LINKS START -->',
+            '        <!-- GENERATED DEEP LINKS END -->'
+        );
+    }
+
     // --- Main Execution ---
 
     function run() {
@@ -254,8 +389,10 @@ ${allRegistrations}
         updateAppBuildGradle(packages);
 
         generateKotlinExtensionsFile(packages, packageName);
+        generateActivityLifecycleFile(packages, packageName);
 
         syncManifestPermissions(packages);
+        syncDeepLinkIntentFilters();
 
         console.log('✨ Autolinking complete.');
     }

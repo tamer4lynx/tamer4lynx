@@ -91,14 +91,13 @@ source 'https://cdn.cocoapods.org/'
 platform :ios, '13.0'
 
 target '${appName}' do
-  pod 'Lynx', '3.3.0', :subspecs => [
+  pod 'Lynx', '3.6.0', :subspecs => [
 	'Framework',
   ], :modular_headers => true
 
-  pod 'PrimJS', '2.13.2', :subspecs => ['quickjs', 'napi']
+  pod 'PrimJS', '3.6.1', :subspecs => ['quickjs', 'napi']
 
-  # integrate image-service, log-service, and http-service
-  pod 'LynxService', '3.3.0', :subspecs => [
+  pod 'LynxService', '3.6.0', :subspecs => [
 	  'Image',
 	  'Log',
 	  'Http',
@@ -114,27 +113,32 @@ end
 
 post_install do |installer|
   installer.pods_project.targets.each do |target|
-	if target.name == 'Lynx'
-	  target.build_configurations.each do |config|
-		flags = [
-		  '-Wno-vla-extension',
-		  '-Wno-vla',
-		  '-Wno-error=vla-extension',
-		  '-Wno-deprecated-declarations',
-		  '-Wno-deprecated',
-		  '-Wno-macro-redefined',
-		  '-Wno-enum-compare',
-		  '-Wno-enum-compare-conditional',
-		  '-Wno-enum-conversion'
-		].join(' ')
-		
-		config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) #{flags}"
-		config.build_settings['OTHER_CFLAGS'] = "$(inherited) #{flags}"
-		config.build_settings['CLANG_WARN_VLA'] = 'NO'
-		config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
-		config.build_settings['CLANG_WARN_ENUM_CONVERSION'] = 'NO'
-	  end
-	end
+    target.build_configurations.each do |config|
+      config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+    end
+
+    if target.name == 'Lynx'
+      target.build_configurations.each do |config|
+        flags = [
+          '-Wno-vla-extension',
+          '-Wno-vla',
+          '-Wno-error=vla-extension',
+          '-Wno-deprecated-declarations',
+          '-Wno-deprecated',
+          '-Wno-macro-redefined',
+          '-Wno-enum-compare',
+          '-Wno-enum-compare-conditional',
+          '-Wno-enum-conversion'
+        ].join(' ')
+
+        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) #{flags}"
+        config.build_settings['OTHER_CFLAGS'] = "$(inherited) #{flags}"
+        config.build_settings['CLANG_WARN_VLA'] = 'NO'
+        config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
+        config.build_settings['CLANG_WARN_ENUM_CONVERSION'] = 'NO'
+      end
+    end
   end
 end
 	`);
@@ -157,23 +161,52 @@ end
 import UIKit
 
 class ViewController: UIViewController {
+  private var lynxView: LynxView?
 
   override func viewDidLoad() {
 	super.viewDidLoad()
+	view.backgroundColor = .black
+	setupLynxView()
+  }
 
+  override func viewDidLayoutSubviews() {
+	super.viewDidLayoutSubviews()
+	if let lynxView = lynxView {
+	  applyFullscreenLayout(to: lynxView)
+	}
+  }
+
+  private func setupLynxView() {
+	let size = fullscreenBounds().size
 	let lynxView = LynxView { builder in
 	  builder.config = LynxConfig(provider: LynxProvider())
-	  builder.screenSize = self.view.frame.size
+	  builder.screenSize = size
 	  builder.fontScale = 1.0
 	}
+	lynxView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+	self.view.addSubview(lynxView)
+	applyFullscreenLayout(to: lynxView)
+	lynxView.perform(NSSelectorFromString("triggerLayout"))
+	lynxView.loadTemplate(fromURL: "main.lynx", initData: nil)
+	self.lynxView = lynxView
+  }
 
-	lynxView.preferredLayoutWidth = self.view.frame.size.width
-	lynxView.preferredLayoutHeight = self.view.frame.size.height
+  private func applyFullscreenLayout(to lynxView: LynxView) {
+	let bounds = fullscreenBounds()
+	let size = bounds.size
+	lynxView.frame = bounds
+	lynxView.preferredLayoutWidth = size.width
+	lynxView.preferredLayoutHeight = size.height
 	lynxView.layoutWidthMode = .exact
 	lynxView.layoutHeightMode = .exact
-	self.view.addSubview(lynxView)
+  }
 
-	lynxView.loadTemplate(fromURL: "main.lynx", initData: nil)
+  private func fullscreenBounds() -> CGRect {
+	let bounds = self.view.bounds
+	if bounds.width > 0 && bounds.height > 0 {
+	  return bounds
+	}
+	return UIScreen.main.bounds
   }
 }
 	`);
@@ -253,6 +286,43 @@ final class LynxInitProcessor {
 #import <SDWebImage/SDWebImage.h>
 #import <SDWebImageWebPCoder/SDWebImageWebPCoder.h>
 	`);
+	writeFile(path.join(projectDir, "Info.plist"), `
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+</dict>
+</plist>
+	`);
+
 	const appIconDir = path.join(projectDir, "Assets.xcassets", "AppIcon.appiconset");
 	fs.mkdirSync(appIconDir, { recursive: true });
 	const iconPaths = resolveIconPaths(process.cwd(), config);
@@ -313,6 +383,10 @@ final class LynxInitProcessor {
 		${ids.lynxInitRef} /* LynxInitProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LynxInitProcessor.swift"; sourceTree = "<group>"; };
 		${ids.bridgingHeaderRef} /* ${bridgingHeader} */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "${bridgingHeader}"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXInfoPlist section */
+/* Info.plist is managed as a project resource, not a build file */
+/* End PBXInfoPlist section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		${ids.frameworksBuildPhase} /* Frameworks */ = {
@@ -515,8 +589,7 @@ final class LynxInitProcessor {
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_FILE = "${appName}/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = "1.0";
 				PRODUCT_BUNDLE_IDENTIFIER = "${bundleId}";
@@ -532,8 +605,7 @@ final class LynxInitProcessor {
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_UIMainStoryboardFile = Main;
+				INFOPLIST_FILE = "${appName}/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MARKETING_VERSION = "1.0";
 				PRODUCT_BUNDLE_IDENTIFIER = "${bundleId}";

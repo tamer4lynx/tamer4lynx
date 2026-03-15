@@ -1,5 +1,5 @@
 import '@lynx-js/react/debug'
-import 'lynxwebsockets'
+import 'tamer-transports/lynx'
 import { root } from '@lynx-js/react'
 import { FileRouter } from 'tamer-router'
 

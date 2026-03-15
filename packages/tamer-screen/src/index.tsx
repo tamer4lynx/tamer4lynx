@@ -29,6 +29,7 @@ export interface AvoidKeyboardProps extends ViewProps {
 }
 
 const ALL_EDGES = ['top', 'right', 'bottom', 'left'] as const
+const px = (value: number) => `${Math.round(value)}px`
 
 export function Screen(props: ScreenProps) {
   const { children, style, ...rest } = props
@@ -39,10 +40,10 @@ export function Screen(props: ScreenProps) {
         flexDirection: 'column',
         justifyContent: 'flex-start',
         flexGrow: 1,
-        flexShrink: 0,
+        flexShrink: 1,
+        minHeight: 0,
         width: '100%',
         height: '100%',
-        minHeight: '100vh',
         ...(style as object ?? {}),
       }}
       {...rest}
@@ -57,13 +58,11 @@ export function SafeArea(props: SafeAreaProps) {
   const insets = useInsets()
   const active = edges ?? ALL_EDGES
 
-  const bottom = insets.bottom.toFixed(0)
-
   const padding: ViewProps['style'] = {}
-  if (active.includes('top')) padding.paddingTop = insets.top.toFixed(0)
-  if (active.includes('right')) padding.paddingRight = insets.right.toFixed(0)
-  if (active.includes('bottom')) padding.paddingBottom = bottom
-  if (active.includes('left')) padding.paddingLeft = insets.left.toFixed(0)
+  if (active.includes('top')) padding.paddingTop = insets.top
+  if (active.includes('right')) padding.paddingRight = insets.right
+  if (active.includes('bottom')) padding.paddingBottom = insets.bottom
+  if (active.includes('left')) padding.paddingLeft = insets.left
 
   const ctx = {
     hasTop: active.includes('top'),
@@ -77,8 +76,11 @@ export function SafeArea(props: SafeAreaProps) {
     <view
       style={{
         display: 'flex',
+        flexGrow: 1,
+        flexShrink: 1,
+        minHeight: 0,
+        width: '100%',
         height: '100%',
-        minHeight: '100vh',
         flexDirection: 'column',
         justifyContent: 'flex-start',
         ...padding,
@@ -108,7 +110,7 @@ export function AvoidKeyboard(props: AvoidKeyboardProps) {
       : 0
   const bottom = behavior === 'position' ? keyboardOffset : undefined
   const marginBottom =
-    behavior === 'padding' && cancelBottomInset > 0 ? -cancelBottomInset : undefined
+    behavior === 'padding' && cancelBottomInset > 0 ? -Math.round(cancelBottomInset) : undefined
 
   return (
     <view
