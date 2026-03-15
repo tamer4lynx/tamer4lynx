@@ -29,6 +29,7 @@
     "packages/tamer-icons",
     "packages/tamer-insets",
     "packages/tamer-plugin",
+    "packages/tamer-relog",
     "packages/tamer-router",
     "packages/tamer-screen",
     "packages/tamer-system-ui",

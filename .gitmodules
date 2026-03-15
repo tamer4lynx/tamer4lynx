@@ -31,3 +31,27 @@
 [submodule "packages/tamer-text-input"]
 	path = packages/tamer-text-input
 	url = https://github.com/nanofuxion/tamer-text-input.git
+[submodule "packages/tamer-auth"]
+	path = packages/tamer-auth
+	url = https://github.com/nanofuxion/tamer-auth.git
+[submodule "packages/tamer-biometric"]
+	path = packages/tamer-biometric
+	url = https://github.com/nanofuxion/tamer-biometric.git
+[submodule "packages/tamer-display-browser"]
+	path = packages/tamer-display-browser
+	url = https://github.com/nanofuxion/tamer-display-browser.git
+[submodule "packages/tamer-linking"]
+	path = packages/tamer-linking
+	url = https://github.com/nanofuxion/tamer-linking.git
+[submodule "packages/tamer-relog"]
+	path = packages/tamer-relog
+	url = https://github.com/nanofuxion/tamer-relog.git
+[submodule "packages/tamer-screen"]
+	path = packages/tamer-screen
+	url = https://github.com/nanofuxion/tamer-screen.git
+[submodule "packages/tamer-secure-store"]
+	path = packages/tamer-secure-store
+	url = https://github.com/nanofuxion/tamer-secure-store.git
+[submodule "packages/tamer-transports"]
+	path = packages/tamer-transports
+	url = https://github.com/nanofuxion/tamer-transports.git
