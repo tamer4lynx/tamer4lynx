@@ -3,8 +3,10 @@
   "version": "0.0.1",
   "module": "index.ts",
   "type": "module",
-  "private": true,
   "description": "A CLI tool for managing LynxJS native modules.",
+  "repository": { "type": "git", "url": "https://github.com/tamer4lynx/tamer4lynx.git" },
+  "homepage": "https://github.com/tamer4lynx/tamer4lynx#readme",
+  "bugs": { "url": "https://github.com/tamer4lynx/tamer4lynx/issues" },
   "bin": {
     "tamer": "./dist/index.js",
     "t4l": "./dist/index.js"
@@ -16,6 +18,7 @@
     "src"
   ],
   "workspaces": [
+    "packages/docs",
     "packages/example",
     "packages/tamer-auth",
     "packages/tamer-display-browser",
@@ -29,7 +32,6 @@
     "packages/tamer-icons",
     "packages/tamer-insets",
     "packages/tamer-plugin",
-    "packages/tamer-relog",
     "packages/tamer-router",
     "packages/tamer-screen",
     "packages/tamer-system-ui",

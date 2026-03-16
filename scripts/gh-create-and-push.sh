@@ -7,7 +7,7 @@ ORG="tamer4lynx"
 SUBMODULES=(
   docs jiggle lynxwebsockets tamer-dev-app tamer-dev-client tamer-plugin tamer-router
   tamer-icons tamer-insets tamer-system-ui tamer-app-shell tamer-text-input
-  tamer-auth tamer-biometric tamer-display-browser tamer-linking tamer-relog
+  tamer-auth tamer-biometric tamer-display-browser tamer-linking
   tamer-screen tamer-secure-store tamer-transports
 )
 

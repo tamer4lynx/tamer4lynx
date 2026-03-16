@@ -43,9 +43,6 @@
 [submodule "packages/tamer-linking"]
 	path = packages/tamer-linking
 	url = https://github.com/tamer4lynx/tamer-linking.git
-[submodule "packages/tamer-relog"]
-	path = packages/tamer-relog
-	url = https://github.com/tamer4lynx/tamer-relog.git
 [submodule "packages/tamer-screen"]
 	path = packages/tamer-screen
 	url = https://github.com/tamer4lynx/tamer-screen.git

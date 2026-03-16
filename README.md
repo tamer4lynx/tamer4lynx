@@ -2,6 +2,8 @@
 
 A CLI tool for creating, linking, and bundling Lynx native extensions. Aligned with the [Lynx Autolink RFC](https://github.com/lynx-family/lynx/discussions/2653).
 
+Inspired by [Expo](https://expo.dev) and [Expo Go](https://expo.dev/go).
+
 **Standalone app generation** follows patterns from [Lynx Explorer](https://github.com/lynx-family/lynx/tree/develop/explorer), patched for Maven-based standalone builds (no monorepo required). See [lynx#695](https://github.com/lynx-family/lynx/issues/695) for context.
 
 ## Installation
@@ -15,7 +17,7 @@ npm i -g tamer4lynx
 Or from GitHub:
 
 ```bash
-npm i -g nanofuxion/tamer4lynx
+npm i -g tamer4lynx/tamer4lynx
 ```
 
 Then run from your project directory (where `tamer.config.json` lives):
@@ -31,7 +33,7 @@ t4l android build --install
 This repo includes native modules as git submodules. Clone with:
 
 ```bash
-git clone --recurse-submodules https://github.com/nanofuxion/tamer4lynx.git
+git clone --recurse-submodules https://github.com/tamer4lynx/tamer4lynx.git
 ```
 
 If you already have a clone:
@@ -110,6 +112,16 @@ t4l --help
 t4l --version
 ```
 
+### Documentation
+
+The docs site lives at `packages/docs`. From the repo root:
+
+```bash
+cd packages/docs && bun run dev
+```
+
+Build: `bun run build`. Output: `doc_build/`.
+
 ---
 
 ### **Extension Commands (RFC-compliant)**
@@ -152,7 +164,19 @@ t4l android link
 t4l android bundle
 ```
 
+#### Build with `--debug` or `--release`
+
+Use `--debug` (default) for development builds or `--release` for production. Cannot use both.
+
+```bash
+t4l android build --debug --install
+t4l android build --release
+t4l ios build --debug --install
+```
+
 #### Build Dev App (when tamer-dev-client is installed)
+
+Equivalent to `android build --target dev-app` or `ios build --target dev-app`:
 
 ```bash
 t4l build-dev-app
@@ -191,9 +215,6 @@ t4l link --ios
 
 # Link only Android
 t4l link --android
-
-# Link both iOS and Android
-t4l link --both
 
 # Silent mode (no logs)
 t4l link --silent
@@ -269,25 +290,24 @@ These modules are included as git submodules. Run `t4l link` after adding to you
 
 | Package | Description |
 |---------|-------------|
-| [jiggle](https://github.com/nanofuxion/jiggle) | Vibration/haptic |
-| [lynxwebsockets](https://github.com/nanofuxion/lynxwebsockets) | WebSocket native bridge |
-| [tamer-dev-app](https://github.com/nanofuxion/tamer-dev-app) | Dev app (QR scan, HMR) |
-| [tamer-dev-client](https://github.com/nanofuxion/tamer-dev-client) | Dev launcher UI, discovery |
-| [tamer-plugin](https://github.com/nanofuxion/tamer-plugin) | Rsbuild plugin middleman |
-| [tamer-router](https://github.com/nanofuxion/tamer-router) | File-based routing, Stack/Tabs |
-| [tamer-icons](https://github.com/nanofuxion/tamer-icons) | Icon fonts (Material, Font Awesome) |
-| [tamer-insets](https://github.com/nanofuxion/tamer-insets) | System insets, keyboard state |
-| [tamer-system-ui](https://github.com/nanofuxion/tamer-system-ui) | Status bar, navigation bar |
-| [tamer-app-shell](https://github.com/nanofuxion/tamer-app-shell) | AppBar, TabBar, Content layout |
-| [tamer-text-input](https://github.com/nanofuxion/tamer-text-input) | React TextInput |
-| [tamer-auth](https://github.com/nanofuxion/tamer-auth) | OAuth 2.0 / OIDC |
-| [tamer-biometric](https://github.com/nanofuxion/tamer-biometric) | Fingerprint, Face ID |
-| [tamer-display-browser](https://github.com/nanofuxion/tamer-display-browser) | Open URLs in system browser |
-| [tamer-linking](https://github.com/nanofuxion/tamer-linking) | Deep linking |
-| [tamer-relog](https://github.com/nanofuxion/tamer-relog) | Console log capture |
-| [tamer-screen](https://github.com/nanofuxion/tamer-screen) | SafeArea, Screen, AvoidKeyboard |
-| [tamer-secure-store](https://github.com/nanofuxion/tamer-secure-store) | Secure key-value storage |
-| [tamer-transports](https://github.com/nanofuxion/tamer-transports) | Fetch, WebSocket, EventSource polyfills |
+| [jiggle](https://github.com/tamer4lynx/jiggle) | Vibration/haptic |
+| [lynxwebsockets](https://github.com/tamer4lynx/lynxwebsockets) | WebSocket native bridge |
+| [tamer-dev-app](https://github.com/tamer4lynx/tamer-dev-app) | Dev app (QR scan, HMR) |
+| [tamer-dev-client](https://github.com/tamer4lynx/tamer-dev-client) | Dev launcher UI, discovery |
+| [tamer-plugin](https://github.com/tamer4lynx/tamer-plugin) | Rsbuild plugin middleman |
+| [tamer-router](https://github.com/tamer4lynx/tamer-router) | File-based routing, Stack/Tabs |
+| [tamer-icons](https://github.com/tamer4lynx/tamer-icons) | Icon fonts (Material, Font Awesome) |
+| [tamer-insets](https://github.com/tamer4lynx/tamer-insets) | System insets, keyboard state |
+| [tamer-system-ui](https://github.com/tamer4lynx/tamer-system-ui) | Status bar, navigation bar |
+| [tamer-app-shell](https://github.com/tamer4lynx/tamer-app-shell) | AppBar, TabBar, Content layout |
+| [tamer-text-input](https://github.com/tamer4lynx/tamer-text-input) | React TextInput |
+| [tamer-auth](https://github.com/tamer4lynx/tamer-auth) | OAuth 2.0 / OIDC |
+| [tamer-biometric](https://github.com/tamer4lynx/tamer-biometric) | Fingerprint, Face ID |
+| [tamer-display-browser](https://github.com/tamer4lynx/tamer-display-browser) | Open URLs in system browser |
+| [tamer-linking](https://github.com/tamer4lynx/tamer-linking) | Deep linking |
+| [tamer-screen](https://github.com/tamer4lynx/tamer-screen) | SafeArea, Screen, AvoidKeyboard |
+| [tamer-secure-store](https://github.com/tamer4lynx/tamer-secure-store) | Secure key-value storage |
+| [tamer-transports](https://github.com/tamer4lynx/tamer-transports) | Fetch, WebSocket, EventSource polyfills |
 
 The iOS autolinking feature runs `pod install` automatically.
 
@@ -295,7 +315,7 @@ The iOS autolinking feature runs `pod install` automatically.
 
 ## Examples
 
-- [Example LynxJS project with Jiggle and Lynx-Websockets](https://github.com/nanofuxion/tamer4lynx/tree/main/packages/example)
+- [Example LynxJS project with Jiggle and Lynx-Websockets](https://github.com/tamer4lynx/tamer4lynx/tree/main/packages/example)
 ## Contributing
 
 Contributions are welcome! Please feel free to submit issues or pull requests.
