@@ -202,6 +202,20 @@ export function findDevClientPackage(projectRoot: string): string | null {
   const candidates = [
     path.join(projectRoot, 'node_modules', 'tamer-dev-client'),
     path.join(projectRoot, 'packages', 'tamer-dev-client'),
+    path.join(path.dirname(projectRoot), 'tamer-dev-client'),
+  ];
+  for (const pkg of candidates) {
+    if (fs.existsSync(pkg) && fs.existsSync(path.join(pkg, 'package.json'))) {
+      return pkg;
+    }
+  }
+  return null;
+}
+
+export function findTamerHostPackage(projectRoot: string): string | null {
+  const candidates = [
+    path.join(projectRoot, 'node_modules', 'tamer-host'),
+    path.join(projectRoot, 'packages', 'tamer-host'),
   ];
   for (const pkg of candidates) {
     if (fs.existsSync(pkg) && fs.existsSync(path.join(pkg, 'package.json'))) {
