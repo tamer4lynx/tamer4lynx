@@ -22,9 +22,11 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - run: npm ci --ignore-scripts
+      - run: npm install --workspaces=false --ignore-scripts
+        working-directory: packages/docs
 
-      - run: npm run build --workspace=docs
+      - run: npm run build
+        working-directory: packages/docs
 
       - uses: peaceiris/actions-gh-pages@v4
         with:
