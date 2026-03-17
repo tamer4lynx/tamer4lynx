@@ -12,7 +12,7 @@ import path24 from "path";
 import { program } from "commander";
 
 // package.json
-var version = "0.0.4";
+var version = "0.0.5";
 
 // src/android/create.ts
 import fs3 from "fs";
@@ -1681,7 +1681,7 @@ var REQUIRED_PLUGIN_ENTRIES = {
     pluginLine: 'kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }'
   }
 };
-var autolink = () => {
+var autolink = (opts) => {
   let resolved;
   try {
     resolved = resolveHostPaths();
@@ -1810,17 +1810,17 @@ ${generateActivityLifecycleKotlin(packages, projectPackage)}`;
   function run() {
     console.log("\u{1F50E} Finding Lynx extension packages (lynx.ext.json / tamer.json)...");
     let packages = discoverModules(projectRoot).filter((p) => p.config.android);
-    const isDevApp = packageName === "com.nanofuxion.tamerdevapp";
+    const includeDevClient = opts?.includeDevClient === true;
     const devClientScoped = path6.join(projectRoot, "node_modules", "@tamer4lynx", "tamer-dev-client");
     const devClientFlat = path6.join(projectRoot, "node_modules", "tamer-dev-client");
     const devClientPath = fs6.existsSync(path6.join(devClientScoped, "android")) ? devClientScoped : fs6.existsSync(path6.join(devClientFlat, "android")) ? devClientFlat : null;
     const hasDevClient = packages.some((p) => p.name === "@tamer4lynx/tamer-dev-client" || p.name === "tamer-dev-client");
-    if (isDevApp && devClientPath && !hasDevClient) {
+    if (includeDevClient && devClientPath && !hasDevClient) {
       packages = [{
         ...TAMER_DEV_CLIENT_FALLBACK,
         packagePath: devClientPath
       }, ...packages];
-      console.log("\u2139\uFE0F Added tamer-dev-client (fallback for dev-app; lynx.ext.json missing in published package).");
+      console.log("\u2139\uFE0F Added tamer-dev-client (fallback; lynx.ext.json missing in published package).");
     }
     if (packages.length > 0) {
       console.log(`Found ${packages.length} package(s): ${packages.map((p) => p.name).join(", ")}`);
@@ -2084,7 +2084,7 @@ async function bundleAndDeploy(opts = {}) {
   const devClientPkg = findDevClientPackage(projectRoot);
   const includeDevClient = !release && !!devClientPkg;
   const destinationDir = androidAssetsDir;
-  autolink_default();
+  autolink_default({ includeDevClient });
   await syncDevClient_default({ includeDevClient });
   const bundleExists = fs9.existsSync(lynxBundlePath);
   if (!bundleExists) {

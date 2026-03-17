@@ -37,7 +37,7 @@ const REQUIRED_PLUGIN_ENTRIES: Record<string, { pluginKey: string; pluginLine: s
     },
 };
 
-const autolink = () => {
+const autolink = (opts?: { includeDevClient?: boolean }) => {
     let resolved: ReturnType<typeof resolveHostPaths>;
     try {
         resolved = resolveHostPaths();
@@ -206,19 +206,19 @@ ${generateActivityLifecycleKotlin(packages, projectPackage)}`;
         console.log('🔎 Finding Lynx extension packages (lynx.ext.json / tamer.json)...');
         let packages = discoverModules(projectRoot).filter((p) => p.config.android);
 
-        const isDevApp = packageName === 'com.nanofuxion.tamerdevapp';
+        const includeDevClient = opts?.includeDevClient === true;
         const devClientScoped = path.join(projectRoot, 'node_modules', '@tamer4lynx', 'tamer-dev-client');
         const devClientFlat = path.join(projectRoot, 'node_modules', 'tamer-dev-client');
         const devClientPath = fs.existsSync(path.join(devClientScoped, 'android')) ? devClientScoped
             : fs.existsSync(path.join(devClientFlat, 'android')) ? devClientFlat : null;
         const hasDevClient = packages.some(p => p.name === '@tamer4lynx/tamer-dev-client' || p.name === 'tamer-dev-client');
 
-        if (isDevApp && devClientPath && !hasDevClient) {
+        if (includeDevClient && devClientPath && !hasDevClient) {
             packages = [{
                 ...TAMER_DEV_CLIENT_FALLBACK,
                 packagePath: devClientPath,
             }, ...packages];
-            console.log('ℹ️ Added tamer-dev-client (fallback for dev-app; lynx.ext.json missing in published package).');
+            console.log('ℹ️ Added tamer-dev-client (fallback; lynx.ext.json missing in published package).');
         }
 
         if (packages.length > 0) {

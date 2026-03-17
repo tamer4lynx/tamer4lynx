@@ -21,7 +21,7 @@ async function bundleAndDeploy(opts: { release?: boolean } = {}) {
     const includeDevClient = !release && !!devClientPkg;
     const destinationDir = androidAssetsDir;
 
-    android_autolink();
+    android_autolink({ includeDevClient });
     await android_syncDevClient({ includeDevClient });
 
     const bundleExists = fs.existsSync(lynxBundlePath);
