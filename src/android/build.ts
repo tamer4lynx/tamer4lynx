@@ -1,43 +1,18 @@
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
-import { resolveHostPaths, resolveDevAppPaths } from '../common/hostConfig';
+import { resolveHostPaths } from '../common/hostConfig';
 import android_bundle from './bundle';
 
-function findRepoRoot(start: string): string {
-    let dir = path.resolve(start);
-    const root = path.parse(dir).root;
-    while (dir !== root) {
-        const pkgPath = path.join(dir, 'package.json');
-        if (fs.existsSync(pkgPath)) {
-            try {
-                const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-                if (pkg.workspaces) return dir;
-            } catch {}
-        }
-        dir = path.dirname(dir);
-    }
-    return start;
-}
-
-async function buildApk(opts: { install?: boolean; target?: string; release?: boolean } = {}) {
-    const target = opts.target ?? 'host';
+async function buildApk(opts: { install?: boolean; release?: boolean } = {}) {
     let resolved: ReturnType<typeof resolveHostPaths>;
     try {
-        resolved = target === 'dev-app'
-            ? resolveDevAppPaths(process.cwd())
-            : resolveHostPaths();
+        resolved = resolveHostPaths();
     } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : String(error);
-        if (target === 'dev-app') {
-            console.error(`❌ ${msg}`);
-            console.error('   Add @tamer4lynx/tamer-dev-app to dependencies, or use -t host to build your app.');
-            process.exit(1);
-        }
         throw error;
     }
 
-    await android_bundle({ target, release: opts.release });
+    await android_bundle({ release: opts.release });
 
     const androidDir = resolved.androidDir;
     const gradlew = path.join(androidDir, process.platform === 'win32' ? 'gradlew.bat' : 'gradlew');

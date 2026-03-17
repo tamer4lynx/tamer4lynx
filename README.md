@@ -143,9 +143,9 @@ Run from an extension package root to generate code from `@lynxmodule` declarati
 |---------|-------|-------------|
 | `t4l android create` | `-t, --target <host\|dev-app>` | Create Android project. Default: `host`. |
 | `t4l android link` | — | Link native modules to Gradle. Build runs this automatically. |
-| `t4l android bundle` | `-t, --target`, `-d, --debug`, `-r, --release` | Build Lynx bundle and copy to assets. Runs autolink first. |
-| `t4l android build` | `-i, --install`, `-t, --target`, `-e, --embeddable`, `-d, --debug`, `-r, --release` | Build APK. `--install` deploys to device. `--embeddable` outputs AAR to `embeddable/` for existing apps. |
-| `t4l android sync` | — | Sync dev client files from tamer.config.json. |
+| `t4l android bundle` | `-d, --debug`, `-r, --release` | Build Lynx bundle and copy to assets. `-d` (default) embeds dev client if present; `-r` omits it. Runs autolink first. |
+| `t4l android build` | `-i, --install`, `-e, --embeddable`, `-d, --debug`, `-r, --release` | Build APK. `-d` (default) = debug with dev client; `-r` = release without. `--install` deploys to device. `--embeddable` outputs AAR to `embeddable/`. |
+| `t4l android sync` | — | Sync dev client files (TemplateProvider, MainActivity, DevClientManager). |
 | `t4l android inject` | `-f, --force` | Inject tamer-host templates. `--force` overwrites existing files. |
 
 ### **iOS Commands**
@@ -154,19 +154,20 @@ Run from an extension package root to generate code from `@lynxmodule` declarati
 |---------|-------|-------------|
 | `t4l ios create` | — | Create iOS project. |
 | `t4l ios link` | — | Link native modules to Podfile. Build runs this automatically. |
-| `t4l ios bundle` | `-t, --target`, `-d, --debug`, `-r, --release` | Build Lynx bundle and copy to iOS project. |
-| `t4l ios build` | `-t, --target`, `-e, --embeddable`, `-i, --install`, `-d, --debug`, `-r, --release` | Build iOS app. `--install` deploys to simulator. |
+| `t4l ios bundle` | `-d, --debug`, `-r, --release` | Build Lynx bundle and copy to iOS project. `-d` embeds dev client if present; `-r` omits it. |
+| `t4l ios build` | `-e, --embeddable`, `-i, --install`, `-d, --debug`, `-r, --release` | Build iOS app. `-d` = debug with dev client; `-r` = release without. `--install` deploys to simulator. |
 | `t4l ios inject` | `-f, --force` | Inject tamer-host templates. `--force` overwrites existing files. |
 
 ### **Unified Build** (`t4l build`)
 
+Builds your app. Dev client (QR scan, HMR) is included when you use **debug** (`-d`) and have `@tamer4lynx/tamer-dev-client` installed; **release** (`-r`) builds without it.
+
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
 | `--platform` | `-p` | `all` | `android`, `ios`, or `all` |
-| `--target` | `-t` | `dev-app` | `host` (production) or `dev-app` (QR scan, HMR) |
 | `--embeddable` | `-e` | — | Output to `embeddable/`: **AAR** (Android) + **CocoaPod** (iOS). Use with `--release`. |
-| `--debug` | `-d` | default | Debug build |
-| `--release` | `-r` | — | Release build (optimized) |
+| `--debug` | `-d` | default | Debug build with dev client embedded (if tamer-dev-client is installed) |
+| `--release` | `-r` | — | Release build without dev client |
 | `--install` | `-i` | — | Install to device/simulator after build |
 
 ### **Other Commands**
@@ -272,8 +273,8 @@ Install from npm and run `t4l link` after adding to your app:
 | [@tamer4lynx/jiggle](https://www.npmjs.com/package/@tamer4lynx/jiggle) | `npm i @tamer4lynx/jiggle` | Vibration/haptic |
 | [@tamer4lynx/lynxwebsockets](https://www.npmjs.com/package/@tamer4lynx/lynxwebsockets) | `npm i @tamer4lynx/lynxwebsockets` | WebSocket native bridge |
 | [@tamer4lynx/tamer-host](https://www.npmjs.com/package/@tamer4lynx/tamer-host) | `npm i @tamer4lynx/tamer-host` | Production Lynx host templates |
-| [tamer-dev-app](https://github.com/tamer4lynx/tamer-dev-app) | workspace | Dev app (QR scan, HMR) |
-| [@tamer4lynx/tamer-dev-client](https://www.npmjs.com/package/@tamer4lynx/tamer-dev-client) | `npm i @tamer4lynx/tamer-dev-client` | Dev launcher UI, discovery |
+| [@tamer4lynx/tamer-dev-client](https://www.npmjs.com/package/@tamer4lynx/tamer-dev-client) | `npm i @tamer4lynx/tamer-dev-client` | Dev launcher UI (QR scan, HMR). Add to your app and build with `-d` for a dev build; `-r` omits it. |
+| [@tamer4lynx/tamer-dev-app](https://www.npmjs.com/package/@tamer4lynx/tamer-dev-app) | workspace / npm | Standalone dev app (store build). Your app can use tamer-dev-client for dev builds instead. |
 | [@tamer4lynx/tamer-plugin](https://www.npmjs.com/package/@tamer4lynx/tamer-plugin) | `npm i @tamer4lynx/tamer-plugin` | Rsbuild plugin middleman |
 | [@tamer4lynx/tamer-router](https://www.npmjs.com/package/@tamer4lynx/tamer-router) | `npm i @tamer4lynx/tamer-router` | File-based routing, Stack/Tabs |
 | [@tamer4lynx/tamer-icons](https://www.npmjs.com/package/@tamer4lynx/tamer-icons) | `npm i @tamer4lynx/tamer-icons` | Icon fonts (Material, Font Awesome) |

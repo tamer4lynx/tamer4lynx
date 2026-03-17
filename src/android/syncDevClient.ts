@@ -17,7 +17,7 @@ function readAndSubstituteTemplate(
   );
 }
 
-async function syncDevClient(opts?: { forceProduction?: boolean }) {
+async function syncDevClient(opts?: { forceProduction?: boolean; includeDevClient?: boolean }) {
   let resolved: ReturnType<typeof resolveHostPaths>;
   try {
     resolved = resolveHostPaths();
@@ -38,7 +38,10 @@ async function syncDevClient(opts?: { forceProduction?: boolean }) {
     process.exit(1);
   }
 
-  const devMode = opts?.forceProduction ? "standalone" : resolved.devMode;
+  const devClientPkg = findDevClientPackage(resolved.projectRoot);
+  const includeDevClient = opts?.includeDevClient ?? (opts?.forceProduction ? false : !!devClientPkg);
+  const hasDevClient = includeDevClient && devClientPkg;
+  const devMode = hasDevClient ? "embedded" : "standalone";
   const devServer = config.devServer
     ? {
         host: config.devServer.host ?? "10.0.2.2",
@@ -58,8 +61,6 @@ async function syncDevClient(opts?: { forceProduction?: boolean }) {
   const appDir = path.join(rootDir, "app");
   const mainDir = path.join(appDir, "src", "main");
   const manifestPath = path.join(mainDir, "AndroidManifest.xml");
-  const devClientPkg = findDevClientPackage(resolved.projectRoot);
-  const hasDevClient = devMode === "embedded" && devClientPkg;
   if (hasDevClient) {
     const templateDir = path.join(devClientPkg, "android", "templates");
     const templateVars = { PACKAGE_NAME: packageName, APP_NAME: appName };
@@ -113,7 +114,7 @@ async function syncDevClient(opts?: { forceProduction?: boolean }) {
       );
     }
     fs.writeFileSync(manifestPath, manifest);
-    console.log("✅ Synced (dev client disabled - set dev.mode: \"embedded\" in tamer.config.json to enable)");
+    console.log("✅ Synced (dev client disabled - use -d for debug build with dev client)");
   }
 }
 

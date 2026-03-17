@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { resolveHostPaths, resolveDevMode, findDevClientPackage } from '../common/hostConfig';
+import { resolveHostPaths, findDevClientPackage } from '../common/hostConfig';
 
 function deterministicUUID(seed: string): string {
     return crypto.createHash('sha256').update(seed).digest('hex').substring(0, 24).toUpperCase();
@@ -446,12 +446,12 @@ function readTemplateOrFallback(
     return fallback;
 }
 
-function syncHostIos(opts?: { release?: boolean }): void {
+function syncHostIos(opts?: { release?: boolean; includeDevClient?: boolean }): void {
     const resolved = resolveHostPaths();
     const appName = resolved.config.ios?.appName;
-    const devMode = resolveDevMode(resolved.config);
     const release = opts?.release === true;
-    const useDevClient = devMode === 'embedded' && !release;
+    const devClientPkg = findDevClientPackage(resolved.projectRoot);
+    const useDevClient = opts?.includeDevClient ?? (!release && !!devClientPkg);
 
     if (!appName) {
         throw new Error('"ios.appName" must be defined in tamer.config.json');

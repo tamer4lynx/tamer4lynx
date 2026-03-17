@@ -3,6 +3,19 @@ import path from 'path';
 import { discoverModules, type DiscoveredModule } from '../common/discoverModules';
 import { generateActivityLifecycleKotlin, generateLynxExtensionsKotlin } from '../common/generateExtCode';
 import { resolveHostPaths, type DeepLinkConfig } from '../common/hostConfig';
+import type { NormalizedExtensionConfig } from '../common/config';
+
+const TAMER_DEV_CLIENT_FALLBACK: DiscoveredModule = {
+    name: '@tamer4lynx/tamer-dev-client',
+    packagePath: '',
+    config: {
+        android: {
+            moduleClassName: 'com.nanofuxion.tamerdevclient.DevClientModule',
+            sourceDir: 'android',
+            permissions: ['CAMERA', 'ACCESS_NETWORK_STATE', 'ACCESS_WIFI_STATE'],
+        },
+    } as NormalizedExtensionConfig,
+};
 
 const REQUIRED_CATALOG_ENTRIES: Record<string, { versionRef: string; version: string; libraryKey: string; libraryLine: string }> = {
     'androidx.biometric': {
@@ -86,15 +99,12 @@ const autolink = () => {
 
         if (androidPackages.length > 0) {
             androidPackages.forEach(pkg => {
-                // Sanitize package name for Gradle: @org/name -> org_name
                 const gradleProjectName = pkg.name.replace(/^@/, '').replace(/\//g, '_');
                 const sourceDir = pkg.config.android?.sourceDir || 'android';
-                // Use forward slashes for Gradle paths, even on Windows
-                const projectPath = path.join(pkg.packagePath, sourceDir).replace(/\\/g, '/');
-                const relativePath = path.relative(appAndroidPath, projectPath).replace(/\\/g, '/');
+                const projectPath = path.resolve(pkg.packagePath, sourceDir).replace(/\\/g, '/');
 
                 scriptContent += `\ninclude(":${gradleProjectName}")`;
-                scriptContent += `\nproject(":${gradleProjectName}").projectDir = file("${relativePath}")`;
+                scriptContent += `\nproject(":${gradleProjectName}").projectDir = file("${projectPath}")`;
             });
         } else {
             scriptContent += `\nprintln("No native modules found by Tamer4Lynx autolinker.")`;
@@ -194,7 +204,22 @@ ${generateActivityLifecycleKotlin(packages, projectPackage)}`;
 
     function run() {
         console.log('🔎 Finding Lynx extension packages (lynx.ext.json / tamer.json)...');
-        const packages = discoverModules(projectRoot).filter((p) => p.config.android);
+        let packages = discoverModules(projectRoot).filter((p) => p.config.android);
+
+        const isDevApp = packageName === 'com.nanofuxion.tamerdevapp';
+        const devClientScoped = path.join(projectRoot, 'node_modules', '@tamer4lynx', 'tamer-dev-client');
+        const devClientFlat = path.join(projectRoot, 'node_modules', 'tamer-dev-client');
+        const devClientPath = fs.existsSync(path.join(devClientScoped, 'android')) ? devClientScoped
+            : fs.existsSync(path.join(devClientFlat, 'android')) ? devClientFlat : null;
+        const hasDevClient = packages.some(p => p.name === '@tamer4lynx/tamer-dev-client' || p.name === 'tamer-dev-client');
+
+        if (isDevApp && devClientPath && !hasDevClient) {
+            packages = [{
+                ...TAMER_DEV_CLIENT_FALLBACK,
+                packagePath: devClientPath,
+            }, ...packages];
+            console.log('ℹ️ Added tamer-dev-client (fallback for dev-app; lynx.ext.json missing in published package).');
+        }
 
         if (packages.length > 0) {
             console.log(`Found ${packages.length} package(s): ${packages.map(p => p.name).join(', ')}`);

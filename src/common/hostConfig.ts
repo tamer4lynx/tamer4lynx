@@ -266,20 +266,10 @@ export function resolveHostPaths(cwd: string = process.cwd()): ResolvedPaths & {
 
   const androidDir = path.join(projectRoot, androidDirRel);
   const devMode = resolveDevMode(config);
-  const devAppDir = devMode === 'embedded' ? findDevAppPackage(projectRoot) : null;
   const devClientPkg = findDevClientPackage(projectRoot);
-  const devClientBundleInClient = devClientPkg
+  const devClientBundlePath = devClientPkg
     ? path.join(devClientPkg, DEFAULT_BUNDLE_ROOT, 'dev-client.lynx.bundle')
-    : null;
-  const devClientBundleInApp = devAppDir
-    ? path.join(devAppDir, DEFAULT_BUNDLE_ROOT, 'dev-client.lynx.bundle')
-    : null;
-  const devClientBundlePath =
-    devMode === 'embedded'
-      ? (devClientBundleInClient && fs.existsSync(devClientBundleInClient)
-          ? devClientBundleInClient
-          : devClientBundleInApp ?? undefined)
-      : undefined;
+    : undefined;
 
   return {
     projectRoot,
