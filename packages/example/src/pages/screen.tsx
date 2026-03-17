@@ -1,6 +1,6 @@
 import { useState } from '@lynx-js/react'
-import { px } from 'tamer-app-shell'
-import { Screen, SafeArea, AvoidKeyboard, useInsets, useKeyboard } from 'tamer-screen'
+import { px } from '@tamer4lynx/tamer-app-shell'
+import { Screen, SafeArea, AvoidKeyboard, useInsets, useKeyboard } from '@tamer4lynx/tamer-screen'
 
 export default function ScreenPage() {
   const MIN_INPUT_HEIGHT = 96

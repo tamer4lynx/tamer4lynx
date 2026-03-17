@@ -1,7 +1,7 @@
 import { useCallback, useState } from '@lynx-js/react'
-import { openBrowserAsync, openAuthSessionAsync } from 'tamer-display-browser'
-import type { AuthSessionResult } from 'tamer-display-browser'
-import { px } from 'tamer-app-shell'
+import { openBrowserAsync, openAuthSessionAsync } from '@tamer4lynx/tamer-display-browser'
+import type { AuthSessionResult } from '@tamer4lynx/tamer-display-browser'
+import { px } from '@tamer4lynx/tamer-app-shell'
 
 export default function BrowserPage() {
   const [status, setStatus] = useState<string>('')

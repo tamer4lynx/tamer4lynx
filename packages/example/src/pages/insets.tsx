@@ -1,5 +1,5 @@
 import { useState } from '@lynx-js/react'
-import { useInsets, useKeyboard } from 'tamer-insets'
+import { useInsets, useKeyboard } from '@tamer4lynx/tamer-insets'
 
 export default function InsetsPage() {
   const insets = useInsets()

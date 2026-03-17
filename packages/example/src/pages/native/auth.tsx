@@ -1,8 +1,8 @@
 import { useCallback, useState } from '@lynx-js/react'
-import { AuthRequest, exchangeCodeAsync } from 'tamer-auth'
+import { AuthRequest, exchangeCodeAsync } from '@tamer4lynx/tamer-auth'
 import { oauthConfig } from '../../oauth-config.js'
-import { px } from 'tamer-app-shell'
-import { useScreenOptions } from 'tamer-router'
+import { px } from '@tamer4lynx/tamer-app-shell'
+import { useScreenOptions } from '@tamer4lynx/tamer-router'
 
 const discovery = {
   authorizationEndpoint: oauthConfig.authorizationEndpoint,
@@ -31,7 +31,7 @@ export default function AuthPage() {
     request.promptAsync(discovery).catch((e: Error) => {
       setStatus(`Error: ${e?.message ?? e}`)
       return null
-    }).then((result: import('tamer-auth').AuthSessionResult | null) => {
+    }).then((result: import('@tamer4lynx/tamer-auth').AuthSessionResult | null) => {
       if (!result) return
       if (result.type === 'success') {
         if (result.authentication) {
@@ -49,7 +49,7 @@ export default function AuthPage() {
             },
             discovery
           )
-            .then((t: import('tamer-auth').TokenResponse) => {
+            .then((t: import('@tamer4lynx/tamer-auth').TokenResponse) => {
               setToken(t.accessToken)
               setStatus('Success')
             })

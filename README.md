@@ -8,13 +8,20 @@ Inspired by [Expo](https://expo.dev) and [Expo Go](https://expo.dev/go).
 
 ## Installation
 
-Install globally to use from any project:
+All Tamer packages are published under the `@tamer4lynx` scope on npm. Install the CLI globally:
 
 ```bash
-npm i -g tamer4lynx
+npm i -g @tamer4lynx/tamer4lynx
 ```
 
-Or from GitHub:
+With pnpm or Bun:
+
+```bash
+pnpm add -g @tamer4lynx/tamer4lynx
+bun add -g @tamer4lynx/tamer4lynx
+```
+
+Or from GitHub (run `npm uninstall -g @tamer4lynx/tamer4lynx` first if switching):
 
 ```bash
 npm i -g tamer4lynx/tamer4lynx
@@ -132,91 +139,47 @@ Run from an extension package root to generate code from `@lynxmodule` declarati
 
 ### **Android Commands**
 
-#### Create a Host Android Project
-
-```bash
-t4l android create
-```
-
-#### Link Native Modules to Android
-
-```bash
-t4l android link
-```
-
-#### Bundle Native Modules for Android
-
-```bash
-t4l android bundle
-```
-
-#### Build with `--debug` or `--release`
-
-Use `--debug` (default) for development builds or `--release` for production. Cannot use both.
-
-```bash
-t4l android build --debug --install
-t4l android build --release
-t4l ios build --debug --install
-```
-
-#### Unified build (dev-app default)
-
-```bash
-t4l build
-t4l build --platform android --install
-t4l build --platform ios --install
-```
-
-For host (production) builds, use `--target host`:
-
-```bash
-t4l build --platform android --target host --install
-t4l build --platform android --target host --release
-```
-
-For embedding Lynx into an existing app (outputs bundle + code snippets to `embeddable/`):
-
-```bash
-t4l build --embeddable --release
-```
-
----
+| Command | Flags | Description |
+|---------|-------|-------------|
+| `t4l android create` | `-t, --target <host\|dev-app>` | Create Android project. Default: `host`. |
+| `t4l android link` | — | Link native modules to Gradle. Build runs this automatically. |
+| `t4l android bundle` | `-t, --target`, `-d, --debug`, `-r, --release` | Build Lynx bundle and copy to assets. Runs autolink first. |
+| `t4l android build` | `-i, --install`, `-t, --target`, `-e, --embeddable`, `-d, --debug`, `-r, --release` | Build APK. `--install` deploys to device. `--embeddable` outputs AAR to `embeddable/` for existing apps. |
+| `t4l android sync` | — | Sync dev client files from tamer.config.json. |
+| `t4l android inject` | `-f, --force` | Inject tamer-host templates. `--force` overwrites existing files. |
 
 ### **iOS Commands**
 
-#### Create a Host iOS Project
+| Command | Flags | Description |
+|---------|-------|-------------|
+| `t4l ios create` | — | Create iOS project. |
+| `t4l ios link` | — | Link native modules to Podfile. Build runs this automatically. |
+| `t4l ios bundle` | `-t, --target`, `-d, --debug`, `-r, --release` | Build Lynx bundle and copy to iOS project. |
+| `t4l ios build` | `-t, --target`, `-e, --embeddable`, `-i, --install`, `-d, --debug`, `-r, --release` | Build iOS app. `--install` deploys to simulator. |
+| `t4l ios inject` | `-f, --force` | Inject tamer-host templates. `--force` overwrites existing files. |
 
-```bash
-t4l ios create
-```
+### **Unified Build** (`t4l build`)
 
-#### Link Native Modules to iOS
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--platform` | `-p` | `all` | `android`, `ios`, or `all` |
+| `--target` | `-t` | `dev-app` | `host` (production) or `dev-app` (QR scan, HMR) |
+| `--embeddable` | `-e` | — | Output to `embeddable/`: **AAR** (Android) + **CocoaPod** (iOS). Use with `--release`. |
+| `--debug` | `-d` | default | Debug build |
+| `--release` | `-r` | — | Release build (optimized) |
+| `--install` | `-i` | — | Install to device/simulator after build |
 
-```bash
-t4l ios link
-```
+### **Other Commands**
 
-#### Bundle Native Modules for iOS
+| Command | Flags | Description |
+|---------|-------|-------------|
+| `t4l add [packages...]` | — | Add @tamer4lynx packages. Future: version tracking (Expo-style). |
+| `t4l add-core` | — | Add core packages (app-shell, screen, router, insets, transports, text-input, system-ui, icons). |
+| `t4l start` | `-v, --verbose` | Dev server with HMR. `--verbose` shows native + JS logs. |
+| `t4l link` | `-i, --ios`, `-a, --android`, `-s, --silent` | Link modules. `--ios`/`--android` limit to one platform. `--silent` for CI/postinstall. |
+| `t4l autolink-toggle` | — | Toggle `autolink` in tamer.config.json (postinstall linking). |
 
-```bash
-t4l ios bundle
-```
-
----
-
-### **Cross-Platform Linking**
-
-```bash
-# Link only iOS
-t4l link --ios
-
-# Link only Android
-t4l link --android
-
-# Silent mode (no logs)
-t4l link --silent
-```
+See [Commands Reference](packages/docs/docs/commands.md) for full flag details.
 
 ---
 
@@ -231,6 +194,14 @@ For the best experience, add a `postinstall` script to your project's `package.j
 ```
 
 ---
+
+## Configuration
+
+- **Project:** `tamer.config.json` — host app (Android/iOS identity, paths, dev server). Create with `t4l init`.
+- **Component:** `tamer.config.ts` — Rsbuild plugins (routing, etc.). Used by tamer-plugin.
+- **Extension:** `lynx.ext.json` — native module registration per platform. Lives in each extension package.
+
+See [Configuration Reference](packages/docs/docs/docs/configuration.md) for field-by-field docs. lynx.ext.json follows the [Lynx Autolink RFC](https://github.com/lynx-family/lynx/discussions/2653); [contribute to the RFC](https://github.com/lynx-family/lynx/discussions/2653) if you want to help improve it.
 
 ## Extension Configuration
 
@@ -284,29 +255,29 @@ Extensions are discovered via **lynx.ext.json** (RFC standard) or **tamer.json**
 
 ## Native Module References
 
-These modules are workspace packages. Run `t4l link` after adding to your app.
+Install from npm and run `t4l link` after adding to your app:
 
-| Package | Description |
-|---------|-------------|
-| [jiggle](https://github.com/tamer4lynx/jiggle) | Vibration/haptic |
-| [lynxwebsockets](https://github.com/tamer4lynx/lynxwebsockets) | WebSocket native bridge |
-| [tamer-host](https://github.com/tamer4lynx/tamer-host) | Production Lynx host templates |
-| [tamer-dev-app](https://github.com/tamer4lynx/tamer-dev-app) | Dev app (QR scan, HMR) |
-| [tamer-dev-client](https://github.com/tamer4lynx/tamer-dev-client) | Dev launcher UI, discovery |
-| [tamer-plugin](https://github.com/tamer4lynx/tamer-plugin) | Rsbuild plugin middleman |
-| [tamer-router](https://github.com/tamer4lynx/tamer-router) | File-based routing, Stack/Tabs |
-| [tamer-icons](https://github.com/tamer4lynx/tamer-icons) | Icon fonts (Material, Font Awesome) |
-| [tamer-insets](https://github.com/tamer4lynx/tamer-insets) | System insets, keyboard state |
-| [tamer-system-ui](https://github.com/tamer4lynx/tamer-system-ui) | Status bar, navigation bar |
-| [tamer-app-shell](https://github.com/tamer4lynx/tamer-app-shell) | AppBar, TabBar, Content layout |
-| [tamer-text-input](https://github.com/tamer4lynx/tamer-text-input) | React TextInput |
-| [tamer-auth](https://github.com/tamer4lynx/tamer-auth) | OAuth 2.0 / OIDC |
-| [tamer-biometric](https://github.com/tamer4lynx/tamer-biometric) | Fingerprint, Face ID |
-| [tamer-display-browser](https://github.com/tamer4lynx/tamer-display-browser) | Open URLs in system browser |
-| [tamer-linking](https://github.com/tamer4lynx/tamer-linking) | Deep linking |
-| [tamer-screen](https://github.com/tamer4lynx/tamer-screen) | SafeArea, Screen, AvoidKeyboard |
-| [tamer-secure-store](https://github.com/tamer4lynx/tamer-secure-store) | Secure key-value storage |
-| [tamer-transports](https://github.com/tamer4lynx/tamer-transports) | Fetch, WebSocket, EventSource polyfills |
+| Package | Install | Description |
+|---------|---------|-------------|
+| [@tamer4lynx/jiggle](https://www.npmjs.com/package/@tamer4lynx/jiggle) | `npm i @tamer4lynx/jiggle` | Vibration/haptic |
+| [@tamer4lynx/lynxwebsockets](https://www.npmjs.com/package/@tamer4lynx/lynxwebsockets) | `npm i @tamer4lynx/lynxwebsockets` | WebSocket native bridge |
+| [@tamer4lynx/tamer-host](https://www.npmjs.com/package/@tamer4lynx/tamer-host) | `npm i @tamer4lynx/tamer-host` | Production Lynx host templates |
+| [tamer-dev-app](https://github.com/tamer4lynx/tamer-dev-app) | workspace | Dev app (QR scan, HMR) |
+| [@tamer4lynx/tamer-dev-client](https://www.npmjs.com/package/@tamer4lynx/tamer-dev-client) | `npm i @tamer4lynx/tamer-dev-client` | Dev launcher UI, discovery |
+| [@tamer4lynx/tamer-plugin](https://www.npmjs.com/package/@tamer4lynx/tamer-plugin) | `npm i @tamer4lynx/tamer-plugin` | Rsbuild plugin middleman |
+| [@tamer4lynx/tamer-router](https://www.npmjs.com/package/@tamer4lynx/tamer-router) | `npm i @tamer4lynx/tamer-router` | File-based routing, Stack/Tabs |
+| [@tamer4lynx/tamer-icons](https://www.npmjs.com/package/@tamer4lynx/tamer-icons) | `npm i @tamer4lynx/tamer-icons` | Icon fonts (Material, Font Awesome) |
+| [@tamer4lynx/tamer-insets](https://www.npmjs.com/package/@tamer4lynx/tamer-insets) | `npm i @tamer4lynx/tamer-insets` | System insets, keyboard state |
+| [@tamer4lynx/tamer-system-ui](https://www.npmjs.com/package/@tamer4lynx/tamer-system-ui) | `npm i @tamer4lynx/tamer-system-ui` | Status bar, navigation bar |
+| [@tamer4lynx/tamer-app-shell](https://www.npmjs.com/package/@tamer4lynx/tamer-app-shell) | `npm i @tamer4lynx/tamer-app-shell` | AppBar, TabBar, Content layout |
+| [@tamer4lynx/tamer-text-input](https://www.npmjs.com/package/@tamer4lynx/tamer-text-input) | `npm i @tamer4lynx/tamer-text-input` | React TextInput |
+| [@tamer4lynx/tamer-auth](https://www.npmjs.com/package/@tamer4lynx/tamer-auth) | `npm i @tamer4lynx/tamer-auth` | OAuth 2.0 / OIDC |
+| [@tamer4lynx/tamer-biometric](https://www.npmjs.com/package/@tamer4lynx/tamer-biometric) | `npm i @tamer4lynx/tamer-biometric` | Fingerprint, Face ID |
+| [@tamer4lynx/tamer-display-browser](https://www.npmjs.com/package/@tamer4lynx/tamer-display-browser) | `npm i @tamer4lynx/tamer-display-browser` | Open URLs in system browser |
+| [@tamer4lynx/tamer-linking](https://www.npmjs.com/package/@tamer4lynx/tamer-linking) | `npm i @tamer4lynx/tamer-linking` | Deep linking |
+| [@tamer4lynx/tamer-screen](https://www.npmjs.com/package/@tamer4lynx/tamer-screen) | `npm i @tamer4lynx/tamer-screen` | SafeArea, Screen, AvoidKeyboard |
+| [@tamer4lynx/tamer-secure-store](https://www.npmjs.com/package/@tamer4lynx/tamer-secure-store) | `npm i @tamer4lynx/tamer-secure-store` | Secure key-value storage |
+| [@tamer4lynx/tamer-transports](https://www.npmjs.com/package/@tamer4lynx/tamer-transports) | `npm i @tamer4lynx/tamer-transports` | Fetch, WebSocket, EventSource polyfills |
 
 The iOS autolinking feature runs `pod install` automatically.
 

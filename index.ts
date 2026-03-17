@@ -28,6 +28,7 @@ import codegen from './src/common/codegen';
 import start from './src/common/start';
 import { injectHostAndroid, injectHostIos } from './src/common/injectHost';
 import buildEmbeddable from './src/common/buildEmbeddable';
+import { add, addCore } from './src/common/add';
 
 program
     .version(version)
@@ -241,6 +242,16 @@ program
             await ios_build({ target: 'dev-app', install: opts.install, release: false });
         }
     });
+
+program
+    .command('add [packages...]')
+    .description('Add @tamer4lynx packages to the Lynx project. Future: will track versions for compatibility (Expo-style).')
+    .action((packages: string[]) => add(packages));
+
+program
+    .command('add-core')
+    .description('Add core packages (app-shell, screen, router, insets, transports, text-input, system-ui, icons)')
+    .action(() => addCore());
 
 program
     .command('create')

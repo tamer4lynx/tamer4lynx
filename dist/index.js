@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 // index.ts
-import fs24 from "fs";
-import path24 from "path";
+import fs25 from "fs";
+import path25 from "path";
 import { program } from "commander";
 
 // package.json
@@ -606,10 +606,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.updatePadding
 import com.lynx.tasm.LynxView
 import com.lynx.tasm.LynxViewBuilder${devClientImports}
 import ${vars.packageName}.generated.GeneratedLynxExtensions
@@ -626,12 +623,6 @@ ${devClientField}    private val handler = Handler(Looper.getMainLooper())
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
         lynxView = buildLynxView()
         setContentView(lynxView)
-        ViewCompat.setOnApplyWindowInsetsListener(lynxView!!) { view, insets ->
-            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
-            val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-            view.updatePadding(bottom = if (imeVisible) imeHeight else 0)
-            insets
-        }
         GeneratedActivityLifecycle.onViewAttached(lynxView)
         GeneratedLynxExtensions.onHostViewChanged(lynxView)
         lynxView?.renderTemplateUrl("main.lynx.bundle", "")${devClientInit}
@@ -797,10 +788,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.updatePadding
 import com.lynx.tasm.LynxView
 import com.lynx.tasm.LynxViewBuilder${devClientImports}
 import ${vars.packageName}.generated.GeneratedLynxExtensions
@@ -815,12 +803,6 @@ ${devClientField}    private var lynxView: LynxView? = null${!hasDevClient ? "\n
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
         lynxView = buildLynxView()
         setContentView(lynxView)
-        ViewCompat.setOnApplyWindowInsetsListener(lynxView!!) { view, insets ->
-            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
-            val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-            view.updatePadding(bottom = if (imeVisible) imeHeight else 0)
-            insets
-        }
         GeneratedActivityLifecycle.onViewAttached(lynxView)
         GeneratedLynxExtensions.onHostViewChanged(lynxView)
         lynxView?.renderTemplateUrl(${hasDevClient ? "currentUri" : '"main.lynx.bundle"'}, "")${devClientInit}${!hasDevClient ? "\n        GeneratedActivityLifecycle.onCreateDelayed(handler)" : ""}
@@ -1580,7 +1562,13 @@ function discoverModules(projectRoot) {
 function generateLynxExtensionsKotlin(packages, projectPackage) {
   const modulePackages = packages.filter((p) => getAndroidModuleClassNames(p.config.android).length > 0);
   const elementPackages = packages.filter((p) => p.config.android?.elements && Object.keys(p.config.android.elements).length > 0);
-  const allModuleClasses = modulePackages.flatMap((p) => getAndroidModuleClassNames(p.config.android));
+  const seenNames = /* @__PURE__ */ new Set();
+  const allModuleClasses = modulePackages.flatMap((p) => getAndroidModuleClassNames(p.config.android)).filter((fullClassName) => {
+    const simple = fullClassName.split(".").pop();
+    if (seenNames.has(simple)) return false;
+    seenNames.add(simple);
+    return true;
+  });
   const moduleImports = allModuleClasses.map((c) => `import ${c}`).join("\n");
   const elementImports = elementPackages.flatMap((p) => Object.values(p.config.android.elements).map((cls) => `import ${cls}`)).filter((v, i, a) => a.indexOf(v) === i).join("\n");
   const moduleRegistrations = allModuleClasses.map((fullClassName) => {
@@ -2226,6 +2214,20 @@ async function buildApk(opts = {}) {
 \u{1F528} Building ${variant.toLowerCase()} APK${opts.install ? " and installing" : ""}...`);
   execSync3(`"${gradlew}" ${task}`, { stdio: "inherit", cwd: androidDir });
   console.log(`\u2705 APK ${opts.install ? "installed" : "built"} successfully.`);
+  if (opts.install) {
+    const packageName = resolved.config.android?.packageName;
+    if (packageName) {
+      try {
+        console.log(`\u{1F680} Launching ${packageName}...`);
+        execSync3(`adb shell am start -n ${packageName}/.MainActivity`, { stdio: "inherit" });
+        console.log("\u2705 App launched.");
+      } catch (e) {
+        console.warn("\u26A0\uFE0F Could not launch app. Is a device/emulator connected?");
+      }
+    } else {
+      console.log('\u2139\uFE0F Set "android.packageName" in tamer.config.json to auto-launch.');
+    }
+  }
 }
 var build_default = buildApk;
 
@@ -6182,6 +6184,57 @@ ${podDeps.map((d) => `pod '${d.podName}', :path => '${d.absPath}'`).join("\n")}
   );
 }
 
+// src/common/add.ts
+import fs24 from "fs";
+import path24 from "path";
+import { execSync as execSync10 } from "child_process";
+var CORE_PACKAGES = [
+  "@tamer4lynx/tamer-app-shell",
+  "@tamer4lynx/tamer-screen",
+  "@tamer4lynx/tamer-router",
+  "@tamer4lynx/tamer-insets",
+  "@tamer4lynx/tamer-transports",
+  "@tamer4lynx/tamer-text-input",
+  "@tamer4lynx/tamer-system-ui",
+  "@tamer4lynx/tamer-icons"
+];
+function detectPackageManager(cwd) {
+  const dir = path24.resolve(cwd);
+  if (fs24.existsSync(path24.join(dir, "pnpm-lock.yaml"))) return "pnpm";
+  if (fs24.existsSync(path24.join(dir, "bun.lockb"))) return "bun";
+  return "npm";
+}
+function runInstall(cwd, packages, pm) {
+  const args = pm === "npm" ? ["install", ...packages] : ["add", ...packages];
+  const cmd = pm === "npm" ? "npm" : pm === "pnpm" ? "pnpm" : "bun";
+  execSync10(`${cmd} ${args.join(" ")}`, { stdio: "inherit", cwd });
+}
+function addCore() {
+  const { lynxProjectDir } = resolveHostPaths();
+  const pm = detectPackageManager(lynxProjectDir);
+  console.log(`Adding core packages to ${lynxProjectDir} (using ${pm})...`);
+  runInstall(lynxProjectDir, CORE_PACKAGES, pm);
+  console.log("\u2705 Core packages installed. Run `t4l link` to link native modules.");
+}
+function add(packages = []) {
+  const list = Array.isArray(packages) ? packages : [];
+  if (list.length === 0) {
+    console.log("Usage: t4l add <package> [package...]");
+    console.log("Example: t4l add @tamer4lynx/tamer-auth");
+    console.log("");
+    console.log("Future: t4l add will track installed versions for compatibility (Expo-style).");
+    return;
+  }
+  const { lynxProjectDir } = resolveHostPaths();
+  const pm = detectPackageManager(lynxProjectDir);
+  const normalized = list.map(
+    (p) => p.startsWith("@") ? p : `@tamer4lynx/${p}`
+  );
+  console.log(`Adding ${normalized.join(", ")} to ${lynxProjectDir} (using ${pm})...`);
+  runInstall(lynxProjectDir, normalized, pm);
+  console.log("\u2705 Packages installed. Run `t4l link` to link native modules.");
+}
+
 // index.ts
 function validateDebugRelease(debug, release) {
   if (debug && release) {
@@ -6205,7 +6258,7 @@ android.command("bundle").option("-t, --target <target>", "Bundle target: host (
   const release = opts.release === true;
   await bundle_default({ target: opts.target, release });
 });
-var androidBuildCmd = android.command("build").option("-i, --install", "Install APK to connected device after building").option("-t, --target <target>", "Build target: host (default) or dev-app", "host").option("-e, --embeddable", "Build for embedding in existing app (host only). Use with --release for production-ready embeddable.").option("-d, --debug", "Build debug (development) APK").option("-r, --release", "Build release (production) APK").description("Build APK (autolink + bundle + gradle)").action(async () => {
+var androidBuildCmd = android.command("build").option("-i, --install", "Install APK to connected device and launch app after building").option("-t, --target <target>", "Build target: host (default) or dev-app", "host").option("-e, --embeddable", "Build for embedding in existing app (host only). Use with --release for production-ready embeddable.").option("-d, --debug", "Build debug (development) APK").option("-r, --release", "Build release (production) APK").description("Build APK (autolink + bundle + gradle)").action(async () => {
   const opts = androidBuildCmd.opts();
   validateDebugRelease(opts.debug, opts.release);
   const release = opts.release === true;
@@ -6288,7 +6341,7 @@ var buildCmd = program.command("build").option("-p, --platform <platform>", "and
     await build_default2({ target, install: opts.install, release });
   }
 });
-program.command("build-dev-app").option("-p, --platform <platform>", "Platform: android, ios, or all (default)", "all").option("-i, --install", "Install APK to connected device after building").description("(Deprecated) Use: t4l build --platform <platform> --install").action(async (opts) => {
+program.command("build-dev-app").option("-p, --platform <platform>", "Platform: android, ios, or all (default)", "all").option("-i, --install", "Install APK to connected device and launch app after building").description("(Deprecated) Use: t4l build --platform <platform> --install").action(async (opts) => {
   console.warn("\u26A0\uFE0F  build-dev-app is deprecated. Use: t4l build --platform <platform> [--install]");
   const p = opts.platform?.toLowerCase();
   const platform = p === "ios" || p === "android" ? p : "all";
@@ -6299,15 +6352,17 @@ program.command("build-dev-app").option("-p, --platform <platform>", "Platform: 
     await build_default2({ target: "dev-app", install: opts.install, release: false });
   }
 });
+program.command("add [packages...]").description("Add @tamer4lynx packages to the Lynx project. Future: will track versions for compatibility (Expo-style).").action((packages) => add(packages));
+program.command("add-core").description("Add core packages (app-shell, screen, router, insets, transports, text-input, system-ui, icons)").action(() => addCore());
 program.command("create").description("Create a new Lynx extension project (RFC-compliant)").action(() => create_default3());
 program.command("codegen").description("Generate code from @lynxmodule declarations").action(() => {
   codegen_default();
 });
 program.command("autolink-toggle").alias("autolink").description("Toggle autolink on/off in tamer.config.json (controls postinstall linking)").action(async () => {
-  const configPath = path24.join(process.cwd(), "tamer.config.json");
+  const configPath = path25.join(process.cwd(), "tamer.config.json");
   let config = {};
-  if (fs24.existsSync(configPath)) {
-    config = JSON.parse(fs24.readFileSync(configPath, "utf8"));
+  if (fs25.existsSync(configPath)) {
+    config = JSON.parse(fs25.readFileSync(configPath, "utf8"));
   }
   if (config.autolink) {
     delete config.autolink;
@@ -6316,7 +6371,7 @@ program.command("autolink-toggle").alias("autolink").description("Toggle autolin
     config.autolink = true;
     console.log("Autolink enabled in tamer.config.json");
   }
-  fs24.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  fs25.writeFileSync(configPath, JSON.stringify(config, null, 2));
   console.log(`Updated ${configPath}`);
 });
 if (process.argv.length <= 2 || process.argv.length === 3 && process.argv[2] === "init") {

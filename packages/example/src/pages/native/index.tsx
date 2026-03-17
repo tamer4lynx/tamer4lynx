@@ -1,13 +1,13 @@
 import { useCallback } from '@lynx-js/react'
-import { useTamerRouter } from 'tamer-router'
-import { px } from 'tamer-app-shell'
+import { useTamerRouter } from '@tamer4lynx/tamer-router'
+import { px } from '@tamer4lynx/tamer-app-shell'
 
 export default function DevIndex() {
   const { push } = useTamerRouter()
 
-  const goLinking = useCallback(() => { 'background only'; push('/dev/linking') }, [push])
-  const goBrowser = useCallback(() => { 'background only'; push('/dev/browser') }, [push])
-  const goAuth = useCallback(() => { 'background only'; push('/dev/auth') }, [push])
+  const goLinking = useCallback(() => { 'background only'; push('/native/linking') }, [push])
+  const goBrowser = useCallback(() => { 'background only'; push('/native/browser') }, [push])
+  const goAuth = useCallback(() => { 'background only'; push('/native/auth') }, [push])
 
   return (
     <view style={{ padding: px(32), display: 'flex', flexDirection: 'column', gap: px(24) }}>

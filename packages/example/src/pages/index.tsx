@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from '@lynx-js/react'
-import { useTamerRouter } from 'tamer-router'
-import { Icon } from 'tamer-icons'
+import { useTamerRouter } from '@tamer4lynx/tamer-router'
+import { Icon } from '@tamer4lynx/tamer-icons'
 
 import '../App.css'
 import lynxLogo from '../assets/lynx-logo.png?inline'
@@ -67,8 +67,8 @@ export default function Home() {
           <view className="Button" style={{ flex: "45%",  maxWidth: "50%" }} bindtap={() => push('/secure')}>
             <text className="ButtonText">Secure Number</text>
           </view>
-          <view className="Button" style={{ flex: "45%", maxWidth: "50%" }} bindtap={() => push('/dev')}>
-            <text className="ButtonText">Dev Tools</text>
+          <view className="Button" style={{ flex: "45%", maxWidth: "50%" }} bindtap={() => push('/native')}>
+            <text className="ButtonText">Native Tests</text>
           </view>
           <view className="Button" style={{ flex: "45%", display: 'flex', backgroundColor: '#dd7777', flexDirection: 'row', gap: 16, justifyContent: 'center', alignItems: 'center' }}>
             <Icon name="search" set="material" size={20} color="#ffffff" />

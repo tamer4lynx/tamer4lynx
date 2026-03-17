@@ -5,7 +5,14 @@ export function generateLynxExtensionsKotlin(packages: DiscoveredModule[], proje
     const modulePackages = packages.filter((p) => getAndroidModuleClassNames(p.config.android).length > 0);
     const elementPackages = packages.filter((p) => p.config.android?.elements && Object.keys(p.config.android.elements).length > 0);
 
-    const allModuleClasses = modulePackages.flatMap((p) => getAndroidModuleClassNames(p.config.android));
+    const seenNames = new Set<string>();
+    const allModuleClasses = modulePackages.flatMap((p) => getAndroidModuleClassNames(p.config.android))
+        .filter((fullClassName) => {
+            const simple = fullClassName.split('.').pop()!;
+            if (seenNames.has(simple)) return false;
+            seenNames.add(simple);
+            return true;
+        });
     const moduleImports = allModuleClasses.map((c) => `import ${c}`).join('\n');
     const elementImports = elementPackages
         .flatMap((p) => Object.values(p.config.android!.elements!).map((cls) => `import ${cls}`))

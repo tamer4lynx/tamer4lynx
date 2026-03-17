@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from '@lynx-js/react'
-import { getItemAsync, setItemAsync } from 'tamer-secure-store'
-import { authenticateAsync, type AuthenticateResult } from 'tamer-biometric'
+import { getItemAsync, setItemAsync } from '@tamer4lynx/tamer-secure-store'
+import { authenticateAsync, type AuthenticateResult } from '@tamer4lynx/tamer-biometric'
 
 const FLAG_KEY = 'secure-number-exists'
 const NUMBER_KEY = 'secure-number'

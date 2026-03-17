@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from '@lynx-js/react'
-import { createURL, getInitialURL, addEventListener } from 'tamer-linking'
-import { px } from 'tamer-app-shell'
+import { createURL, getInitialURL, addEventListener } from '@tamer4lynx/tamer-linking'
+import { px } from '@tamer4lynx/tamer-app-shell'
 
 export default function LinkingPage() {
   const [createUrlResult, setCreateUrlResult] = useState<string>('')

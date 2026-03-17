@@ -4,7 +4,7 @@ ReactLynx app built with Tamer4Lynx. Includes HMR, WebSocket support via tamer-t
 
 ## Getting started
 
-From the **project root** (not packages/example):
+### From monorepo (project root)
 
 ```bash
 npm install
@@ -13,13 +13,23 @@ t4l android create  # one-time
 t4l start           # dev server with HMR + WebSocket
 ```
 
-In another terminal, build and run the app:
+In another terminal:
 
 ```bash
 t4l android build --install
 ```
 
-Or use npm scripts from the root: `npm run start`, `npm run android:build:install`
+### Standalone project
+
+Create a new Lynx project and add packages from npm:
+
+```bash
+pnpm create rspeedy
+cd my-app
+pnpm add @tamer4lynx/tamer-transports @tamer4lynx/jiggle
+t4l init
+t4l start
+```
 
 ## Scripts
 
@@ -29,5 +39,5 @@ Or use npm scripts from the root: `npm run start`, `npm run android:build:instal
 
 ## Dependencies
 
-- **tamer-transports** – Native fetch, WebSocket, and EventSource polyfills for Lynx (required for HMR and WebSocket in native app)
-- **jiggle** – Vibration/haptic native module
+- **@tamer4lynx/tamer-transports** – Native fetch, WebSocket, and EventSource polyfills (required for HMR and WebSocket in native app)
+- **@tamer4lynx/jiggle** – Vibration/haptic native module

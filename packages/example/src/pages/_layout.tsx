@@ -1,6 +1,6 @@
 import { useEffect } from '@lynx-js/react'
-import { Tabs } from 'tamer-router'
-import { useSystemUI } from 'tamer-system-ui'
+import { Tabs } from '@tamer4lynx/tamer-router'
+import { useSystemUI } from '@tamer4lynx/tamer-system-ui'
 
 export default function Layout() {
   const { setStatusBar, setNavigationBar } = useSystemUI()
