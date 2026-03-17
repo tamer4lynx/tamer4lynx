@@ -30,11 +30,20 @@ async function startDevServer(opts?: { verbose?: boolean }) {
 
   let buildProcess: ReturnType<typeof spawn> | null = null;
 
+  function detectPackageManager(cwd: string): { cmd: string; args: string[] } {
+    const dir = path.resolve(cwd);
+    if (fs.existsSync(path.join(dir, 'pnpm-lock.yaml'))) return { cmd: 'pnpm', args: ['run', 'build'] };
+    if (fs.existsSync(path.join(dir, 'bun.lockb')) || fs.existsSync(path.join(dir, 'bun.lock'))) return { cmd: 'bun', args: ['run', 'build'] };
+    return { cmd: 'npm', args: ['run', 'build'] };
+  }
+
   function runBuild(): Promise<void> {
     return new Promise((resolve, reject) => {
-      buildProcess = spawn('npm', ['run', 'build'], {
+      const { cmd, args } = detectPackageManager(lynxProjectDir);
+      buildProcess = spawn(cmd, args, {
         cwd: lynxProjectDir,
         stdio: 'pipe',
+        shell: process.platform === 'win32',
       });
       let stderr = '';
       buildProcess.stderr?.on('data', (d) => { stderr += d.toString(); });

@@ -4,7 +4,8 @@ import readline from "readline";
 
 const rl = readline.createInterface({
     input: process.stdin,
-    output: process.stdout
+    output: process.stdout,
+    terminal: false
 });
 
 function ask(question: string): Promise<string> {
@@ -14,7 +15,6 @@ function ask(question: string): Promise<string> {
 }
 
 async function init() {
-    process.removeAllListeners('warning');
     console.log("Tamer4Lynx Init: Let's set up your tamer.config.json\n");
 
     // Android

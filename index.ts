@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-
+import './src/suppress-punycode-warning.ts';
 import fs from 'fs';
 import path from 'path';
 

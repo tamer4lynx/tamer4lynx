@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+// src/suppress-punycode-warning.ts
+process.on("warning", (w) => {
+  if (w.name === "DeprecationWarning" && /punycode/i.test(w.message)) return;
+  console.warn(w.toString());
+});
+
 // index.ts
 import fs25 from "fs";
 import path25 from "path";
@@ -5143,7 +5149,8 @@ import path18 from "path";
 import readline from "readline";
 var rl = readline.createInterface({
   input: process.stdin,
-  output: process.stdout
+  output: process.stdout,
+  terminal: false
 });
 function ask(question) {
   return new Promise((resolve) => {
@@ -5151,7 +5158,6 @@ function ask(question) {
   });
 }
 async function init() {
-  process.removeAllListeners("warning");
   console.log("Tamer4Lynx Init: Let's set up your tamer.config.json\n");
   const androidAppName = await ask("Android app name: ");
   const androidPackageName = await ask("Android package name (e.g. com.example.app): ");
@@ -5202,7 +5208,7 @@ var init_default = init;
 import fs19 from "fs";
 import path19 from "path";
 import readline2 from "readline";
-var rl2 = readline2.createInterface({ input: process.stdin, output: process.stdout });
+var rl2 = readline2.createInterface({ input: process.stdin, output: process.stdout, terminal: false });
 function ask2(question) {
   return new Promise((resolve) => rl2.question(question, (answer) => resolve(answer.trim())));
 }
@@ -5462,11 +5468,19 @@ async function startDevServer(opts) {
   const distDir = path21.dirname(lynxBundlePath);
   const port = config.devServer?.port ?? config.devServer?.httpPort ?? DEFAULT_PORT;
   let buildProcess = null;
+  function detectPackageManager2(cwd) {
+    const dir = path21.resolve(cwd);
+    if (fs21.existsSync(path21.join(dir, "pnpm-lock.yaml"))) return { cmd: "pnpm", args: ["run", "build"] };
+    if (fs21.existsSync(path21.join(dir, "bun.lockb")) || fs21.existsSync(path21.join(dir, "bun.lock"))) return { cmd: "bun", args: ["run", "build"] };
+    return { cmd: "npm", args: ["run", "build"] };
+  }
   function runBuild() {
     return new Promise((resolve, reject) => {
-      buildProcess = spawn("npm", ["run", "build"], {
+      const { cmd, args } = detectPackageManager2(lynxProjectDir);
+      buildProcess = spawn(cmd, args, {
         cwd: lynxProjectDir,
-        stdio: "pipe"
+        stdio: "pipe",
+        shell: process.platform === "win32"
       });
       let stderr = "";
       buildProcess.stderr?.on("data", (d) => {
