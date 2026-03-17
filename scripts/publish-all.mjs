@@ -23,6 +23,7 @@ const PUBLISH_ORDER = [
   'packages/tamer-app-shell',
   'packages/tamer-router',
   'packages/tamer-dev-client',
+  'packages/tamer-dev-app',
 ];
 
 function publish(pkgPath) {

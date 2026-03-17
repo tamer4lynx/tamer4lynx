@@ -12,7 +12,7 @@ import path24 from "path";
 import { program } from "commander";
 
 // package.json
-var version = "0.0.5";
+var version = "0.0.6";
 
 // src/android/create.ts
 import fs3 from "fs";
@@ -375,6 +375,18 @@ import ${vars.packageName}.generated.GeneratedLynxExtensions;
  LynxEnv.inst().init(this, null, new TemplateProvider(this), null);
  }`
   );
+  out = out.replace(
+    /LynxServiceCenter\.inst\(\)\.registerService\(LynxLogService\.INSTANCE\);/,
+    `try {
+      Object logService = Class.forName("com.nanofuxion.tamerdevclient.TamerRelogLogService")
+        .getField("INSTANCE")
+        .get(null);
+      logService.getClass().getMethod("init", android.content.Context.class).invoke(logService, this);
+      LynxServiceCenter.inst().registerService((com.lynx.tasm.service.ILynxLogService) logService);
+    } catch (Exception ignored) {
+      LynxServiceCenter.inst().registerService(LynxLogService.INSTANCE);
+    }`
+  );
   return out.replace(/\n{3,}/g, "\n\n");
 }
 function getLoadTemplateBody(vars) {
@@ -548,6 +560,8 @@ class DevClientManager(private val context: Context, private val onReload: Runna
 function getProjectActivity(vars) {
   const hasDevClient = vars.devMode === "embedded";
   const devClientInit = hasDevClient ? `
+        TamerRelogLogService.init(this)
+        TamerRelogLogService.connect()
         devClientManager = DevClientManager(this) { reloadProjectView() }
         devClientManager?.connect()
 ` : "";
@@ -555,9 +569,11 @@ function getProjectActivity(vars) {
 ` : "";
   const devClientCleanup = hasDevClient ? `
         devClientManager?.disconnect()
+        TamerRelogLogService.disconnect()
 ` : "";
   const devClientImports = hasDevClient ? `
-import ${vars.packageName}.DevClientManager` : "";
+import ${vars.packageName}.DevClientManager
+import com.nanofuxion.tamerdevclient.TamerRelogLogService` : "";
   const reloadMethod = hasDevClient ? `
     private fun reloadProjectView() {
         GeneratedActivityLifecycle.onViewDetached()
@@ -1972,6 +1988,30 @@ function readAndSubstituteTemplate2(templatePath, vars) {
     raw
   );
 }
+function patchAppLogService(appPath) {
+  if (!fs8.existsSync(appPath)) return;
+  const raw = fs8.readFileSync(appPath, "utf-8");
+  const patched = raw.replace(
+    /private void initLynxService\(\)\s*\{[\s\S]*?\n\s*}\s*\n\s*private void initFresco\(\)/,
+    `private void initLynxService() {
+    try {
+      Object logService = Class.forName("com.nanofuxion.tamerdevclient.TamerRelogLogService")
+        .getField("INSTANCE")
+        .get(null);
+      logService.getClass().getMethod("init", android.content.Context.class).invoke(logService, this);
+      LynxServiceCenter.inst().registerService((com.lynx.tasm.service.ILynxLogService) logService);
+    } catch (Exception ignored) {
+      LynxServiceCenter.inst().registerService(LynxLogService.INSTANCE);
+    }
+    LynxServiceCenter.inst().registerService(LynxImageService.getInstance());
+    LynxServiceCenter.inst().registerService(LynxHttpService.INSTANCE);
+  }
+  private void initFresco()`
+  );
+  if (patched !== raw) {
+    fs8.writeFileSync(appPath, patched);
+  }
+}
 async function syncDevClient(opts) {
   let resolved;
   try {
@@ -2004,6 +2044,7 @@ async function syncDevClient(opts) {
   ]);
   fs8.writeFileSync(path8.join(javaDir, "TemplateProvider.java"), templateProviderSource);
   fs8.writeFileSync(path8.join(kotlinDir, "MainActivity.kt"), getStandaloneMainActivity(vars));
+  patchAppLogService(path8.join(javaDir, "App.java"));
   const appDir = path8.join(rootDir, "app");
   const mainDir = path8.join(appDir, "src", "main");
   const manifestPath = path8.join(mainDir, "AndroidManifest.xml");

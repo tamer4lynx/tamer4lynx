@@ -17,6 +17,31 @@ function readAndSubstituteTemplate(
   );
 }
 
+function patchAppLogService(appPath: string): void {
+  if (!fs.existsSync(appPath)) return;
+  const raw = fs.readFileSync(appPath, "utf-8");
+  const patched = raw.replace(
+    /private void initLynxService\(\)\s*\{[\s\S]*?\n\s*}\s*\n\s*private void initFresco\(\)/,
+    `private void initLynxService() {
+    try {
+      Object logService = Class.forName("com.nanofuxion.tamerdevclient.TamerRelogLogService")
+        .getField("INSTANCE")
+        .get(null);
+      logService.getClass().getMethod("init", android.content.Context.class).invoke(logService, this);
+      LynxServiceCenter.inst().registerService((com.lynx.tasm.service.ILynxLogService) logService);
+    } catch (Exception ignored) {
+      LynxServiceCenter.inst().registerService(LynxLogService.INSTANCE);
+    }
+    LynxServiceCenter.inst().registerService(LynxImageService.getInstance());
+    LynxServiceCenter.inst().registerService(LynxHttpService.INSTANCE);
+  }
+  private void initFresco()`
+  );
+  if (patched !== raw) {
+    fs.writeFileSync(appPath, patched);
+  }
+}
+
 async function syncDevClient(opts?: { forceProduction?: boolean; includeDevClient?: boolean }) {
   let resolved: ReturnType<typeof resolveHostPaths>;
   try {
@@ -57,6 +82,7 @@ async function syncDevClient(opts?: { forceProduction?: boolean; includeDevClien
 
   fs.writeFileSync(path.join(javaDir, "TemplateProvider.java"), templateProviderSource);
   fs.writeFileSync(path.join(kotlinDir, "MainActivity.kt"), getStandaloneMainActivity(vars));
+  patchAppLogService(path.join(javaDir, "App.java"));
 
   const appDir = path.join(rootDir, "app");
   const mainDir = path.join(appDir, "src", "main");

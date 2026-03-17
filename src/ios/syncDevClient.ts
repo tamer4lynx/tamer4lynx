@@ -176,6 +176,7 @@ class DevLauncherViewController: UIViewController {
 function getProjectViewControllerSwift(): string {
     return `import UIKit
 import Lynx
+import tamerdevclient
 import tamerinsets
 
 class ProjectViewController: UIViewController {
@@ -192,6 +193,7 @@ class ProjectViewController: UIViewController {
         view.preservesSuperviewLayoutMargins = false
         viewRespectsSystemMinimumLayoutMargins = false
         setupLynxView()
+        TamerRelogLogService.connect()
         devClientManager = DevClientManager(onReload: { [weak self] in
             self?.reloadLynxView()
         })
@@ -276,6 +278,7 @@ class ProjectViewController: UIViewController {
         super.viewWillDisappear(animated)
         if isBeingDismissed || isMovingFromParent {
             devClientManager?.disconnect()
+            TamerRelogLogService.disconnect()
         }
     }
 }
@@ -1133,6 +1136,47 @@ async function createDevAppProject(iosDir: string, repoRoot: string): Promise<vo
     await setupCocoaPods(iosDir);
 }
 
+function syncDevAppSourceFiles(iosDir: string, repoRoot: string): void {
+    const projectDir = path.join(iosDir, APP_NAME);
+    const devClientPkg = findDevClientPackage(repoRoot);
+    const templateDir = devClientPkg ? path.join(devClientPkg, 'ios', 'templates') : null;
+    const templateVars = { PROJECT_BUNDLE_SEGMENT: 'tamer-dev-app' };
+    const templateFiles = [
+        'DevLauncherViewController.swift',
+        'ProjectViewController.swift',
+        'DevTemplateProvider.swift',
+        'DevClientManager.swift',
+        'QRScannerViewController.swift',
+        'LynxInitProcessor.swift',
+    ];
+
+    writeFile(path.join(iosDir, 'Podfile'), getPodfile());
+    writeFile(path.join(projectDir, 'AppDelegate.swift'), getAppDelegateSwift());
+    for (const f of templateFiles) {
+        const src = templateDir ? path.join(templateDir, f) : null;
+        if (src && fs.existsSync(src)) {
+            writeFile(path.join(projectDir, f), readAndSubstituteTemplate(src, templateVars));
+            continue;
+        }
+        const fallback = (() => {
+            switch (f) {
+                case 'DevLauncherViewController.swift': return getDevLauncherViewControllerSwift();
+                case 'ProjectViewController.swift': return getProjectViewControllerSwift();
+                case 'DevTemplateProvider.swift': return getDevTemplateProviderSwift();
+                case 'DevClientManager.swift': return getDevClientManagerSwift();
+                case 'QRScannerViewController.swift': return getQRScannerViewControllerSwift();
+                case 'LynxInitProcessor.swift': return getLynxInitProcessorSwift();
+                default: return '';
+            }
+        })();
+        if (fallback) writeFile(path.join(projectDir, f), fallback);
+    }
+    writeFile(path.join(projectDir, BRIDGING_HEADER), getBridgingHeader());
+    writeFile(path.join(projectDir, 'Info.plist'), getInfoPlist());
+    writeFile(path.join(projectDir, 'Base.lproj', 'Main.storyboard'), getMainStoryboard());
+    writeFile(path.join(projectDir, 'Base.lproj', 'LaunchScreen.storyboard'), getLaunchScreenStoryboard());
+}
+
 async function syncDevClientIos(): Promise<void> {
     let resolved: ReturnType<typeof resolveDevAppPaths>;
     let repoRoot: string;
@@ -1157,6 +1201,8 @@ async function syncDevClientIos(): Promise<void> {
     } else {
         console.log(`ℹ️  iOS dev-app project already exists at ${iosDir}`);
     }
+
+    syncDevAppSourceFiles(iosDir, repoRoot);
 
     // Run autolink from dev-app directory (changes CWD temporarily)
     const prev = process.cwd();

@@ -69,6 +69,18 @@ import ${vars.packageName}.generated.GeneratedLynxExtensions;
  LynxEnv.inst().init(this, null, new TemplateProvider(this), null);
  }`
   );
+  out = out.replace(
+    /LynxServiceCenter\.inst\(\)\.registerService\(LynxLogService\.INSTANCE\);/,
+    `try {
+      Object logService = Class.forName("com.nanofuxion.tamerdevclient.TamerRelogLogService")
+        .getField("INSTANCE")
+        .get(null);
+      logService.getClass().getMethod("init", android.content.Context.class).invoke(logService, this);
+      LynxServiceCenter.inst().registerService((com.lynx.tasm.service.ILynxLogService) logService);
+    } catch (Exception ignored) {
+      LynxServiceCenter.inst().registerService(LynxLogService.INSTANCE);
+    }`
+  );
 
   return out.replace(/\n{3,}/g, "\n\n");
 }
@@ -263,6 +275,8 @@ export function getProjectActivity(vars: PatchVars): string {
 
   const devClientInit = hasDevClient
     ? `
+        TamerRelogLogService.init(this)
+        TamerRelogLogService.connect()
         devClientManager = DevClientManager(this) { reloadProjectView() }
         devClientManager?.connect()
 `
@@ -272,11 +286,13 @@ export function getProjectActivity(vars: PatchVars): string {
   const devClientCleanup = hasDevClient
     ? `
         devClientManager?.disconnect()
+        TamerRelogLogService.disconnect()
 `
     : "";
   const devClientImports = hasDevClient
     ? `
-import ${vars.packageName}.DevClientManager`
+import ${vars.packageName}.DevClientManager
+import com.nanofuxion.tamerdevclient.TamerRelogLogService`
     : "";
 
   const reloadMethod = hasDevClient

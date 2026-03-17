@@ -4,7 +4,6 @@
     "": {
       "name": "tamer4lynx",
       "dependencies": {
-        "@types/adm-zip": "^0.5.7",
         "adm-zip": "^0.5.16",
         "baseline-browser-mapping": "^2.10.0",
         "caniuse-lite": "^1.0.30001777",
@@ -17,6 +16,7 @@
         "ws": "^8.19.0",
       },
       "devDependencies": {
+        "@types/adm-zip": "^0.5.7",
         "@types/bun": "latest",
         "@types/node": "^24.1.0",
         "@types/node-fetch": "^2.6.13",
@@ -49,7 +49,7 @@
         "@tamer4lynx/tamer-app-shell": "^0.0.1",
         "@tamer4lynx/tamer-auth": "^0.0.1",
         "@tamer4lynx/tamer-biometric": "^0.0.1",
-        "@tamer4lynx/tamer-dev-client": "^0.0.1",
+        "@tamer4lynx/tamer-dev-client": "file:../tamer-dev-client",
         "@tamer4lynx/tamer-display-browser": "^0.0.1",
         "@tamer4lynx/tamer-icons": "^0.0.1",
         "@tamer4lynx/tamer-insets": "^0.0.1",
@@ -153,7 +153,7 @@
       },
     },
     "packages/tamer-dev-app": {
-      "name": "tamer-dev-app",
+      "name": "@tamer4lynx/tamer-dev-app",
       "version": "0.1.0",
       "dependencies": {
         "@tamer4lynx/jiggle": "^0.0.1",
@@ -180,7 +180,7 @@
     },
     "packages/tamer-dev-client": {
       "name": "@tamer4lynx/tamer-dev-client",
-      "version": "0.0.1",
+      "version": "0.0.4",
       "dependencies": {
         "@lynx-js/react": "^0.112.1",
         "@tamer4lynx/tamer-app-shell": "^0.0.1",
@@ -334,7 +334,7 @@
     },
     "packages/tamer-transports": {
       "name": "@tamer4lynx/tamer-transports",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "devDependencies": {
         "typescript": "~5.8.0",
       },
@@ -676,6 +676,8 @@
     "@tamer4lynx/tamer-auth": ["@tamer4lynx/tamer-auth@workspace:packages/tamer-auth"],
 
     "@tamer4lynx/tamer-biometric": ["@tamer4lynx/tamer-biometric@workspace:packages/tamer-biometric"],
+
+    "@tamer4lynx/tamer-dev-app": ["@tamer4lynx/tamer-dev-app@workspace:packages/tamer-dev-app"],
 
     "@tamer4lynx/tamer-dev-client": ["@tamer4lynx/tamer-dev-client@workspace:packages/tamer-dev-client"],
 
@@ -1851,8 +1853,6 @@
 
     "symbol-tree": ["symbol-tree@3.2.4", "", {}, "sha512-9QNk5KwDF+Bvz+PyObkmSYjI5ksVUYtjW7AU22r2NKcfLJcXp96hkDWU3+XndOsUb+AQ9QhfzfCT2O+CNWT5Tw=="],
 
-    "tamer-dev-app": ["tamer-dev-app@workspace:packages/tamer-dev-app"],
-
     "tapable": ["tapable@2.2.2", "", {}, "sha512-Re10+NauLTMCudc7T5WLFLAwDhQ0JWdrMK+9B2M8zR5hRExKmsRDCBA7/aV/pNJFltmBFO5BAMlQFi/vq3nKOg=="],
 
     "terser": ["terser@5.46.0", "", { "dependencies": { "@jridgewell/source-map": "^0.3.3", "acorn": "^8.15.0", "commander": "^2.20.0", "source-map-support": "~0.5.20" }, "bin": { "terser": "bin/terser" } }, "sha512-jTwoImyr/QbOWFFso3YoU3ik0jBBDJ6JTOQiy/J2YxVJdZCc+5u7skhNwiOR3FQIygFqVUPHl7qbbxtjW2K3Qg=="],
@@ -2041,6 +2041,12 @@
 
     "@tamer4lynx/tamer-biometric/typescript": ["typescript@5.8.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ=="],
 
+    "@tamer4lynx/tamer-dev-app/@tamer4lynx/tamer-dev-client": ["@tamer4lynx/tamer-dev-client@0.0.1", "", { "dependencies": { "@lynx-js/react": "^0.112.1", "@tamer4lynx/tamer-app-shell": "^0.0.1", "@tamer4lynx/tamer-insets": "^0.0.1", "@tamer4lynx/tamer-plugin": "^0.0.1", "@tamer4lynx/tamer-router": "^0.0.1", "@tamer4lynx/tamer-system-ui": "^0.0.1", "react-router": "^6.28.0" } }, "sha512-hLHhbu9yU91i9qhAJ+WfdL9d7EG823l2W6xmzNeZ2aQD9IRqhW8x0fxWVU+yYOiEHKU9NjWB1Xc2eR52aQml5A=="],
+
+    "@tamer4lynx/tamer-dev-app/@tamer4lynx/tamer-transports": ["@tamer4lynx/tamer-transports@0.0.1", "", {}, "sha512-3ZVTZ/lkeE919m/qeR3+RfCM6aAxiGtdkMvlMimUoqI+0gNvm5U91ul9v6os/maLScwcWWiYlpyX4lhYZppG1A=="],
+
+    "@tamer4lynx/tamer-dev-app/typescript": ["typescript@5.8.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ=="],
+
     "@tamer4lynx/tamer-dev-client/typescript": ["typescript@5.8.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ=="],
 
     "@tamer4lynx/tamer-display-browser/typescript": ["typescript@5.8.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ=="],
@@ -2115,6 +2121,8 @@
 
     "esrecurse/estraverse": ["estraverse@5.3.0", "", {}, "sha512-MMdARuVEQziNTeJD8DgMqmhwR11BRQ/cBP+pLtYdSTnf3MIO8fFeiINEbX36ZdNlfU/7A9f3gUw49B3oQsvwBA=="],
 
+    "example/@tamer4lynx/tamer-transports": ["@tamer4lynx/tamer-transports@0.0.1", "", {}, "sha512-3ZVTZ/lkeE919m/qeR3+RfCM6aAxiGtdkMvlMimUoqI+0gNvm5U91ul9v6os/maLScwcWWiYlpyX4lhYZppG1A=="],
+
     "example/typescript": ["typescript@5.8.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ=="],
 
     "finalhandler/debug": ["debug@2.6.9", "", { "dependencies": { "ms": "2.0.0" } }, "sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA=="],
@@ -2154,8 +2162,6 @@
     "svgo/commander": ["commander@7.2.0", "", {}, "sha512-QrWXB+ZQSVPmIWIhtEO9H+gwHaMGYiF5ChvoJ+K9ZGHG/sVsa6yiesAD1GC/x46sET00Xlwo1u49RVVVzvcSkw=="],
 
     "svgo/css-tree": ["css-tree@2.3.1", "", { "dependencies": { "mdn-data": "2.0.30", "source-map-js": "^1.0.1" } }, "sha512-6Fv1DV/TYw//QF5IzQdqsNDjx/wc8TrMBZsqjL9eW01tWb7R7k/mq+/VXfJCl7SoD5emsJop9cOByJZfs8hYIw=="],
-
-    "tamer-dev-app/typescript": ["typescript@5.8.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ=="],
 
     "terser/commander": ["commander@2.20.3", "", {}, "sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ=="],
 
