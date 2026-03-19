@@ -35,11 +35,13 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # native
 /gradle
+packages/example/gradle
 /ios
 /android
 src/android/gradle
 packages/*/android/.gradle
 packages/*/android/build
+packages/*/android/**/build
 packages/*/android/.settings
 packages/*/ios/build
 packages/*/ios/Pods

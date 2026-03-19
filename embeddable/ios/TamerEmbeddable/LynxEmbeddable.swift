@@ -11,7 +11,6 @@ import tamerlinking
 import tamerrouter
 import tamersecurestore
 import tamersystemui
-import tamertextinput
 import tamertransports
 
 public enum LynxEmbeddable {
@@ -28,7 +27,6 @@ public enum LynxEmbeddable {
                 globalConfig.register(TamerRouterNativeModule.self)
                 globalConfig.register(SecureStoreModule.self)
                 globalConfig.register(SystemUIModule.self)
-                globalConfig.registerUI(TamerTextInput.self, withName: "tamer-input")
                 globalConfig.register(LynxFetchModule.self)
                 globalConfig.register(LynxWebSocketModule.self)
 

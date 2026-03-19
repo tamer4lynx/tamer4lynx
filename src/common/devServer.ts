@@ -3,6 +3,7 @@ import fs from 'fs';
 import http from 'http';
 import os from 'os';
 import path from 'path';
+import readline from 'readline';
 import { WebSocketServer } from 'ws';
 import { discoverNativeExtensions } from './config';
 import { resolveHostPaths, resolveIconPaths } from './hostConfig';
@@ -248,6 +249,39 @@ async function startDevServer(opts?: { verbose?: boolean }) {
       const qrcode = mod.default ?? mod;
       qrcode.generate(devUrl, { small: true });
     }).catch(() => {});
+
+    if (process.stdin.isTTY) {
+      readline.emitKeypressEvents(process.stdin);
+      process.stdin.setRawMode(true);
+      process.stdin.resume();
+      process.stdin.setEncoding('utf8');
+      const help = '\x1b[90m  r: refresh  c/Ctrl+L: clear  Ctrl+C: exit\x1b[0m';
+      console.log(help);
+      process.stdin.on('keypress', (str: string, key: { name: string; ctrl: boolean }) => {
+        if (key.ctrl && key.name === 'c') {
+          void cleanup();
+          return;
+        }
+        switch (key.name) {
+          case 'r':
+            runBuild()
+              .then(() => {
+                broadcastReload();
+                console.log('🔄 Refreshed, clients notified');
+              })
+              .catch((e) => console.error('Build failed:', (e as Error).message));
+            break;
+          case 'c':
+            process.stdout.write('\x1b[2J\x1b[H');
+            break;
+          case 'l':
+            if (key.ctrl) process.stdout.write('\x1b[2J\x1b[H');
+            break;
+          default:
+            break;
+        }
+      });
+    }
   });
 
   const cleanup = async () => {

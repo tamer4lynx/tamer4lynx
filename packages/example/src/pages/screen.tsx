@@ -8,9 +8,6 @@ export default function ScreenPage() {
   const insets = useInsets()
   const keyboard = useKeyboard()
   const [inputValue, setInputValue] = useState('')
-  const [inputHeight, setInputHeight] = useState<number>(MIN_INPUT_HEIGHT)
-
-  const appBarHeight = 275
   return (
     <view style={{ display: 'flex', flexDirection: 'column', zIndex: 100, height: '100%', minHeight: 0 }}>
       <scroll-view scroll-y style={{ display: 'flex', flexDirection: 'column', flex: 1, flexGrow: 1, flexShrink: 1, minHeight: 0 }}>
@@ -64,21 +61,14 @@ export default function ScreenPage() {
 
       <AvoidKeyboard behavior="padding">
         <view style={{ display: 'flex', flexDirection: 'column', flexShrink: 0, paddingLeft: '16px', paddingRight: '16px', paddingTop: '12px', paddingBottom: '12px', backgroundColor: '#1a1a1a', borderTop: '1px solid #333' }}>
-          <tamer-input
-            multiline
+          <textarea
             value={inputValue}
             placeholder="Type to test AvoidKeyboard..."
-            color="#ffffff"
-            placeholder-color="#777777"
-            style={{ backgroundColor: '#222', borderRadius: '12px', border: '1px solid #444', height: inputHeight, minHeight: MIN_INPUT_HEIGHT, maxHeight: MAX_INPUT_HEIGHT, padding: '8px' }}
-            bindinput={(e: { detail?: { value?: string }; value?: string }) => {
+            enable-scroll-bar
+            style={{ backgroundColor: '#222', color: '#ffffff', borderRadius: '12px', border: '1px solid #444', minHeight: MIN_INPUT_HEIGHT, maxHeight: MAX_INPUT_HEIGHT, padding: '8px' }}
+            bindinput={(e) => {
               'background only'
-              setInputValue(e?.detail?.value ?? e?.value ?? '')
-            }}
-            bindcontentsizechange={(e: { detail?: { height?: number } }) => {
-              'background only'
-              const h = (e?.detail?.height ?? 0) + (8 * 4) || MIN_INPUT_HEIGHT
-              if (h > 0) setInputHeight(h < MIN_INPUT_HEIGHT ? MIN_INPUT_HEIGHT : h )
+              setInputValue(e.detail.value)
             }}
           />
         </view>

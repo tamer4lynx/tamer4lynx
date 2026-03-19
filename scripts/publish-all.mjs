@@ -17,7 +17,6 @@ const PUBLISH_ORDER = [
   'packages/tamer-insets',
   'packages/tamer-system-ui',
   'packages/tamer-screen',
-  'packages/tamer-text-input',
   'packages/tamer-icons',
   'packages/tamer-auth',
   'packages/tamer-app-shell',

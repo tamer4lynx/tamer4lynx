@@ -8,16 +8,51 @@ function ask(question: string): Promise<string> {
   return new Promise(resolve => rl.question(question, answer => resolve(answer.trim())));
 }
 
-async function create() {
-  console.log('Tamer4Lynx: Create Lynx Extension\n');
-  console.log('Select extension types (space to toggle, enter to confirm):');
-  console.log('  [ ] Native Module');
-  console.log('  [ ] Element');
-  console.log('  [ ] Service\n');
+export type CreateExtensionType = 'module' | 'element' | 'service' | 'combo';
 
-  const includeModule = /^y(es)?$/i.test(await ask('Include Native Module? (Y/n): ') || 'y');
-  const includeElement = /^y(es)?$/i.test(await ask('Include Element? (y/N): ') || 'n');
-  const includeService = /^y(es)?$/i.test(await ask('Include Service? (y/N): ') || 'n');
+async function create(opts?: { type?: CreateExtensionType }) {
+  console.log('Tamer4Lynx: Create Lynx Extension\n');
+
+  let includeModule: boolean;
+  let includeElement: boolean;
+  let includeService: boolean;
+
+  if (opts?.type) {
+    switch (opts.type) {
+      case 'module':
+        includeModule = true;
+        includeElement = false;
+        includeService = false;
+        break;
+      case 'element':
+        includeModule = false;
+        includeElement = true;
+        includeService = false;
+        break;
+      case 'service':
+        includeModule = false;
+        includeElement = false;
+        includeService = true;
+        break;
+      case 'combo':
+        includeModule = true;
+        includeElement = true;
+        includeService = true;
+        break;
+      default:
+        includeModule = true;
+        includeElement = false;
+        includeService = false;
+    }
+  } else {
+    console.log('Select extension types (space to toggle, enter to confirm):');
+    console.log('  [ ] Native Module');
+    console.log('  [ ] Element');
+    console.log('  [ ] Service\n');
+    includeModule = /^y(es)?$/i.test(await ask('Include Native Module? (Y/n): ') || 'y');
+    includeElement = /^y(es)?$/i.test(await ask('Include Element? (y/N): ') || 'n');
+    includeService = /^y(es)?$/i.test(await ask('Include Service? (y/N): ') || 'n');
+  }
 
   if (!includeModule && !includeElement && !includeService) {
     console.error('❌ At least one extension type is required.');
@@ -80,8 +115,11 @@ async function create() {
 
   const pkgPath = packageName.replace(/\./g, '/');
 
-  if (includeModule) {
+  const hasSrc = includeModule || includeElement || includeService;
+  if (hasSrc) {
     fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  }
+  if (includeModule) {
     fs.writeFileSync(path.join(root, 'src', 'index.d.ts'), `/** @lynxmodule */
 export declare class ${simpleModuleName} {
   // Add your module methods here
@@ -158,13 +196,33 @@ end
     fs.writeFileSync(path.join(root, 'ios', extName, extName, 'Classes', `${simpleModuleName}.swift`), swiftContent);
   }
 
+  if (includeElement && !includeModule) {
+    const elementName = extName.split('-').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join('');
+    fs.writeFileSync(path.join(root, 'src', 'index.tsx'), `import type { FC } from '@lynx-js/react';
+
+export const ${elementName}: FC = () => {
+  return null;
+};
+`);
+  }
+
   fs.writeFileSync(path.join(root, 'index.js'), `'use strict';
 module.exports = {};
 `);
 
+  const tsconfigCompiler: Record<string, unknown> = {
+    target: 'ES2020',
+    module: 'ESNext',
+    moduleResolution: 'bundler',
+    strict: true,
+  };
+  if (includeElement) {
+    tsconfigCompiler.jsx = 'preserve';
+    tsconfigCompiler.jsxImportSource = '@lynx-js/react';
+  }
   fs.writeFileSync(path.join(root, 'tsconfig.json'), JSON.stringify({
-    compilerOptions: { target: 'ES2020', module: 'ESNext', moduleResolution: 'bundler', strict: true },
-    include: ['src'],
+    compilerOptions: tsconfigCompiler,
+    include: includeElement ? ['src', 'src/**/*.tsx'] : ['src'],
   }, null, 2));
 
   fs.writeFileSync(path.join(root, 'README.md'), `# ${extName}

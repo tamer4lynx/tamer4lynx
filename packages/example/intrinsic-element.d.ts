@@ -1,4 +1,3 @@
-/// <reference path="../tamer-text-input/src/lynx-elements.d.ts" />
 import * as Lynx from "@lynx-js/types";
 
 declare module "@lynx-js/types" {

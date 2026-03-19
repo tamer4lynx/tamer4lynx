@@ -27,14 +27,11 @@ export default function InsetsPage() {
         </view>
 
         <view style={{ marginTop: 20 }}>
-          <tamer-input
-            multiline
+          <textarea
             value={inputValue}
-            color="#ffffff"
-            placeholder-color="#777777"
             placeholder="Tap here to show keyboard"
-            style={{ backgroundColor: '#222', minHeight: 96, border: '1px solid #444', borderRadius: 12, padding: "8px" }}
-            bindinput={(e: { detail?: { value?: string }; value?: string }) => setInputValue(e?.detail?.value ?? e?.value ?? '')}
+            style={{ backgroundColor: '#222', color: '#ffffff', minHeight: 96, border: '1px solid #444', borderRadius: 12, padding: "8px" }}
+            bindinput={(e) => setInputValue(e.detail.value)}
           />
         </view>
 

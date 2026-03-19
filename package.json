@@ -42,7 +42,6 @@
     "packages/tamer-screen",
     "packages/tamer-system-ui",
     "packages/tamer-app-shell",
-    "packages/tamer-text-input",
     "packages/lynxwebsockets"
   ],
   "keywords": [

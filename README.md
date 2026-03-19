@@ -132,48 +132,64 @@ Run from an extension package root to generate code from `@lynxmodule` declarati
 
 ---
 
-### **Android Commands**
+Commands use the form **`t4l <command> [target] [flags]`** so they stay consistent. Target is a platform (`ios`, `android`) or, for create, an extension type (`module`, `element`, `service`, `combo`).
 
-| Command | Flags | Description |
-|---------|-------|-------------|
-| `t4l android create` | `-t, --target <host\|dev-app>` | Create Android project. Default: `host`. |
-| `t4l android link` | — | Link native modules to Gradle. Build runs this automatically. |
-| `t4l android bundle` | `-d, --debug`, `-r, --release` | Build Lynx bundle and copy to assets. `-d` (default) embeds dev client if present; `-r` omits it. Runs autolink first. |
-| `t4l android build` | `-i, --install`, `-e, --embeddable`, `-d, --debug`, `-r, --release` | Build APK. `-d` (default) = debug with dev client; `-r` = release without. `--install` deploys to device. `--embeddable` outputs AAR to `embeddable/`. |
-| `t4l android sync` | — | Sync dev client files (TemplateProvider, MainActivity, DevClientManager). |
-| `t4l android inject` | `-f, --force` | Inject tamer-host templates. `--force` overwrites existing files. |
+### **Create** (`t4l create <target>`)
 
-### **iOS Commands**
+| Target | Flags | Description |
+|--------|-------|-------------|
+| `ios` | — | Create iOS project. |
+| `android` | `-d, --debug` (default), `-r, --release` (dev-app) | Create Android project. |
+| `module` | — | Create Lynx extension with native module only. |
+| `element` | — | Create Lynx extension with custom element (JSX preserved). |
+| `service` | — | Create Lynx extension with service only. |
+| `combo` | — | Create Lynx extension with module + element + service. |
 
-| Command | Flags | Description |
-|---------|-------|-------------|
-| `t4l ios create` | — | Create iOS project. |
-| `t4l ios link` | — | Link native modules to Podfile. Build runs this automatically. |
-| `t4l ios bundle` | `-d, --debug`, `-r, --release` | Build Lynx bundle and copy to iOS project. `-d` embeds dev client if present; `-r` omits it. |
-| `t4l ios build` | `-e, --embeddable`, `-i, --install`, `-d, --debug`, `-r, --release` | Build iOS app. `-d` = debug with dev client; `-r` = release without. `--install` deploys to simulator. |
-| `t4l ios inject` | `-f, --force` | Inject tamer-host templates. `--force` overwrites existing files. |
+### **Build** (`t4l build [platform]`)
 
-### **Unified Build** (`t4l build`)
-
-Builds your app. Dev client (QR scan, HMR) is included when you use **debug** (`-d`) and have `@tamer4lynx/tamer-dev-client` installed; **release** (`-r`) builds without it.
+Builds your app. Dev client (QR scan, HMR) is included with **debug** (`-d`) when `@tamer4lynx/tamer-dev-client` is installed; **release** (`-r`) builds without it.
 
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
-| `--platform` | `-p` | `all` | `android`, `ios`, or `all` |
-| `--embeddable` | `-e` | — | Output to `embeddable/`: **AAR** (Android) + **CocoaPod** (iOS). Use with `--release`. |
-| `--debug` | `-d` | default | Debug build with dev client embedded (if tamer-dev-client is installed) |
+| platform | — | both | `ios`, `android`, or omit for both |
+| `--embeddable` | `-e` | — | Output to `embeddable/`. Use with `--release`. |
+| `--debug` | `-d` | default | Debug build with dev client |
 | `--release` | `-r` | — | Release build without dev client |
 | `--install` | `-i` | — | Install to device/simulator after build |
+
+Examples: `t4l build`, `t4l build android -i`, `t4l build ios -r`.
+
+### **Link** (`t4l link [platform]`)
+
+| Flag | Description |
+|------|-------------|
+| platform | `ios`, `android`, or `both` (default) |
+| `-s, --silent` | For CI/postinstall (suppress output). |
+
+### **Bundle** (`t4l bundle [platform]`)
+
+Build Lynx bundle and copy to native project. Platform: `ios` | `android` (default: both). Flags: `-d, --debug`, `-r, --release`.
+
+### **Inject** (`t4l inject <platform>`)
+
+Inject tamer-host templates. Platform: `ios` | `android`. Use `-f, --force` to overwrite.
+
+### **Sync** (`t4l sync [platform]`)
+
+Sync dev client files from tamer.config.json. Only `android` is supported (default).
 
 ### **Other Commands**
 
 | Command | Flags | Description |
 |---------|-------|-------------|
-| `t4l add [packages...]` | — | Add @tamer4lynx packages. Future: version tracking (Expo-style). |
-| `t4l add-core` | — | Add core packages (app-shell, screen, router, insets, transports, input, system-ui, icons). |
-| `t4l start` | `-v, --verbose` | Dev server with HMR. `--verbose` shows native + JS logs. |
-| `t4l link` | `-i, --ios`, `-a, --android`, `-s, --silent` | Link modules. `--ios`/`--android` limit to one platform. `--silent` for CI/postinstall. |
-| `t4l autolink-toggle` | — | Toggle `autolink` in tamer.config.json (postinstall linking). |
+| `t4l add [packages...]` | — | Add @tamer4lynx packages. |
+| `t4l add-core` | — | Add core packages (app-shell, screen, router, insets, transports, system-ui, icons). |
+| `t4l start` | `-v, --verbose` | Dev server with HMR. |
+| `t4l autolink-toggle` | — | Toggle `autolink` in tamer.config.json. |
+
+**Long-form options:** All flags support both short and long form (e.g. `-d` or `--debug`, `-r` or `--release`, `-i` or `--install`).
+
+**Legacy commands:** Platform-first form still works: `t4l android create`, `t4l android build -r`, `t4l ios link`, `t4l ios bundle`, etc.
 
 See [Commands Reference](packages/docs/docs/commands.md) for full flag details.
 
@@ -276,7 +292,6 @@ Install from npm (use `@prerelease` for latest) and run `t4l link` after adding 
 | [@tamer4lynx/tamer-insets](https://www.npmjs.com/package/@tamer4lynx/tamer-insets) | `npm i @tamer4lynx/tamer-insets@prerelease` | System insets, keyboard state |
 | [@tamer4lynx/tamer-system-ui](https://www.npmjs.com/package/@tamer4lynx/tamer-system-ui) | `npm i @tamer4lynx/tamer-system-ui@prerelease` | Status bar, navigation bar |
 | [@tamer4lynx/tamer-app-shell](https://www.npmjs.com/package/@tamer4lynx/tamer-app-shell) | `npm i @tamer4lynx/tamer-app-shell@prerelease` | AppBar, TabBar, Content layout |
-| [@tamer4lynx/tamer-text-input](https://www.npmjs.com/package/@tamer4lynx/tamer-text-input) | `npm i @tamer4lynx/tamer-text-input@prerelease` | React TextInput |
 | [@tamer4lynx/tamer-auth](https://www.npmjs.com/package/@tamer4lynx/tamer-auth) | `npm i @tamer4lynx/tamer-auth@prerelease` | OAuth 2.0 / OIDC |
 | [@tamer4lynx/tamer-biometric](https://www.npmjs.com/package/@tamer4lynx/tamer-biometric) | `npm i @tamer4lynx/tamer-biometric@prerelease` | Fingerprint, Face ID |
 | [@tamer4lynx/tamer-display-browser](https://www.npmjs.com/package/@tamer4lynx/tamer-display-browser) | `npm i @tamer4lynx/tamer-display-browser@prerelease` | Open URLs in system browser |

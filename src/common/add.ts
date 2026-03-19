@@ -9,14 +9,11 @@ const CORE_PACKAGES = [
   '@tamer4lynx/tamer-router',
   '@tamer4lynx/tamer-insets',
   '@tamer4lynx/tamer-transports',
-  '@tamer4lynx/tamer-text-input',
   '@tamer4lynx/tamer-system-ui',
   '@tamer4lynx/tamer-icons',
 ];
 
-const PACKAGE_ALIASES: Record<string, string> = {
-  input: '@tamer4lynx/tamer-text-input',
-};
+const PACKAGE_ALIASES: Record<string, string> = {};
 
 function detectPackageManager(cwd: string): 'npm' | 'pnpm' | 'bun' {
   const dir = path.resolve(cwd);

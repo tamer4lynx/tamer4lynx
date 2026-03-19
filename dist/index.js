@@ -12,7 +12,7 @@ import path24 from "path";
 import { program } from "commander";
 
 // package.json
-var version = "0.0.8";
+var version = "0.0.9";
 
 // src/android/create.ts
 import fs3 from "fs";
@@ -518,7 +518,7 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 
-class DevClientManager(private val context: Context, private val onReload: Runnable) {
+class DevClientManager(private val context: Context, private val onReload: Runnable, private val onUnlink: Runnable) {
     private var webSocket: WebSocket? = null
     private val handler = Handler(Looper.getMainLooper())
     private val client = OkHttpClient.Builder()
@@ -542,6 +542,9 @@ class DevClientManager(private val context: Context, private val onReload: Runna
                 try {
                     if (text.contains("\\"type\\":\\"reload\\"")) {
                         handler.post(onReload)
+                    } else if (text.contains("\\"type\\":\\"unlink\\"")) {
+                        DevServerPrefs.clear(context)
+                        handler.post(onUnlink)
                     }
                 } catch (_: Exception) { }
             }
@@ -562,7 +565,7 @@ function getProjectActivity(vars) {
   const devClientInit = hasDevClient ? `
         TamerRelogLogService.init(this)
         TamerRelogLogService.connect()
-        devClientManager = DevClientManager(this) { reloadProjectView() }
+        devClientManager = DevClientManager(this, { reloadProjectView() }, { DevServerPrefs.clear(this); finish() })
         devClientManager?.connect()
 ` : "";
   const devClientField = hasDevClient ? `    private var devClientManager: DevClientManager? = null
@@ -981,12 +984,12 @@ junit = "4.13.2"
 junitVersion = "1.1.5"
 espressoCore = "3.5.1"
 appcompat = "1.6.1"
-lynx = "3.3.1"
+lynx = "3.6.0"
 material = "1.10.0"
 activity = "1.8.0"
 constraintlayout = "2.1.4"
 okhttp = "4.9.0"
-primjs = "2.12.0"
+primjs = "3.6.1"
 zxing = "4.3.0"
 
 [libraries]
@@ -4178,15 +4181,47 @@ var rl2 = readline2.createInterface({ input: process.stdin, output: process.stdo
 function ask2(question) {
   return new Promise((resolve) => rl2.question(question, (answer) => resolve(answer.trim())));
 }
-async function create3() {
+async function create3(opts) {
   console.log("Tamer4Lynx: Create Lynx Extension\n");
-  console.log("Select extension types (space to toggle, enter to confirm):");
-  console.log("  [ ] Native Module");
-  console.log("  [ ] Element");
-  console.log("  [ ] Service\n");
-  const includeModule = /^y(es)?$/i.test(await ask2("Include Native Module? (Y/n): ") || "y");
-  const includeElement = /^y(es)?$/i.test(await ask2("Include Element? (y/N): ") || "n");
-  const includeService = /^y(es)?$/i.test(await ask2("Include Service? (y/N): ") || "n");
+  let includeModule;
+  let includeElement;
+  let includeService;
+  if (opts?.type) {
+    switch (opts.type) {
+      case "module":
+        includeModule = true;
+        includeElement = false;
+        includeService = false;
+        break;
+      case "element":
+        includeModule = false;
+        includeElement = true;
+        includeService = false;
+        break;
+      case "service":
+        includeModule = false;
+        includeElement = false;
+        includeService = true;
+        break;
+      case "combo":
+        includeModule = true;
+        includeElement = true;
+        includeService = true;
+        break;
+      default:
+        includeModule = true;
+        includeElement = false;
+        includeService = false;
+    }
+  } else {
+    console.log("Select extension types (space to toggle, enter to confirm):");
+    console.log("  [ ] Native Module");
+    console.log("  [ ] Element");
+    console.log("  [ ] Service\n");
+    includeModule = /^y(es)?$/i.test(await ask2("Include Native Module? (Y/n): ") || "y");
+    includeElement = /^y(es)?$/i.test(await ask2("Include Element? (y/N): ") || "n");
+    includeService = /^y(es)?$/i.test(await ask2("Include Service? (y/N): ") || "n");
+  }
   if (!includeModule && !includeElement && !includeService) {
     console.error("\u274C At least one extension type is required.");
     rl2.close();
@@ -4238,8 +4273,11 @@ async function create3() {
   if (includeModule) pkg.types = "src/index.d.ts";
   fs17.writeFileSync(path18.join(root, "package.json"), JSON.stringify(pkg, null, 2));
   const pkgPath = packageName.replace(/\./g, "/");
-  if (includeModule) {
+  const hasSrc = includeModule || includeElement || includeService;
+  if (hasSrc) {
     fs17.mkdirSync(path18.join(root, "src"), { recursive: true });
+  }
+  if (includeModule) {
     fs17.writeFileSync(path18.join(root, "src", "index.d.ts"), `/** @lynxmodule */
 export declare class ${simpleModuleName} {
   // Add your module methods here
@@ -4310,12 +4348,31 @@ end
 `;
     fs17.writeFileSync(path18.join(root, "ios", extName, extName, "Classes", `${simpleModuleName}.swift`), swiftContent);
   }
+  if (includeElement && !includeModule) {
+    const elementName = extName.split("-").map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join("");
+    fs17.writeFileSync(path18.join(root, "src", "index.tsx"), `import type { FC } from '@lynx-js/react';
+
+export const ${elementName}: FC = () => {
+  return null;
+};
+`);
+  }
   fs17.writeFileSync(path18.join(root, "index.js"), `'use strict';
 module.exports = {};
 `);
+  const tsconfigCompiler = {
+    target: "ES2020",
+    module: "ESNext",
+    moduleResolution: "bundler",
+    strict: true
+  };
+  if (includeElement) {
+    tsconfigCompiler.jsx = "preserve";
+    tsconfigCompiler.jsxImportSource = "@lynx-js/react";
+  }
   fs17.writeFileSync(path18.join(root, "tsconfig.json"), JSON.stringify({
-    compilerOptions: { target: "ES2020", module: "ESNext", moduleResolution: "bundler", strict: true },
-    include: ["src"]
+    compilerOptions: tsconfigCompiler,
+    include: includeElement ? ["src", "src/**/*.tsx"] : ["src"]
   }, null, 2));
   fs17.writeFileSync(path18.join(root, "README.md"), `# ${extName}
 
@@ -4414,6 +4471,7 @@ import fs19 from "fs";
 import http from "http";
 import os4 from "os";
 import path20 from "path";
+import readline3 from "readline";
 import { WebSocketServer } from "ws";
 var DEFAULT_PORT = 3e3;
 function getLanIp() {
@@ -4583,6 +4641,11 @@ async function startDevServer(opts) {
       if (client.readyState === 1) client.send(JSON.stringify({ type: "reload" }));
     });
   }
+  function broadcastUnlink() {
+    wss.clients.forEach((client) => {
+      if (client.readyState === 1) client.send(JSON.stringify({ type: "unlink" }));
+    });
+  }
   let chokidar = null;
   try {
     chokidar = await import("chokidar");
@@ -4646,6 +4709,40 @@ async function startDevServer(opts) {
       qrcode.generate(devUrl, { small: true });
     }).catch(() => {
     });
+    if (process.stdin.isTTY) {
+      readline3.emitKeypressEvents(process.stdin);
+      process.stdin.setRawMode(true);
+      process.stdin.resume();
+      process.stdin.setEncoding("utf8");
+      const help = "\x1B[90m  r: refresh  u: unlink  c/Ctrl+L: clear  Ctrl+C: exit\x1B[0m";
+      console.log(help);
+      process.stdin.on("keypress", (str, key) => {
+        if (key.ctrl && key.name === "c") {
+          void cleanup();
+          return;
+        }
+        switch (key.name) {
+          case "r":
+            runBuild().then(() => {
+              broadcastReload();
+              console.log("\u{1F504} Refreshed, clients notified");
+            }).catch((e) => console.error("Build failed:", e.message));
+            break;
+          case "u":
+            broadcastUnlink();
+            console.log("\u{1F517} Unlink sent to clients");
+            break;
+          case "c":
+            process.stdout.write("\x1B[2J\x1B[H");
+            break;
+          case "l":
+            if (key.ctrl) process.stdout.write("\x1B[2J\x1B[H");
+            break;
+          default:
+            break;
+        }
+      });
+    }
   });
   const cleanup = async () => {
     buildProcess?.kill();
@@ -4777,9 +4874,9 @@ var LIB_PACKAGE = "com.tamer.embeddable";
 var GRADLE_VERSION = "8.14.2";
 var LIBS_VERSIONS_TOML = `[versions]
 agp = "8.9.1"
-lynx = "3.3.1"
+lynx = "3.6.0"
 kotlin = "2.0.21"
-primjs = "2.12.0"
+primjs = "3.6.1"
 
 [libraries]
 lynx = { module = "org.lynxsdk.lynx:lynx", version.ref = "lynx" }
@@ -5230,65 +5327,49 @@ function validateDebugRelease(debug, release) {
     process.exit(1);
   }
 }
+function parsePlatform(value) {
+  const p = value?.toLowerCase();
+  if (p === "ios" || p === "android") return p;
+  if (p === "all" || p === "both") return "all";
+  return null;
+}
 program.version(version).description("Tamer4Lynx CLI - A tool for managing Lynx projects");
 program.command("init").description("Initialize tamer.config.json interactively").action(() => {
   init_default();
 });
-var android = program.command("android").description("Android project commands");
-android.command("create").option("-t, --target <target>", "Create target: host (default) or dev-app", "host").description("Create a new Android project").action(async (opts) => {
-  await create_default({ target: opts.target });
+program.command("create <target>").description("Create a project or extension. Target: ios | android | module | element | service | combo").option("-t, --target-type <type>", "For android: host (default) or dev-app", "host").action(async (target, opts) => {
+  const t = target.toLowerCase();
+  if (t === "ios") {
+    create_default2();
+    return;
+  }
+  if (t === "android") {
+    await create_default({ target: opts.targetType ?? "host" });
+    return;
+  }
+  if (["module", "element", "service", "combo"].includes(t)) {
+    await create_default3({ type: t });
+    return;
+  }
+  console.error(`Invalid create target: ${target}. Use ios | android | module | element | service | combo`);
+  process.exit(1);
 });
-android.command("link").description("Link native modules to the Android project").action(() => {
-  autolink_default();
-});
-android.command("bundle").option("-d, --debug", "Debug bundle with dev client embedded (default)").option("-r, --release", "Release bundle without dev client").description("Build Lynx bundle and copy to Android assets (runs autolink first)").action(async (opts) => {
-  validateDebugRelease(opts.debug, opts.release);
-  const release = opts.release === true;
-  await bundle_default({ release });
-});
-var androidBuildCmd = android.command("build").option("-i, --install", "Install APK to connected device and launch app after building").option("-e, --embeddable", "Build for embedding in existing app (host only). Use with --release for production-ready embeddable.").option("-d, --debug", "Debug APK with dev client embedded (default)").option("-r, --release", "Release APK without dev client").description("Build APK (autolink + bundle + gradle)").action(async () => {
-  const opts = androidBuildCmd.opts();
+program.command("build [platform]").description("Build app. Platform: ios | android (default: both)").option("-e, --embeddable", "Output embeddable bundle + code for existing apps. Use with --release.").option("-d, --debug", "Debug build with dev client embedded (default)").option("-r, --release", "Release build without dev client").option("-i, --install", "Install after building").action(async (platform, opts) => {
   validateDebugRelease(opts.debug, opts.release);
   const release = opts.release === true;
   if (opts.embeddable) {
     await buildEmbeddable({ release: true });
     return;
   }
-  await build_default({ install: opts.install, release });
-});
-android.command("sync").description("Sync dev client files (TemplateProvider, MainActivity, DevClientManager) from tamer.config.json").action(async () => {
-  await syncDevClient_default();
-});
-android.command("inject").option("-f, --force", "Overwrite existing files").description("Inject tamer-host templates into an existing Android project").action(async (opts) => {
-  await injectHostAndroid({ force: opts.force });
-});
-var ios = program.command("ios").description("iOS project commands");
-ios.command("create").description("Create a new iOS project").action(() => {
-  create_default2();
-});
-ios.command("inject").option("-f, --force", "Overwrite existing files").description("Inject tamer-host templates into an existing iOS project").action(async (opts) => {
-  await injectHostIos({ force: opts.force });
-});
-ios.command("link").description("Link native modules to the iOS project").action(() => {
-  autolink_default2();
-});
-ios.command("bundle").option("-d, --debug", "Debug bundle with dev client embedded (default)").option("-r, --release", "Release bundle without dev client").description("Build Lynx bundle and copy to iOS project (runs autolink first)").action((opts) => {
-  validateDebugRelease(opts.debug, opts.release);
-  const release = opts.release === true;
-  bundle_default2({ release });
-});
-var iosBuildCmd = ios.command("build").option("-e, --embeddable", "Output bundle + code snippets to embeddable/ for adding LynxView to an existing app. Use with --release.").option("-i, --install", "Install and launch on booted simulator after building").option("-d, --debug", "Debug build with dev client embedded (default)").option("-r, --release", "Release build without dev client").description("Build iOS app (autolink + bundle + xcodebuild)").action(async () => {
-  const opts = iosBuildCmd.opts();
-  validateDebugRelease(opts.debug, opts.release);
-  const release = opts.release === true;
-  if (opts.embeddable) {
-    await buildEmbeddable({ release: true });
-    return;
+  const p = parsePlatform(platform ?? "all") ?? "all";
+  if (p === "android" || p === "all") {
+    await build_default({ install: opts.install, release });
   }
-  await build_default2({ install: opts.install, release });
+  if (p === "ios" || p === "all") {
+    await build_default2({ install: opts.install, release });
+  }
 });
-var linkCmd = program.command("link").option("-i, --ios", "Link iOS native modules").option("-a, --android", "Link Android native modules").option("-b, --both", "Link both iOS and Android native modules").option("-s, --silent", "Run in silent mode without outputting messages").description("Link native modules to the project").action(() => {
-  const opts = linkCmd.opts();
+program.command("link [platform]").description("Link native modules. Platform: ios | android | both (default: both)").option("-s, --silent", "Run in silent mode (e.g. for postinstall)").action((platform, opts) => {
   if (opts.silent) {
     console.log = () => {
     };
@@ -5297,51 +5378,61 @@ var linkCmd = program.command("link").option("-i, --ios", "Link iOS native modul
     console.warn = () => {
     };
   }
-  if (opts.ios) {
+  const p = parsePlatform(platform ?? "both") ?? "both";
+  if (p === "ios") {
     autolink_default2();
     return;
   }
-  if (opts.android) {
+  if (p === "android") {
     autolink_default();
     return;
   }
   autolink_default2();
   autolink_default();
 });
+program.command("bundle [platform]").description("Build Lynx bundle and copy to native project. Platform: ios | android (default: both)").option("-d, --debug", "Debug bundle with dev client embedded (default)").option("-r, --release", "Release bundle without dev client").action(async (platform, opts) => {
+  validateDebugRelease(opts.debug, opts.release);
+  const release = opts.release === true;
+  const p = parsePlatform(platform ?? "both") ?? "both";
+  if (p === "android" || p === "all") await bundle_default({ release });
+  if (p === "ios" || p === "all") bundle_default2({ release });
+});
+program.command("inject <platform>").description("Inject tamer-host templates into an existing project. Platform: ios | android").option("-f, --force", "Overwrite existing files").action(async (platform, opts) => {
+  const p = platform?.toLowerCase();
+  if (p === "ios") {
+    await injectHostIos({ force: opts.force });
+    return;
+  }
+  if (p === "android") {
+    await injectHostAndroid({ force: opts.force });
+    return;
+  }
+  console.error(`Invalid inject platform: ${platform}. Use ios | android`);
+  process.exit(1);
+});
+program.command("sync [platform]").description("Sync dev client files from tamer.config.json. Platform: android (default)").action(async (platform) => {
+  const p = (platform ?? "android").toLowerCase();
+  if (p !== "android") {
+    console.error("sync only supports android.");
+    process.exit(1);
+  }
+  await syncDevClient_default();
+});
 program.command("start").option("-v, --verbose", "Show all logs (native + JS); default shows JS only").description("Start dev server with HMR and WebSocket support (Expo-like)").action(async (opts) => {
   await start_default({ verbose: opts.verbose });
 });
-var buildCmd = program.command("build").option("-p, --platform <platform>", "android, ios, or all (default: all)", "all").option("-e, --embeddable", "Output bundle + code snippets to embeddable/ for adding LynxView to an existing app. Use with --release.").option("-d, --debug", "Debug build with dev client embedded (default)").option("-r, --release", "Release build without dev client").option("-i, --install", "Install after building").description("Build app (unified: delegates to android/ios build)").action(async () => {
-  const opts = buildCmd.opts();
-  validateDebugRelease(opts.debug, opts.release);
-  const release = opts.release === true;
-  if (opts.embeddable) {
-    await buildEmbeddable({ release: true });
-    return;
-  }
-  const p = opts.platform?.toLowerCase();
-  const platform = p === "ios" || p === "android" ? p : "all";
-  if (platform === "android" || platform === "all") {
-    await build_default({ install: opts.install, release });
-  }
-  if (platform === "ios" || platform === "all") {
-    await build_default2({ install: opts.install, release });
-  }
-});
-program.command("build-dev-app").option("-p, --platform <platform>", "Platform: android, ios, or all (default)", "all").option("-i, --install", "Install APK to connected device and launch app after building").description("(Deprecated) Use: t4l build -p android -d --install").action(async (opts) => {
-  console.warn("\u26A0\uFE0F  build-dev-app is deprecated. Use: t4l build -p android -d [--install]");
-  const p = opts.platform?.toLowerCase();
-  const platform = p === "ios" || p === "android" ? p : "all";
-  if (platform === "android" || platform === "all") {
+program.command("build-dev-app").option("-p, --platform <platform>", "Platform: android, ios, or all (default)", "all").option("-i, --install", "Install APK to connected device and launch app after building").description("(Deprecated) Use: t4l build android -d [--install]").action(async (opts) => {
+  console.warn("\u26A0\uFE0F  build-dev-app is deprecated. Use: t4l build android -d [--install]");
+  const p = parsePlatform(opts.platform ?? "all") ?? "all";
+  if (p === "android" || p === "all") {
     await build_default({ install: opts.install, release: false });
   }
-  if (platform === "ios" || platform === "all") {
+  if (p === "ios" || p === "all") {
     await build_default2({ install: opts.install, release: false });
   }
 });
 program.command("add [packages...]").description("Add @tamer4lynx packages to the Lynx project. Future: will track versions for compatibility (Expo-style).").action((packages) => add(packages));
 program.command("add-core").description("Add core packages (app-shell, screen, router, insets, transports, input/text-input, system-ui, icons)").action(() => addCore());
-program.command("create").description("Create a new Lynx extension project (RFC-compliant)").action(() => create_default3());
 program.command("codegen").description("Generate code from @lynxmodule declarations").action(() => {
   codegen_default();
 });

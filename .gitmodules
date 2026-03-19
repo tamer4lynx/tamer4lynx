@@ -28,9 +28,6 @@
 [submodule "packages/tamer-app-shell"]
 	path = packages/tamer-app-shell
 	url = https://github.com/tamer4lynx/tamer-app-shell.git
-[submodule "packages/tamer-text-input"]
-	path = packages/tamer-text-input
-	url = https://github.com/tamer4lynx/tamer-text-input.git
 [submodule "packages/tamer-auth"]
 	path = packages/tamer-auth
 	url = https://github.com/tamer4lynx/tamer-auth.git

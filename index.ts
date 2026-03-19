@@ -13,6 +13,14 @@ function validateDebugRelease(debug: boolean, release: boolean) {
         process.exit(1);
     }
 }
+
+function parsePlatform(value: string): 'ios' | 'android' | 'all' | null {
+    const p = value?.toLowerCase();
+    if (p === 'ios' || p === 'android') return p;
+    if (p === 'all' || p === 'both') return 'all';
+    return null;
+}
+
 import android_create from './src/android/create';
 import android_autolink from './src/android/autolink';
 import android_bundle from './src/android/bundle';
@@ -41,149 +49,120 @@ program
         init();
     });
 
-
-// Android commands
-const android = program.command('android')
-    .description('Android project commands');
-
-android
-    .command('create')
-    .option('-t, --target <target>', 'Create target: host (default) or dev-app', 'host')
-    .description('Create a new Android project')
-    .action(async (opts) => {
-        await android_create({ target: opts.target });
-    });
-
-
-android
-    .command('link')
-    .description('Link native modules to the Android project')
-    .action(() => {
-        android_autolink();
-    });
-
-
-android
-    .command('bundle')
-    .option('-d, --debug', 'Debug bundle with dev client embedded (default)')
-    .option('-r, --release', 'Release bundle without dev client')
-    .description('Build Lynx bundle and copy to Android assets (runs autolink first)')
-    .action(async (opts) => {
-        validateDebugRelease(opts.debug, opts.release);
-        const release = opts.release === true;
-        await android_bundle({ release });
-    });
-
-const androidBuildCmd = android
-    .command('build')
-    .option('-i, --install', 'Install APK to connected device and launch app after building')
-    .option('-e, --embeddable', 'Build for embedding in existing app (host only). Use with --release for production-ready embeddable.')
-    .option('-d, --debug', 'Debug APK with dev client embedded (default)')
-    .option('-r, --release', 'Release APK without dev client')
-    .description('Build APK (autolink + bundle + gradle)')
-    .action(async () => {
-        const opts = androidBuildCmd.opts();
-        validateDebugRelease(opts.debug, opts.release);
-        const release = opts.release === true;
-        if (opts.embeddable) {
-            await buildEmbeddable({ release: true });
+program
+    .command('create <target>')
+    .description('Create a project or extension. Target: ios | android | module | element | service | combo')
+    .option('-d, --debug', 'For android: create host project (default)')
+    .option('-r, --release', 'For android: create dev-app project')
+    .action(async (target: string, opts: { debug?: boolean; release?: boolean }) => {
+        const t = target.toLowerCase();
+        if (t === 'ios') {
+            ios_create();
             return;
         }
-        await android_build({ install: opts.install, release });
+        if (t === 'android') {
+            if (opts.debug && opts.release) {
+                console.error('Cannot use --debug and --release together.');
+                process.exit(1);
+            }
+            await android_create({ target: opts.release ? 'dev-app' : 'host' });
+            return;
+        }
+        if (['module', 'element', 'service', 'combo'].includes(t)) {
+            await create({ type: t as 'module' | 'element' | 'service' | 'combo' });
+            return;
+        }
+        console.error(`Invalid create target: ${target}. Use ios | android | module | element | service | combo`);
+        process.exit(1);
     });
 
-android
-    .command('sync')
-    .description('Sync dev client files (TemplateProvider, MainActivity, DevClientManager) from tamer.config.json')
-    .action(async () => {
-        await android_syncDevClient();
-    });
-
-android
-    .command('inject')
-    .option('-f, --force', 'Overwrite existing files')
-    .description('Inject tamer-host templates into an existing Android project')
-    .action(async (opts) => {
-        await injectHostAndroid({ force: opts.force });
-    });
-
-
-// iOS commands
-const ios = program.command('ios')
-    .description('iOS project commands');
-
-
-ios.command('create')
-    .description('Create a new iOS project')
-    .action(() => {
-        ios_create();
-    });
-
-ios.command('inject')
-    .option('-f, --force', 'Overwrite existing files')
-    .description('Inject tamer-host templates into an existing iOS project')
-    .action(async (opts) => {
-        await injectHostIos({ force: opts.force });
-    });
-
-
-ios.command('link')
-    .description('Link native modules to the iOS project')
-    .action(() => {
-        ios_autolink();
-    });
-
-
-ios.command('bundle')
-    .option('-d, --debug', 'Debug bundle with dev client embedded (default)')
-    .option('-r, --release', 'Release bundle without dev client')
-    .description('Build Lynx bundle and copy to iOS project (runs autolink first)')
-    .action((opts) => {
-        validateDebugRelease(opts.debug, opts.release);
-        const release = opts.release === true;
-        ios_bundle({ release });
-    });
-
-const iosBuildCmd = ios.command('build')
-    .option('-e, --embeddable', 'Output bundle + code snippets to embeddable/ for adding LynxView to an existing app. Use with --release.')
-    .option('-i, --install', 'Install and launch on booted simulator after building')
+program
+    .command('build [platform]')
+    .description('Build app. Platform: ios | android (default: both)')
+    .option('-e, --embeddable', 'Output embeddable bundle + code for existing apps. Use with --release.')
     .option('-d, --debug', 'Debug build with dev client embedded (default)')
     .option('-r, --release', 'Release build without dev client')
-    .description('Build iOS app (autolink + bundle + xcodebuild)')
-    .action(async () => {
-        const opts = iosBuildCmd.opts();
+    .option('-i, --install', 'Install after building')
+    .action(async (platform: string | undefined, opts) => {
         validateDebugRelease(opts.debug, opts.release);
         const release = opts.release === true;
         if (opts.embeddable) {
             await buildEmbeddable({ release: true });
             return;
         }
-        await ios_build({ install: opts.install, release });
+        const p = parsePlatform(platform ?? 'all') ?? 'all';
+        if (p === 'android' || p === 'all') {
+            await android_build({ install: opts.install, release });
+        }
+        if (p === 'ios' || p === 'all') {
+            await ios_build({ install: opts.install, release });
+        }
     });
 
-const linkCmd = program.command('link')
-    .option('-i, --ios', 'Link iOS native modules')
-    .option('-a, --android', 'Link Android native modules')
-    .option('-b, --both', 'Link both iOS and Android native modules')
-    .option('-s, --silent', 'Run in silent mode without outputting messages')
-    .description('Link native modules to the project')
-    .action(() => {
-        const opts = linkCmd.opts();
+program
+    .command('link [platform]')
+    .description('Link native modules. Platform: ios | android | both (default: both)')
+    .option('-s, --silent', 'Run in silent mode (e.g. for postinstall)')
+    .action((platform: string | undefined, opts: { silent?: boolean }) => {
         if (opts.silent) {
-            console.log = () => {}; // Suppress output
-            console.error = () => {}; // Suppress errors
-            console.warn = () => {}; // Suppress warnings
+            console.log = () => {};
+            console.error = () => {};
+            console.warn = () => {};
         }
-        if (opts.ios) {
+        const p = parsePlatform(platform ?? 'both') ?? 'both';
+        if (p === 'ios') {
             ios_autolink();
             return;
         }
-        if (opts.android) {
+        if (p === 'android') {
             android_autolink();
             return;
         }
         ios_autolink();
         android_autolink();
+    });
+
+program
+    .command('bundle [platform]')
+    .description('Build Lynx bundle and copy to native project. Platform: ios | android (default: both)')
+    .option('-d, --debug', 'Debug bundle with dev client embedded (default)')
+    .option('-r, --release', 'Release bundle without dev client')
+    .action(async (platform: string | undefined, opts) => {
+        validateDebugRelease(opts.debug, opts.release);
+        const release = opts.release === true;
+        const p = parsePlatform(platform ?? 'both') ?? 'both';
+        if (p === 'android' || p === 'all') await android_bundle({ release });
+        if (p === 'ios' || p === 'all') ios_bundle({ release });
+    });
+
+program
+    .command('inject <platform>')
+    .description('Inject tamer-host templates into an existing project. Platform: ios | android')
+    .option('-f, --force', 'Overwrite existing files')
+    .action(async (platform: string, opts: { force?: boolean }) => {
+        const p = platform?.toLowerCase();
+        if (p === 'ios') {
+            await injectHostIos({ force: opts.force });
+            return;
+        }
+        if (p === 'android') {
+            await injectHostAndroid({ force: opts.force });
+            return;
+        }
+        console.error(`Invalid inject platform: ${platform}. Use ios | android`);
+        process.exit(1);
+    });
+
+program
+    .command('sync [platform]')
+    .description('Sync dev client files from tamer.config.json. Platform: android (default)')
+    .action(async (platform: string | undefined) => {
+        const p = (platform ?? 'android').toLowerCase();
+        if (p !== 'android') {
+            console.error('sync only supports android.');
+            process.exit(1);
+        }
+        await android_syncDevClient();
     });
 
 program
@@ -194,45 +173,18 @@ program
         await start({ verbose: opts.verbose });
     });
 
-const buildCmd = program
-    .command('build')
-    .option('-p, --platform <platform>', 'android, ios, or all (default: all)', 'all')
-    .option('-e, --embeddable', 'Output bundle + code snippets to embeddable/ for adding LynxView to an existing app. Use with --release.')
-    .option('-d, --debug', 'Debug build with dev client embedded (default)')
-    .option('-r, --release', 'Release build without dev client')
-    .option('-i, --install', 'Install after building')
-    .description('Build app (unified: delegates to android/ios build)')
-    .action(async () => {
-        const opts = buildCmd.opts();
-        validateDebugRelease(opts.debug, opts.release);
-        const release = opts.release === true;
-        if (opts.embeddable) {
-            await buildEmbeddable({ release: true });
-            return;
-        }
-        const p = opts.platform?.toLowerCase();
-        const platform = p === 'ios' || p === 'android' ? p : 'all';
-        if (platform === 'android' || platform === 'all') {
-            await android_build({ install: opts.install, release });
-        }
-        if (platform === 'ios' || platform === 'all') {
-            await ios_build({ install: opts.install, release });
-        }
-    });
-
 program
     .command('build-dev-app')
     .option('-p, --platform <platform>', 'Platform: android, ios, or all (default)', 'all')
     .option('-i, --install', 'Install APK to connected device and launch app after building')
-    .description('(Deprecated) Use: t4l build -p android -d --install')
+    .description('(Deprecated) Use: t4l build android -d [--install]')
     .action(async (opts) => {
-        console.warn('⚠️  build-dev-app is deprecated. Use: t4l build -p android -d [--install]');
-        const p = opts.platform?.toLowerCase();
-        const platform = p === 'ios' || p === 'android' ? p : 'all';
-        if (platform === 'android' || platform === 'all') {
+        console.warn('⚠️  build-dev-app is deprecated. Use: t4l build android -d [--install]');
+        const p = parsePlatform(opts.platform ?? 'all') ?? 'all';
+        if (p === 'android' || p === 'all') {
             await android_build({ install: opts.install, release: false });
         }
-        if (platform === 'ios' || platform === 'all') {
+        if (p === 'ios' || p === 'all') {
             await ios_build({ install: opts.install, release: false });
         }
     });
@@ -244,13 +196,8 @@ program
 
 program
     .command('add-core')
-    .description('Add core packages (app-shell, screen, router, insets, transports, input/text-input, system-ui, icons)')
+    .description('Add core packages (app-shell, screen, router, insets, transports, system-ui, icons)')
     .action(() => addCore());
-
-program
-    .command('create')
-    .description('Create a new Lynx extension project (RFC-compliant)')
-    .action(() => create());
 
 program
     .command('codegen')
@@ -260,12 +207,96 @@ program
     });
 
 program
+    .command('android <subcommand>')
+    .description('(Legacy) Use: t4l <command> android. e.g. t4l create android')
+    .option('-d, --debug', 'For create: host project (default)')
+    .option('-r, --release', 'For create: dev-app project')
+    .option('-d, --debug', 'Debug (bundle/build)')
+    .option('-r, --release', 'Release (bundle/build)')
+    .option('-i, --install', 'Install after build')
+    .option('-e, --embeddable', 'Build embeddable')
+    .option('-f, --force', 'Force (inject)')
+    .action(async (subcommand: string, opts) => {
+        const sub = subcommand?.toLowerCase();
+        if (sub === 'create') {
+            if (opts.debug && opts.release) {
+                console.error('Cannot use --debug and --release together.');
+                process.exit(1);
+            }
+            await android_create({ target: opts.release ? 'dev-app' : 'host' });
+            return;
+        }
+        if (sub === 'link') {
+            android_autolink();
+            return;
+        }
+        if (sub === 'bundle') {
+            validateDebugRelease(opts.debug, opts.release);
+            await android_bundle({ release: opts.release === true });
+            return;
+        }
+        if (sub === 'build') {
+            validateDebugRelease(opts.debug, opts.release);
+            if (opts.embeddable) await buildEmbeddable({ release: true });
+            else await android_build({ install: opts.install, release: opts.release === true });
+            return;
+        }
+        if (sub === 'sync') {
+            await android_syncDevClient();
+            return;
+        }
+        if (sub === 'inject') {
+            await injectHostAndroid({ force: opts.force });
+            return;
+        }
+        console.error(`Unknown android subcommand: ${subcommand}. Use: create | link | bundle | build | sync | inject`);
+        process.exit(1);
+    });
+
+program
+    .command('ios <subcommand>')
+    .description('(Legacy) Use: t4l <command> ios. e.g. t4l create ios')
+    .option('-d, --debug', 'Debug (bundle/build)')
+    .option('-r, --release', 'Release (bundle/build)')
+    .option('-i, --install', 'Install after build')
+    .option('-e, --embeddable', 'Build embeddable')
+    .option('-f, --force', 'Force (inject)')
+    .action(async (subcommand: string, opts) => {
+        const sub = subcommand?.toLowerCase();
+        if (sub === 'create') {
+            ios_create();
+            return;
+        }
+        if (sub === 'link') {
+            ios_autolink();
+            return;
+        }
+        if (sub === 'bundle') {
+            validateDebugRelease(opts.debug, opts.release);
+            ios_bundle({ release: opts.release === true });
+            return;
+        }
+        if (sub === 'build') {
+            validateDebugRelease(opts.debug, opts.release);
+            if (opts.embeddable) await buildEmbeddable({ release: true });
+            else await ios_build({ install: opts.install, release: opts.release === true });
+            return;
+        }
+        if (sub === 'inject') {
+            await injectHostIos({ force: opts.force });
+            return;
+        }
+        console.error(`Unknown ios subcommand: ${subcommand}. Use: create | link | bundle | build | inject`);
+        process.exit(1);
+    });
+
+program
     .command('autolink-toggle')
     .alias('autolink')
     .description('Toggle autolink on/off in tamer.config.json (controls postinstall linking)')
     .action(async () => {
         const configPath = path.join(process.cwd(), 'tamer.config.json');
-        let config: any = {};
+        let config: Record<string, unknown> = {};
         if (fs.existsSync(configPath)) {
             config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
         }
@@ -280,14 +311,9 @@ program
 
         fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
         console.log(`Updated ${configPath}`);
-    })
-
-
-
-// If no arguments or only node/index.js, run init
+    });
 
 if (process.argv.length <= 2 || (process.argv.length === 3 && process.argv[2] === 'init')) {
-    // Run init script and exit
     Promise.resolve(init()).then(() => process.exit(0));
 } else {
     program.parseAsync().then(() => process.exit(0)).catch(() => process.exit(1));
