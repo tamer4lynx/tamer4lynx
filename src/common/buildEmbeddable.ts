@@ -17,9 +17,9 @@ const GRADLE_VERSION = '8.14.2';
 
 const LIBS_VERSIONS_TOML = `[versions]
 agp = "8.9.1"
-lynx = "3.3.1"
+lynx = "3.6.0"
 kotlin = "2.0.21"
-primjs = "2.12.0"
+primjs = "3.6.1"
 
 [libraries]
 lynx = { module = "org.lynxsdk.lynx:lynx", version.ref = "lynx" }

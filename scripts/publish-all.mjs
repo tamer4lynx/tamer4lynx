@@ -29,11 +29,15 @@ const PUBLISH_ORDER = [
 function publish(pkgPath) {
   const pkg = JSON.parse(readFileSync(join(ROOT, pkgPath, 'package.json'), 'utf8'));
   if (pkg.private) return;
-  console.log(`\n📦 Publishing ${pkg.name}...`);
-  execSync(`npm publish -w ${pkg.name}`, {
-    cwd: ROOT,
-    stdio: 'inherit',
-  });
+  console.log(`\n📦 Publishing ${pkg.name}@${pkg.version}...`);
+  try {
+    execSync(`npm publish -w ${pkg.name}`, {
+      cwd: ROOT,
+      stdio: 'inherit',
+    });
+  } catch {
+    console.log(`⏭️  Skipped ${pkg.name}@${pkg.version} (already published or error)`);
+  }
 }
 
 for (const pkgPath of PUBLISH_ORDER) {
@@ -41,6 +45,11 @@ for (const pkgPath of PUBLISH_ORDER) {
 }
 
 console.log('\n📦 Publishing @tamer4lynx/cli (root)...');
-execSync('npm publish', { cwd: ROOT, stdio: 'inherit' });
+try {
+  execSync('npm publish', { cwd: ROOT, stdio: 'inherit' });
+} catch {
+  const rootPkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+  console.log(`⏭️  Skipped @tamer4lynx/cli@${rootPkg.version} (already published or error)`);
+}
 
 console.log('\n✅ All packages published.');
