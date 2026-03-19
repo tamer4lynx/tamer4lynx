@@ -255,6 +255,7 @@ class ViewController: UIViewController {
     private func setupLynxView() {
         let lv = buildLynxView()
         view.addSubview(lv)
+        TamerInsetsModule.attachHostView(lv)
         lv.loadTemplate(fromURL: "main.lynx.bundle", initData: nil)
         self.lynxView = lv
     }
@@ -279,6 +280,7 @@ function getDevViewControllerSwift(): string {
 import Lynx
 import tamerdevclient
 import tamerinsets
+import tamersystemui
 
 class ViewController: UIViewController {
     private var lynxView: LynxView?
@@ -308,7 +310,7 @@ class ViewController: UIViewController {
         TamerInsetsModule.reRequestInsets()
     }
 
-    override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
+    override var preferredStatusBarStyle: UIStatusBarStyle { SystemUIModule.statusBarStyleForHost }
 
     private func setupLynxView() {
         let size = fullscreenBounds().size
@@ -322,6 +324,7 @@ class ViewController: UIViewController {
         lv.preservesSuperviewLayoutMargins = false
         view.addSubview(lv)
         applyFullscreenLayout(to: lv)
+        TamerInsetsModule.attachHostView(lv)
         lv.loadTemplate(fromURL: "dev-client.lynx.bundle", initData: nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self, weak lv] in
             guard let self, let lv else { return }

@@ -28,7 +28,7 @@ public enum LynxEmbeddable {
                 globalConfig.register(SecureStoreModule.self)
                 globalConfig.register(SystemUIModule.self)
                 globalConfig.register(LynxFetchModule.self)
-                globalConfig.register(LynxWebSocketModule.self)
+                globalConfig.register(TamerTransportsWebSocketModule.self)
 
         env.prepareConfig(globalConfig)
     }

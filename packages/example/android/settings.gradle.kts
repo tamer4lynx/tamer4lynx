@@ -27,8 +27,6 @@ include(":app")
 // Manual edits will be overwritten.
 include(":tamer4lynx_jiggle")
 project(":tamer4lynx_jiggle").projectDir = file("/Volumes/Storage/Projects/tamer4lynx/node_modules/@tamer4lynx/jiggle/android")
-include(":tamer4lynx_lynxwebsockets")
-project(":tamer4lynx_lynxwebsockets").projectDir = file("/Volumes/Storage/Projects/tamer4lynx/node_modules/@tamer4lynx/lynxwebsockets/android")
 include(":tamer4lynx_tamer-biometric")
 project(":tamer4lynx_tamer-biometric").projectDir = file("/Volumes/Storage/Projects/tamer4lynx/node_modules/@tamer4lynx/tamer-biometric/android")
 include(":tamer4lynx_tamer-dev-client")

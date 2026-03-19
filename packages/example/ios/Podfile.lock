@@ -43,8 +43,6 @@ PODS:
   - LynxServiceAPI (3.6.0):
     - LynxServiceAPI/Core (= 3.6.0)
   - LynxServiceAPI/Core (3.6.0)
-  - lynxwebsockets (0.0.2):
-    - Lynx
   - PrimJS/log (3.6.1)
   - PrimJS/napi (3.6.1):
     - PrimJS/napi/adapter (= 3.6.1)
@@ -112,7 +110,6 @@ DEPENDENCIES:
   - LynxService/Http (= 3.6.0)
   - LynxService/Image (= 3.6.0)
   - LynxService/Log (= 3.6.0)
-  - "lynxwebsockets (from `../../../node_modules/@tamer4lynx/lynxwebsockets/ios/lynxwebsockets`)"
   - PrimJS/napi (= 3.6.1)
   - PrimJS/quickjs (= 3.6.1)
   - SDWebImage (= 5.15.5)
@@ -144,8 +141,6 @@ SPEC REPOS:
 EXTERNAL SOURCES:
   jiggle:
     :path: "../../../node_modules/@tamer4lynx/jiggle/ios/jiggle"
-  lynxwebsockets:
-    :path: "../../../node_modules/@tamer4lynx/lynxwebsockets/ios/lynxwebsockets"
   tamerbiometric:
     :path: "../../../node_modules/@tamer4lynx/tamer-biometric/ios/tamerbiometric"
   tamerdevclient:
@@ -174,7 +169,6 @@ SPEC CHECKSUMS:
   LynxBase: 8c285e5986c565dc3e06d47c08b6e11b561980fe
   LynxService: 42a3847a279c7fff63c3794d4c6ef53ee68ef629
   LynxServiceAPI: a552e8346a375cb500637cd7e05dd1cf2b219920
-  lynxwebsockets: d87582b5a0e8f4bba367371d006239df1581f9ea
   PrimJS: ab129af0dc78fa1aa9cf6b33f51e3c9790d6f617
   SDWebImage: fd7e1a22f00303e058058278639bf6196ee431fe
   SDWebImageWebPCoder: 295a6573c512f54ad2dd58098e64e17dcf008499
@@ -190,6 +184,6 @@ SPEC CHECKSUMS:
   tamertransports: 656bad3b8892ddc966556fc7f9b9074bd6b7d728
   XElement: fb90e5e349dc5728f242f3881d2e5e389f3e329a
 
-PODFILE CHECKSUM: 41cd6f95d8c451e191c19fda6fd383a08a486810
+PODFILE CHECKSUM: c473f45c928adac0aafed395d706097bb146050f
 
 COCOAPODS: 1.16.2

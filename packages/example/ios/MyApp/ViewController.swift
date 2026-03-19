@@ -45,6 +45,7 @@ class ViewController: UIViewController {
         lv.preservesSuperviewLayoutMargins = false
         view.addSubview(lv)
         applyFullscreenLayout(to: lv)
+        TamerInsetsModule.attachHostView(lv)
         lv.loadTemplate(fromURL: "dev-client.lynx.bundle", initData: nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self, weak lv] in
             guard let self, let lv else { return }

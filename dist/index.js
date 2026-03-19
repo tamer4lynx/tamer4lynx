@@ -12,7 +12,7 @@ import path24 from "path";
 import { program } from "commander";
 
 // package.json
-var version = "0.0.9";
+var version = "0.0.10";
 
 // src/android/create.ts
 import fs3 from "fs";
@@ -518,7 +518,7 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 
-class DevClientManager(private val context: Context, private val onReload: Runnable, private val onUnlink: Runnable) {
+class DevClientManager(private val context: Context, private val onReload: Runnable) {
     private var webSocket: WebSocket? = null
     private val handler = Handler(Looper.getMainLooper())
     private val client = OkHttpClient.Builder()
@@ -542,9 +542,6 @@ class DevClientManager(private val context: Context, private val onReload: Runna
                 try {
                     if (text.contains("\\"type\\":\\"reload\\"")) {
                         handler.post(onReload)
-                    } else if (text.contains("\\"type\\":\\"unlink\\"")) {
-                        DevServerPrefs.clear(context)
-                        handler.post(onUnlink)
                     }
                 } catch (_: Exception) { }
             }
@@ -565,7 +562,7 @@ function getProjectActivity(vars) {
   const devClientInit = hasDevClient ? `
         TamerRelogLogService.init(this)
         TamerRelogLogService.connect()
-        devClientManager = DevClientManager(this, { reloadProjectView() }, { DevServerPrefs.clear(this); finish() })
+        devClientManager = DevClientManager(this) { reloadProjectView() }
         devClientManager?.connect()
 ` : "";
   const devClientField = hasDevClient ? `    private var devClientManager: DevClientManager? = null
@@ -598,9 +595,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.MotionEvent
-import android.view.inputmethod.InputMethodManager
-import android.widget.EditText
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -634,26 +628,6 @@ ${reloadMethod}
     override fun onResume() {
         super.onResume()
         GeneratedActivityLifecycle.onResume()
-    }
-
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (ev.action == MotionEvent.ACTION_DOWN) maybeClearFocusedInput(ev)
-        return super.dispatchTouchEvent(ev)
-    }
-
-    private fun maybeClearFocusedInput(ev: MotionEvent) {
-        val focused = currentFocus
-        if (focused is EditText) {
-            val loc = IntArray(2)
-            focused.getLocationOnScreen(loc)
-            val x = ev.rawX.toInt()
-            val y = ev.rawY.toInt()
-            if (x < loc[0] || x > loc[0] + focused.width || y < loc[1] || y > loc[1] + focused.height) {
-                focused.clearFocus()
-                (getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager)
-                    ?.hideSoftInputFromWindow(focused.windowToken, 0)
-            }
-        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -781,9 +755,6 @@ import com.nanofuxion.tamerdevclient.DevClientModule
 
 import android.os.Build
 import android.os.Bundle
-import android.view.MotionEvent
-import android.view.inputmethod.InputMethodManager
-import android.widget.EditText
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -814,26 +785,6 @@ ${devClientField}    private var lynxView: LynxView? = null${!hasDevClient ? "\n
     override fun onResume() {
         super.onResume()
         GeneratedActivityLifecycle.onResume()
-    }
-
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (ev.action == MotionEvent.ACTION_DOWN) maybeClearFocusedInput(ev)
-        return super.dispatchTouchEvent(ev)
-    }
-
-    private fun maybeClearFocusedInput(ev: MotionEvent) {
-        val focused = currentFocus
-        if (focused is EditText) {
-            val loc = IntArray(2)
-            focused.getLocationOnScreen(loc)
-            val x = ev.rawX.toInt()
-            val y = ev.rawY.toInt()
-            if (x < loc[0] || x > loc[0] + focused.width || y < loc[1] || y > loc[1] + focused.height) {
-                focused.clearFocus()
-                (getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager)
-                    ?.hideSoftInputFromWindow(focused.windowToken, 0)
-            }
-        }
     }
 
     @Deprecated("Deprecated in Java")
@@ -1358,6 +1309,7 @@ var create_default = create;
 // src/android/autolink.ts
 import fs6 from "fs";
 import path6 from "path";
+import { execSync as execSync2 } from "child_process";
 
 // src/common/discoverModules.ts
 import fs5 from "fs";
@@ -1867,7 +1819,23 @@ ${generateActivityLifecycleKotlin(packages, projectPackage)}`;
     syncVersionCatalog(packages);
     ensureXElementDeps();
     ensureReleaseSigning();
+    runGradleSync();
     console.log("\u2728 Autolinking complete.");
+  }
+  function runGradleSync() {
+    const gradlew = path6.join(appAndroidPath, process.platform === "win32" ? "gradlew.bat" : "gradlew");
+    if (!fs6.existsSync(gradlew)) return;
+    try {
+      console.log("\u2139\uFE0F Running Gradle sync in android directory...");
+      execSync2(process.platform === "win32" ? "gradlew.bat projects" : "./gradlew projects", {
+        cwd: appAndroidPath,
+        stdio: "inherit"
+      });
+      console.log("\u2705 Gradle sync completed.");
+    } catch (e) {
+      console.warn("\u26A0\uFE0F Gradle sync failed:", e.message);
+      console.log("\u26A0\uFE0F You can run `./gradlew tasks` in the android directory to sync.");
+    }
   }
   function syncVersionCatalog(packages) {
     const libsTomlPath = path6.join(appAndroidPath, "gradle", "libs.versions.toml");
@@ -2003,7 +1971,7 @@ var autolink_default = autolink;
 // src/android/bundle.ts
 import fs9 from "fs";
 import path9 from "path";
-import { execSync as execSync2 } from "child_process";
+import { execSync as execSync3 } from "child_process";
 
 // src/common/copyDistAssets.ts
 import fs7 from "fs";
@@ -2181,7 +2149,7 @@ async function bundleAndDeploy(opts = {}) {
   if (!bundleExists) {
     try {
       console.log("\u{1F4E6} Building Lynx bundle...");
-      execSync2("npm run build", { stdio: "inherit", cwd: lynxProjectDir });
+      execSync3("npm run build", { stdio: "inherit", cwd: lynxProjectDir });
       console.log("\u2705 Build completed successfully.");
     } catch (error) {
       console.error("\u274C Build process failed.");
@@ -2194,7 +2162,7 @@ async function bundleAndDeploy(opts = {}) {
     const devClientDir = path9.dirname(path9.dirname(devClientBundlePath));
     try {
       console.log("\u{1F4E6} Building dev launcher (tamer-dev-client)...");
-      execSync2("npm run build", { stdio: "inherit", cwd: devClientDir });
+      execSync3("npm run build", { stdio: "inherit", cwd: devClientDir });
       console.log("\u2705 Dev launcher build completed.");
     } catch (error) {
       console.error("\u274C Dev launcher build failed.");
@@ -2229,7 +2197,7 @@ var bundle_default = bundleAndDeploy;
 
 // src/android/build.ts
 import path10 from "path";
-import { execSync as execSync3 } from "child_process";
+import { execSync as execSync4 } from "child_process";
 async function buildApk(opts = {}) {
   let resolved;
   try {
@@ -2244,14 +2212,14 @@ async function buildApk(opts = {}) {
   const task = opts.install ? `install${variant}` : `assemble${variant}`;
   console.log(`
 \u{1F528} Building ${variant.toLowerCase()} APK${opts.install ? " and installing" : ""}...`);
-  execSync3(`"${gradlew}" ${task}`, { stdio: "inherit", cwd: androidDir });
+  execSync4(`"${gradlew}" ${task}`, { stdio: "inherit", cwd: androidDir });
   console.log(`\u2705 APK ${opts.install ? "installed" : "built"} successfully.`);
   if (opts.install) {
     const packageName = resolved.config.android?.packageName;
     if (packageName) {
       try {
         console.log(`\u{1F680} Launching ${packageName}...`);
-        execSync3(`adb shell am start -n ${packageName}/.MainActivity`, { stdio: "inherit" });
+        execSync4(`adb shell am start -n ${packageName}/.MainActivity`, { stdio: "inherit" });
         console.log("\u2705 App launched.");
       } catch (e) {
         console.warn("\u26A0\uFE0F Could not launch app. Is a device/emulator connected?");
@@ -2268,12 +2236,12 @@ import fs11 from "fs";
 import path12 from "path";
 
 // src/ios/getPod.ts
-import { execSync as execSync4 } from "child_process";
+import { execSync as execSync5 } from "child_process";
 import fs10 from "fs";
 import path11 from "path";
 function isCocoaPodsInstalled() {
   try {
-    execSync4("command -v pod >/dev/null 2>&1");
+    execSync5("command -v pod >/dev/null 2>&1");
     return true;
   } catch (error) {
     return false;
@@ -2298,13 +2266,13 @@ async function setupCocoaPods(rootDir) {
     }
     console.log(`\u{1F680} Executing pod install in: ${rootDir}`);
     try {
-      execSync4("pod install", {
+      execSync5("pod install", {
         cwd: rootDir,
         stdio: "inherit"
       });
     } catch {
       console.log("\u2139\uFE0F Retrying CocoaPods install with repo update...");
-      execSync4("pod install --repo-update", {
+      execSync5("pod install --repo-update", {
         cwd: rootDir,
         stdio: "inherit"
       });
@@ -2448,6 +2416,12 @@ post_install do |installer|
         config.build_settings['CLANG_WARN_ENUM_CONVERSION'] = 'NO'
       end
     end
+    if target.name == 'PrimJS'
+      target.build_configurations.each do |config|
+        config.build_settings['OTHER_CFLAGS'] = "$(inherited) -Wno-macro-redefined"
+        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) -Wno-macro-redefined"
+      end
+    end
   end
   Dir.glob(File.join(installer.sandbox.root, 'Target Support Files', 'Lynx', '*.xcconfig')).each do |xcconfig_path|
     next unless File.file?(xcconfig_path)
@@ -2557,6 +2531,7 @@ class ViewController: UIViewController {
   private func setupLynxView() {
 	let lv = buildLynxView()
 	view.addSubview(lv)
+	TamerInsetsModule.attachHostView(lv)
 	lv.loadTemplate(fromURL: "main.lynx.bundle", initData: nil)
 	self.lynxView = lv
   }
@@ -3020,7 +2995,7 @@ var create_default2 = create2;
 // src/ios/autolink.ts
 import fs12 from "fs";
 import path13 from "path";
-import { execSync as execSync5 } from "child_process";
+import { execSync as execSync6 } from "child_process";
 var autolink2 = () => {
   let resolved;
   try {
@@ -3128,20 +3103,26 @@ ${replacementBlock}
     if (content.includes("pod 'XElement'")) return;
     const lynxVersionMatch = content.match(/pod\s+'Lynx',\s*'([^']+)'/);
     const lynxVersion = lynxVersionMatch?.[1] ?? "3.6.0";
-    const xelementLine = `
-  pod 'XElement', '${lynxVersion}'`;
-    const insertAfter = /pod\s+'LynxService'[^\n]*(?:\n\s*'[^']*',?\s*)*/;
-    const serviceMatch = content.match(insertAfter);
-    if (serviceMatch) {
-      const idx = serviceMatch.index + serviceMatch[0].length;
-      content = content.slice(0, idx) + xelementLine + content.slice(idx);
-    } else {
+    const xelementBlock = `  pod 'XElement', '${lynxVersion}'
+
+  `;
+    if (content.includes("# GENERATED AUTOLINK DEPENDENCIES START")) {
       content = content.replace(
         /(# GENERATED AUTOLINK DEPENDENCIES START)/,
-        `pod 'XElement', '${lynxVersion}'
-
-  $1`
+        `${xelementBlock}$1`
       );
+    } else {
+      const insertAfter = /pod\s+'LynxService'[^\n]*(?:\n\s*'[^']*',?\s*)*/;
+      const serviceMatch = content.match(insertAfter);
+      if (serviceMatch) {
+        const idx = serviceMatch.index + serviceMatch[0].length;
+        content = content.slice(0, idx) + `
+  pod 'XElement', '${lynxVersion}'` + content.slice(idx);
+      } else {
+        content += `
+  pod 'XElement', '${lynxVersion}'
+`;
+      }
     }
     fs12.writeFileSync(podfilePath, content, "utf8");
     console.log(`\u2705 Added XElement pod (v${lynxVersion}) to Podfile`);
@@ -3190,6 +3171,22 @@ $2`);
         /(Dir\.glob.*?Lynx\/platform\/darwin)/s,
         `${xcconfigStrip}
   $1`
+      );
+      changed = true;
+    }
+    if (!content.includes("target.name == 'PrimJS'") && content.includes("target.name == 'Lynx'")) {
+      const primjsBlock = `
+    if target.name == 'PrimJS'
+      target.build_configurations.each do |config|
+        config.build_settings['OTHER_CFLAGS'] = "$(inherited) -Wno-macro-redefined"
+        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) -Wno-macro-redefined"
+      end
+    end`;
+      content = content.replace(
+        /(    end)\n(  end)\n(  Dir\.glob\(File\.join\(installer\.sandbox\.root,\s*'Target Support Files',\s*'Lynx')/,
+        `$1${primjsBlock}
+  $2
+  $3`
       );
       changed = true;
     }
@@ -3416,10 +3413,10 @@ $1`
     try {
       console.log(`\u2139\uFE0F Running \`pod install\` in ${cwd}...`);
       try {
-        execSync5("pod install", { cwd, stdio: "inherit" });
+        execSync6("pod install", { cwd, stdio: "inherit" });
       } catch {
         console.log("\u2139\uFE0F Retrying `pod install` with repo update...");
-        execSync5("pod install --repo-update", { cwd, stdio: "inherit" });
+        execSync6("pod install --repo-update", { cwd, stdio: "inherit" });
       }
       console.log("\u2705 `pod install` completed successfully.");
     } catch (e) {
@@ -3461,7 +3458,7 @@ var autolink_default2 = autolink2;
 // src/ios/bundle.ts
 import fs14 from "fs";
 import path15 from "path";
-import { execSync as execSync6 } from "child_process";
+import { execSync as execSync7 } from "child_process";
 
 // src/ios/syncHost.ts
 import fs13 from "fs";
@@ -3710,6 +3707,7 @@ class ViewController: UIViewController {
     private func setupLynxView() {
         let lv = buildLynxView()
         view.addSubview(lv)
+        TamerInsetsModule.attachHostView(lv)
         lv.loadTemplate(fromURL: "main.lynx.bundle", initData: nil)
         self.lynxView = lv
     }
@@ -3733,6 +3731,7 @@ function getDevViewControllerSwift() {
 import Lynx
 import tamerdevclient
 import tamerinsets
+import tamersystemui
 
 class ViewController: UIViewController {
     private var lynxView: LynxView?
@@ -3762,7 +3761,7 @@ class ViewController: UIViewController {
         TamerInsetsModule.reRequestInsets()
     }
 
-    override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
+    override var preferredStatusBarStyle: UIStatusBarStyle { SystemUIModule.statusBarStyleForHost }
 
     private func setupLynxView() {
         let size = fullscreenBounds().size
@@ -3776,6 +3775,7 @@ class ViewController: UIViewController {
         lv.preservesSuperviewLayoutMargins = false
         view.addSubview(lv)
         applyFullscreenLayout(to: lv)
+        TamerInsetsModule.attachHostView(lv)
         lv.loadTemplate(fromURL: "dev-client.lynx.bundle", initData: nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self, weak lv] in
             guard let self, let lv else { return }
@@ -3978,7 +3978,7 @@ function bundleAndDeploy2(opts = {}) {
   autolink_default2();
   try {
     console.log("\u{1F4E6} Building Lynx bundle...");
-    execSync6("npm run build", { stdio: "inherit", cwd: resolved.lynxProjectDir });
+    execSync7("npm run build", { stdio: "inherit", cwd: resolved.lynxProjectDir });
     console.log("\u2705 Build completed successfully.");
   } catch (error) {
     console.error("\u274C Build process failed. Please check the errors above.");
@@ -4009,7 +4009,7 @@ function bundleAndDeploy2(opts = {}) {
       const devClientBundle = path15.join(destinationDir, "dev-client.lynx.bundle");
       console.log("\u{1F4E6} Building dev-client bundle...");
       try {
-        execSync6("npm run build", { stdio: "inherit", cwd: devClientPkg });
+        execSync7("npm run build", { stdio: "inherit", cwd: devClientPkg });
       } catch {
         console.warn("\u26A0\uFE0F  dev-client build failed; skipping dev-client bundle");
       }
@@ -4035,13 +4035,13 @@ var bundle_default2 = bundleAndDeploy2;
 import fs15 from "fs";
 import path16 from "path";
 import os3 from "os";
-import { execSync as execSync7 } from "child_process";
+import { execSync as execSync8 } from "child_process";
 function hostArch() {
   return os3.arch() === "arm64" ? "arm64" : "x86_64";
 }
 function findBootedSimulator() {
   try {
-    const out = execSync7("xcrun simctl list devices --json", { encoding: "utf8" });
+    const out = execSync8("xcrun simctl list devices --json", { encoding: "utf8" });
     const json = JSON.parse(out);
     for (const runtimes of Object.values(json.devices)) {
       for (const device of runtimes) {
@@ -4077,7 +4077,7 @@ async function buildIpa(opts = {}) {
   ].join(" ");
   console.log(`
 \u{1F528} Building ${configuration} (${sdk})...`);
-  execSync7(
+  execSync8(
     `xcodebuild ${flag} "${xcproject}" -scheme "${scheme}" -configuration ${configuration} -sdk ${sdk} ${archFlag}-derivedDataPath "${derivedDataPath}" ${extraSettings}${signingArgs}`,
     { stdio: "inherit", cwd: iosDir }
   );
@@ -4100,10 +4100,10 @@ async function buildIpa(opts = {}) {
       process.exit(1);
     }
     console.log(`\u{1F4F2} Installing on simulator ${udid}...`);
-    execSync7(`xcrun simctl install "${udid}" "${appGlob}"`, { stdio: "inherit" });
+    execSync8(`xcrun simctl install "${udid}" "${appGlob}"`, { stdio: "inherit" });
     if (bundleId) {
       console.log(`\u{1F680} Launching ${bundleId}...`);
-      execSync7(`xcrun simctl launch "${udid}" "${bundleId}"`, { stdio: "inherit" });
+      execSync8(`xcrun simctl launch "${udid}" "${bundleId}"`, { stdio: "inherit" });
       console.log("\u2705 App launched.");
     } else {
       console.log('\u2705 App installed. (Set "ios.bundleId" in tamer.config.json to auto-launch.)');
@@ -4641,11 +4641,6 @@ async function startDevServer(opts) {
       if (client.readyState === 1) client.send(JSON.stringify({ type: "reload" }));
     });
   }
-  function broadcastUnlink() {
-    wss.clients.forEach((client) => {
-      if (client.readyState === 1) client.send(JSON.stringify({ type: "unlink" }));
-    });
-  }
   let chokidar = null;
   try {
     chokidar = await import("chokidar");
@@ -4714,7 +4709,7 @@ async function startDevServer(opts) {
       process.stdin.setRawMode(true);
       process.stdin.resume();
       process.stdin.setEncoding("utf8");
-      const help = "\x1B[90m  r: refresh  u: unlink  c/Ctrl+L: clear  Ctrl+C: exit\x1B[0m";
+      const help = "\x1B[90m  r: refresh  c/Ctrl+L: clear  Ctrl+C: exit\x1B[0m";
       console.log(help);
       process.stdin.on("keypress", (str, key) => {
         if (key.ctrl && key.name === "c") {
@@ -4727,10 +4722,6 @@ async function startDevServer(opts) {
               broadcastReload();
               console.log("\u{1F504} Refreshed, clients notified");
             }).catch((e) => console.error("Build failed:", e.message));
-            break;
-          case "u":
-            broadcastUnlink();
-            console.log("\u{1F517} Unlink sent to clients");
             break;
           case "c":
             process.stdout.write("\x1B[2J\x1B[H");
@@ -4868,7 +4859,7 @@ async function injectHostIos(opts) {
 // src/common/buildEmbeddable.ts
 import fs21 from "fs";
 import path22 from "path";
-import { execSync as execSync8 } from "child_process";
+import { execSync as execSync9 } from "child_process";
 var EMBEDDABLE_DIR = "embeddable";
 var LIB_PACKAGE = "com.tamer.embeddable";
 var GRADLE_VERSION = "8.14.2";
@@ -5058,7 +5049,7 @@ async function buildEmbeddable(opts = {}) {
   const resolved = resolveHostPaths();
   const { lynxProjectDir, lynxBundlePath, lynxBundleFile, projectRoot, config } = resolved;
   console.log("\u{1F4E6} Building Lynx project (release)...");
-  execSync8("npm run build", { stdio: "inherit", cwd: lynxProjectDir });
+  execSync9("npm run build", { stdio: "inherit", cwd: lynxProjectDir });
   if (!fs21.existsSync(lynxBundlePath)) {
     console.error(`\u274C Bundle not found at ${lynxBundlePath}`);
     process.exit(1);
@@ -5112,7 +5103,7 @@ async function buildEmbeddable(opts = {}) {
   }
   try {
     console.log("\u{1F4E6} Building Android AAR...");
-    execSync8("./gradlew :lib:assembleRelease", { cwd: androidDir, stdio: "inherit" });
+    execSync9("./gradlew :lib:assembleRelease", { cwd: androidDir, stdio: "inherit" });
   } catch (e) {
     console.error("\u274C Android AAR build failed. Run manually: cd embeddable/android && ./gradlew :lib:assembleRelease");
     throw e;
@@ -5268,20 +5259,17 @@ ${podDeps.map((d) => `pod '${d.podName}', :path => '${d.absPath}'`).join("\n")}
 // src/common/add.ts
 import fs22 from "fs";
 import path23 from "path";
-import { execSync as execSync9 } from "child_process";
+import { execSync as execSync10 } from "child_process";
 var CORE_PACKAGES = [
   "@tamer4lynx/tamer-app-shell",
   "@tamer4lynx/tamer-screen",
   "@tamer4lynx/tamer-router",
   "@tamer4lynx/tamer-insets",
   "@tamer4lynx/tamer-transports",
-  "@tamer4lynx/tamer-text-input",
   "@tamer4lynx/tamer-system-ui",
   "@tamer4lynx/tamer-icons"
 ];
-var PACKAGE_ALIASES = {
-  input: "@tamer4lynx/tamer-text-input"
-};
+var PACKAGE_ALIASES = {};
 function detectPackageManager(cwd) {
   const dir = path23.resolve(cwd);
   if (fs22.existsSync(path23.join(dir, "pnpm-lock.yaml"))) return "pnpm";
@@ -5291,7 +5279,7 @@ function detectPackageManager(cwd) {
 function runInstall(cwd, packages, pm) {
   const args = pm === "npm" ? ["install", ...packages] : ["add", ...packages];
   const cmd = pm === "npm" ? "npm" : pm === "pnpm" ? "pnpm" : "bun";
-  execSync9(`${cmd} ${args.join(" ")}`, { stdio: "inherit", cwd });
+  execSync10(`${cmd} ${args.join(" ")}`, { stdio: "inherit", cwd });
 }
 function addCore() {
   const { lynxProjectDir } = resolveHostPaths();
@@ -5337,14 +5325,18 @@ program.version(version).description("Tamer4Lynx CLI - A tool for managing Lynx 
 program.command("init").description("Initialize tamer.config.json interactively").action(() => {
   init_default();
 });
-program.command("create <target>").description("Create a project or extension. Target: ios | android | module | element | service | combo").option("-t, --target-type <type>", "For android: host (default) or dev-app", "host").action(async (target, opts) => {
+program.command("create <target>").description("Create a project or extension. Target: ios | android | module | element | service | combo").option("-d, --debug", "For android: create host project (default)").option("-r, --release", "For android: create dev-app project").action(async (target, opts) => {
   const t = target.toLowerCase();
   if (t === "ios") {
     create_default2();
     return;
   }
   if (t === "android") {
-    await create_default({ target: opts.targetType ?? "host" });
+    if (opts.debug && opts.release) {
+      console.error("Cannot use --debug and --release together.");
+      process.exit(1);
+    }
+    await create_default({ target: opts.release ? "dev-app" : "host" });
     return;
   }
   if (["module", "element", "service", "combo"].includes(t)) {
@@ -5432,9 +5424,73 @@ program.command("build-dev-app").option("-p, --platform <platform>", "Platform: 
   }
 });
 program.command("add [packages...]").description("Add @tamer4lynx packages to the Lynx project. Future: will track versions for compatibility (Expo-style).").action((packages) => add(packages));
-program.command("add-core").description("Add core packages (app-shell, screen, router, insets, transports, input/text-input, system-ui, icons)").action(() => addCore());
+program.command("add-core").description("Add core packages (app-shell, screen, router, insets, transports, system-ui, icons)").action(() => addCore());
 program.command("codegen").description("Generate code from @lynxmodule declarations").action(() => {
   codegen_default();
+});
+program.command("android <subcommand>").description("(Legacy) Use: t4l <command> android. e.g. t4l create android").option("-d, --debug", "Create: host project. Bundle/build: debug with dev client.").option("-r, --release", "Create: dev-app project. Bundle/build: release without dev client.").option("-i, --install", "Install after build").option("-e, --embeddable", "Build embeddable").option("-f, --force", "Force (inject)").action(async (subcommand, opts) => {
+  const sub = subcommand?.toLowerCase();
+  if (sub === "create") {
+    if (opts.debug && opts.release) {
+      console.error("Cannot use --debug and --release together.");
+      process.exit(1);
+    }
+    await create_default({ target: opts.release ? "dev-app" : "host" });
+    return;
+  }
+  if (sub === "link") {
+    autolink_default();
+    return;
+  }
+  if (sub === "bundle") {
+    validateDebugRelease(opts.debug, opts.release);
+    await bundle_default({ release: opts.release === true });
+    return;
+  }
+  if (sub === "build") {
+    validateDebugRelease(opts.debug, opts.release);
+    if (opts.embeddable) await buildEmbeddable({ release: true });
+    else await build_default({ install: opts.install, release: opts.release === true });
+    return;
+  }
+  if (sub === "sync") {
+    await syncDevClient_default();
+    return;
+  }
+  if (sub === "inject") {
+    await injectHostAndroid({ force: opts.force });
+    return;
+  }
+  console.error(`Unknown android subcommand: ${subcommand}. Use: create | link | bundle | build | sync | inject`);
+  process.exit(1);
+});
+program.command("ios <subcommand>").description("(Legacy) Use: t4l <command> ios. e.g. t4l create ios").option("-d, --debug", "Debug (bundle/build)").option("-r, --release", "Release (bundle/build)").option("-i, --install", "Install after build").option("-e, --embeddable", "Build embeddable").option("-f, --force", "Force (inject)").action(async (subcommand, opts) => {
+  const sub = subcommand?.toLowerCase();
+  if (sub === "create") {
+    create_default2();
+    return;
+  }
+  if (sub === "link") {
+    autolink_default2();
+    return;
+  }
+  if (sub === "bundle") {
+    validateDebugRelease(opts.debug, opts.release);
+    bundle_default2({ release: opts.release === true });
+    return;
+  }
+  if (sub === "build") {
+    validateDebugRelease(opts.debug, opts.release);
+    if (opts.embeddable) await buildEmbeddable({ release: true });
+    else await build_default2({ install: opts.install, release: opts.release === true });
+    return;
+  }
+  if (sub === "inject") {
+    await injectHostIos({ force: opts.force });
+    return;
+  }
+  console.error(`Unknown ios subcommand: ${subcommand}. Use: create | link | bundle | build | inject`);
+  process.exit(1);
 });
 program.command("autolink-toggle").alias("autolink").description("Toggle autolink on/off in tamer.config.json (controls postinstall linking)").action(async () => {
   const configPath = path24.join(process.cwd(), "tamer.config.json");

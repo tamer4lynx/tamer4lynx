@@ -149,6 +149,12 @@ post_install do |installer|
         config.build_settings['CLANG_WARN_ENUM_CONVERSION'] = 'NO'
       end
     end
+    if target.name == 'PrimJS'
+      target.build_configurations.each do |config|
+        config.build_settings['OTHER_CFLAGS'] = "$(inherited) -Wno-macro-redefined"
+        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) -Wno-macro-redefined"
+      end
+    end
   end
   Dir.glob(File.join(installer.sandbox.root, 'Target Support Files', 'Lynx', '*.xcconfig')).each do |xcconfig_path|
     next unless File.file?(xcconfig_path)
@@ -259,6 +265,7 @@ class ViewController: UIViewController {
   private func setupLynxView() {
 	let lv = buildLynxView()
 	view.addSubview(lv)
+	TamerInsetsModule.attachHostView(lv)
 	lv.loadTemplate(fromURL: "main.lynx.bundle", initData: nil)
 	self.lynxView = lv
   }

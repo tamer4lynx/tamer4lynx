@@ -319,9 +319,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.MotionEvent
-import android.view.inputmethod.InputMethodManager
-import android.widget.EditText
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -355,26 +352,6 @@ ${reloadMethod}
     override fun onResume() {
         super.onResume()
         GeneratedActivityLifecycle.onResume()
-    }
-
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (ev.action == MotionEvent.ACTION_DOWN) maybeClearFocusedInput(ev)
-        return super.dispatchTouchEvent(ev)
-    }
-
-    private fun maybeClearFocusedInput(ev: MotionEvent) {
-        val focused = currentFocus
-        if (focused is EditText) {
-            val loc = IntArray(2)
-            focused.getLocationOnScreen(loc)
-            val x = ev.rawX.toInt()
-            val y = ev.rawY.toInt()
-            if (x < loc[0] || x > loc[0] + focused.width || y < loc[1] || y > loc[1] + focused.height) {
-                focused.clearFocus()
-                (getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager)
-                    ?.hideSoftInputFromWindow(focused.windowToken, 0)
-            }
-        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -525,9 +502,6 @@ import com.nanofuxion.tamerdevclient.DevClientModule
 
 import android.os.Build
 import android.os.Bundle
-import android.view.MotionEvent
-import android.view.inputmethod.InputMethodManager
-import android.widget.EditText
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -558,26 +532,6 @@ ${devClientField}    private var lynxView: LynxView? = null${!hasDevClient ? '\n
     override fun onResume() {
         super.onResume()
         GeneratedActivityLifecycle.onResume()
-    }
-
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (ev.action == MotionEvent.ACTION_DOWN) maybeClearFocusedInput(ev)
-        return super.dispatchTouchEvent(ev)
-    }
-
-    private fun maybeClearFocusedInput(ev: MotionEvent) {
-        val focused = currentFocus
-        if (focused is EditText) {
-            val loc = IntArray(2)
-            focused.getLocationOnScreen(loc)
-            val x = ev.rawX.toInt()
-            val y = ev.rawY.toInt()
-            if (x < loc[0] || x > loc[0] + focused.width || y < loc[1] || y > loc[1] + focused.height) {
-                focused.clearFocus()
-                (getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager)
-                    ?.hideSoftInputFromWindow(focused.windowToken, 0)
-            }
-        }
     }
 
     @Deprecated("Deprecated in Java")

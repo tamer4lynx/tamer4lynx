@@ -282,7 +282,7 @@ Install from npm (use `@prerelease` for latest) and run `t4l link` after adding 
 | Package | Install | Description |
 |---------|---------|-------------|
 | [@tamer4lynx/jiggle](https://www.npmjs.com/package/@tamer4lynx/jiggle) | `npm i @tamer4lynx/jiggle@prerelease` | Vibration/haptic |
-| [@tamer4lynx/lynxwebsockets](https://www.npmjs.com/package/@tamer4lynx/lynxwebsockets) | `npm i @tamer4lynx/lynxwebsockets@prerelease` | WebSocket native bridge |
+| WebSocket (native) | — | Use [@tamer4lynx/tamer-transports](https://www.npmjs.com/package/@tamer4lynx/tamer-transports) (`@tamer4lynx/lynxwebsockets` is retired from this monorepo) |
 | [@tamer4lynx/tamer-host](https://www.npmjs.com/package/@tamer4lynx/tamer-host) | `npm i @tamer4lynx/tamer-host@prerelease` | Production Lynx host templates |
 | [@tamer4lynx/tamer-dev-client](https://www.npmjs.com/package/@tamer4lynx/tamer-dev-client) | `npm i @tamer4lynx/tamer-dev-client@prerelease` | Dev launcher UI (QR scan, HMR). Add to your app and build with `-d` for a dev build; `-r` omits it. |
 | [@tamer4lynx/tamer-dev-app](https://www.npmjs.com/package/@tamer4lynx/tamer-dev-app) | workspace / npm | Standalone dev app (store build). Your app can use tamer-dev-client for dev builds instead. |

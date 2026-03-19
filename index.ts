@@ -209,10 +209,8 @@ program
 program
     .command('android <subcommand>')
     .description('(Legacy) Use: t4l <command> android. e.g. t4l create android')
-    .option('-d, --debug', 'For create: host project (default)')
-    .option('-r, --release', 'For create: dev-app project')
-    .option('-d, --debug', 'Debug (bundle/build)')
-    .option('-r, --release', 'Release (bundle/build)')
+    .option('-d, --debug', 'Create: host project. Bundle/build: debug with dev client.')
+    .option('-r, --release', 'Create: dev-app project. Bundle/build: release without dev client.')
     .option('-i, --install', 'Install after build')
     .option('-e, --embeddable', 'Build embeddable')
     .option('-f, --force', 'Force (inject)')

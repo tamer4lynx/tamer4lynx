@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { execSync } from 'child_process';
 import { discoverModules, type DiscoveredModule } from '../common/discoverModules';
 import { generateActivityLifecycleKotlin, generateLynxExtensionsKotlin } from '../common/generateExtCode';
 import { resolveHostPaths, type DeepLinkConfig } from '../common/hostConfig';
@@ -239,7 +240,24 @@ ${generateActivityLifecycleKotlin(packages, projectPackage)}`;
         ensureXElementDeps();
         ensureReleaseSigning();
 
+        runGradleSync();
         console.log('✨ Autolinking complete.');
+    }
+
+    function runGradleSync() {
+        const gradlew = path.join(appAndroidPath, process.platform === 'win32' ? 'gradlew.bat' : 'gradlew');
+        if (!fs.existsSync(gradlew)) return;
+        try {
+            console.log('ℹ️ Running Gradle sync in android directory...');
+            execSync(process.platform === 'win32' ? 'gradlew.bat projects' : './gradlew projects', {
+                cwd: appAndroidPath,
+                stdio: 'inherit',
+            });
+            console.log('✅ Gradle sync completed.');
+        } catch (e: unknown) {
+            console.warn('⚠️ Gradle sync failed:', (e as Error).message);
+            console.log('⚠️ You can run `./gradlew tasks` in the android directory to sync.');
+        }
     }
 
     function syncVersionCatalog(packages: DiscoveredModule[]): void {

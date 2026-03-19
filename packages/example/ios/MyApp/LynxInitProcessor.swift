@@ -6,7 +6,6 @@ import Foundation
 
 // GENERATED IMPORTS START
 import jiggle
-import lynxwebsockets
 import tamerbiometric
 import tamerdevclient
 import tamerdisplaybrowser
@@ -37,9 +36,6 @@ final class LynxInitProcessor {
         // Register module from package: @tamer4lynx/jiggle
         globalConfig.register(JiggleModule.self)
 
-        // Register module from package: @tamer4lynx/lynxwebsockets
-        globalConfig.register(LynxWebSocketModule.self)
-
         // Register module from package: @tamer4lynx/tamer-biometric
         globalConfig.register(BiometricModule.self)
 
@@ -69,6 +65,9 @@ final class LynxInitProcessor {
 
         // Register module from package: @tamer4lynx/tamer-transports
         globalConfig.register(LynxFetchModule.self)
+
+        // Register module from package: @tamer4lynx/tamer-transports
+        globalConfig.register(TamerTransportsWebSocketModule.self)
 // GENERATED AUTOLINK END
 
 		env.prepareConfig(globalConfig)

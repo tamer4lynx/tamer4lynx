@@ -9,7 +9,6 @@ import com.lynx.tasm.LynxEnv
 import com.lynx.tasm.LynxViewBuilder
 import com.lynx.xelement.XElementBehaviors
 import com.nanofuxion.vibration.JiggleModule
-import com.nanofuxion.lynxwebsockets.LynxWebSocketModule
 import com.nanofuxion.tamerbiometric.BiometricModule
 import com.nanofuxion.tamerdevclient.DevClientModule
 import com.nanofuxion.tamerdisplaybrowser.DisplayBrowserModule
@@ -19,12 +18,12 @@ import com.nanofuxion.tamerrouter.TamerRouterNativeModule
 import com.nanofuxion.tamersecurestore.SecureStoreModule
 import com.nanofuxion.tamersystemui.SystemUIModule
 import com.nanofuxion.tamertransports.LynxFetchModule
+import com.nanofuxion.tamertransports.LynxWebSocketModule
 import com.nanofuxion.tamericons.IconElement
 
 object GeneratedLynxExtensions {
     fun register(context: Context) {
         LynxEnv.inst().registerModule("JiggleModule", JiggleModule::class.java)
-        LynxEnv.inst().registerModule("LynxWebSocketModule", LynxWebSocketModule::class.java)
         LynxEnv.inst().registerModule("BiometricModule", BiometricModule::class.java)
         LynxEnv.inst().registerModule("DevClientModule", DevClientModule::class.java)
         LynxEnv.inst().registerModule("DisplayBrowserModule", DisplayBrowserModule::class.java)
@@ -34,6 +33,7 @@ object GeneratedLynxExtensions {
         LynxEnv.inst().registerModule("SecureStoreModule", SecureStoreModule::class.java)
         LynxEnv.inst().registerModule("SystemUIModule", SystemUIModule::class.java)
         LynxEnv.inst().registerModule("LynxFetchModule", LynxFetchModule::class.java)
+        LynxEnv.inst().registerModule("LynxWebSocketModule", LynxWebSocketModule::class.java)
         LynxEnv.inst().addBehavior(object : com.lynx.tasm.behavior.Behavior("icon") {
             override fun createUI(context: com.lynx.tasm.behavior.LynxContext): com.lynx.tasm.behavior.ui.LynxUI<*> {
                 return IconElement(context)

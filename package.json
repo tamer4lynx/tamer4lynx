@@ -1,6 +1,6 @@
 {
   "name": "@tamer4lynx/cli",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "module": "index.ts",
   "type": "module",
   "description": "A CLI tool for managing LynxJS native modules.",
@@ -41,8 +41,7 @@
     "packages/tamer-router",
     "packages/tamer-screen",
     "packages/tamer-system-ui",
-    "packages/tamer-app-shell",
-    "packages/lynxwebsockets"
+    "packages/tamer-app-shell"
   ],
   "keywords": [
     "lynx",

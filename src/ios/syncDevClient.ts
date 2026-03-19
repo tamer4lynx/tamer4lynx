@@ -72,6 +72,7 @@ function getDevLauncherViewControllerSwift(): string {
 import Lynx
 import tamerdevclient
 import tamerinsets
+import tamersystemui
 
 class DevLauncherViewController: UIViewController {
     private var lynxView: LynxView?
@@ -101,7 +102,7 @@ class DevLauncherViewController: UIViewController {
         TamerInsetsModule.reRequestInsets()
     }
 
-    override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
+    override var preferredStatusBarStyle: UIStatusBarStyle { SystemUIModule.statusBarStyleForHost }
 
     private func setupLynxView() {
         let size = fullscreenBounds().size
@@ -115,6 +116,7 @@ class DevLauncherViewController: UIViewController {
         lv.preservesSuperviewLayoutMargins = false
         view.addSubview(lv)
         applyFullscreenLayout(to: lv)
+        TamerInsetsModule.attachHostView(lv)
         lv.loadTemplate(fromURL: "dev-client.lynx.bundle", initData: nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self, weak lv] in
             guard let self, let lv else { return }
@@ -178,6 +180,7 @@ function getProjectViewControllerSwift(): string {
 import Lynx
 import tamerdevclient
 import tamerinsets
+import tamersystemui
 
 class ProjectViewController: UIViewController {
     private var lynxView: LynxView?
@@ -212,7 +215,7 @@ class ProjectViewController: UIViewController {
         TamerInsetsModule.reRequestInsets()
     }
 
-    override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
+    override var preferredStatusBarStyle: UIStatusBarStyle { SystemUIModule.statusBarStyleForHost }
 
     private func buildLynxView() -> LynxView {
         let size = fullscreenBounds().size
@@ -231,6 +234,7 @@ class ProjectViewController: UIViewController {
     private func setupLynxView() {
         let lv = buildLynxView()
         view.addSubview(lv)
+        TamerInsetsModule.attachHostView(lv)
         lv.loadTemplate(fromURL: "main.lynx.bundle", initData: nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self, weak lv] in
             guard let self, let lv else { return }
@@ -241,6 +245,7 @@ class ProjectViewController: UIViewController {
     }
 
     private func reloadLynxView() {
+        TamerInsetsModule.attachHostView(nil)
         lynxView?.removeFromSuperview()
         lynxView = nil
         setupLynxView()
@@ -669,6 +674,12 @@ post_install do |installer|
         config.build_settings['CLANG_WARN_VLA'] = 'NO'
         config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
         config.build_settings['CLANG_WARN_ENUM_CONVERSION'] = 'NO'
+      end
+    end
+    if target.name == 'PrimJS'
+      target.build_configurations.each do |config|
+        config.build_settings['OTHER_CFLAGS'] = "$(inherited) -Wno-macro-redefined"
+        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) -Wno-macro-redefined"
       end
     end
   end

@@ -127,18 +127,22 @@ const autolink = () => {
 
         const lynxVersionMatch = content.match(/pod\s+'Lynx',\s*'([^']+)'/);
         const lynxVersion = lynxVersionMatch?.[1] ?? '3.6.0';
+        const xelementBlock = `  pod 'XElement', '${lynxVersion}'\n\n  `;
 
-        const xelementLine = `\n  pod 'XElement', '${lynxVersion}'`;
-        const insertAfter = /pod\s+'LynxService'[^\n]*(?:\n\s*'[^']*',?\s*)*/;
-        const serviceMatch = content.match(insertAfter);
-        if (serviceMatch) {
-            const idx = serviceMatch.index! + serviceMatch[0].length;
-            content = content.slice(0, idx) + xelementLine + content.slice(idx);
-        } else {
+        if (content.includes('# GENERATED AUTOLINK DEPENDENCIES START')) {
             content = content.replace(
                 /(# GENERATED AUTOLINK DEPENDENCIES START)/,
-                `pod 'XElement', '${lynxVersion}'\n\n  $1`
+                `${xelementBlock}$1`
             );
+        } else {
+            const insertAfter = /pod\s+'LynxService'[^\n]*(?:\n\s*'[^']*',?\s*)*/;
+            const serviceMatch = content.match(insertAfter);
+            if (serviceMatch) {
+                const idx = serviceMatch.index! + serviceMatch[0].length;
+                content = content.slice(0, idx) + `\n  pod 'XElement', '${lynxVersion}'` + content.slice(idx);
+            } else {
+                content += `\n  pod 'XElement', '${lynxVersion}'\n`;
+            }
         }
         fs.writeFileSync(podfilePath, content, 'utf8');
         console.log(`✅ Added XElement pod (v${lynxVersion}) to Podfile`);
@@ -187,6 +191,21 @@ const autolink = () => {
             content = content.replace(
                 /(Dir\.glob.*?Lynx\/platform\/darwin)/s,
                 `${xcconfigStrip}\n  $1`
+            );
+            changed = true;
+        }
+
+        if (!content.includes("target.name == 'PrimJS'") && content.includes("target.name == 'Lynx'")) {
+            const primjsBlock = `
+    if target.name == 'PrimJS'
+      target.build_configurations.each do |config|
+        config.build_settings['OTHER_CFLAGS'] = "$(inherited) -Wno-macro-redefined"
+        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) -Wno-macro-redefined"
+      end
+    end`;
+            content = content.replace(
+                /(    end)\n(  end)\n(  Dir\.glob\(File\.join\(installer\.sandbox\.root,\s*'Target Support Files',\s*'Lynx')/,
+                `$1${primjsBlock}\n  $2\n  $3`
             );
             changed = true;
         }

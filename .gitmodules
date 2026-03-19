@@ -1,9 +1,6 @@
 [submodule "packages/jiggle"]
 	path = packages/jiggle
 	url = https://github.com/tamer4lynx/jiggle
-[submodule "packages/lynxwebsockets"]
-	path = packages/lynxwebsockets
-	url = https://github.com/tamer4lynx/lynxwebsockets
 [submodule "packages/tamer-dev-app"]
 	path = packages/tamer-dev-app
 	url = https://github.com/tamer4lynx/tamer-dev-app.git
