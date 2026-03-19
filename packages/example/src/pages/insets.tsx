@@ -27,10 +27,11 @@ export default function InsetsPage() {
         </view>
 
         <view style={{ marginTop: 20 }}>
-          <textarea
+          <input
             value={inputValue}
             placeholder="Tap here to show keyboard"
-            style={{ backgroundColor: '#222', color: '#ffffff', minHeight: 96, border: '1px solid #444', borderRadius: 12, padding: "8px" }}
+            enable-scroll-bar
+            style={{ backgroundColor: '#222', color: '#ffffff', borderRadius: '12px', border: '1px solid #444', height: '48px', padding: '8px' }}
             bindinput={(e) => setInputValue(e.detail.value)}
           />
         </view>

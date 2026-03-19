@@ -102,8 +102,9 @@ text {
 }
 
 .Title {
-  font-size: 36px;
+  font-size: 24px;
   font-weight: 700;
+  text-align: center;
 }
 
 .Subtitle {

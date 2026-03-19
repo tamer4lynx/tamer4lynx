@@ -3,7 +3,10 @@ import path from 'path';
 import { execSync } from 'child_process';
 import { getIosElements, getIosModuleClassNames } from '../common/config';
 import { discoverModules, type DiscoveredModule } from '../common/discoverModules';
+import { getDedupedAndroidModuleClassNames } from '../common/generateExtCode';
 import { resolveHostPaths, type IosUrlSchemeConfig } from '../common/hostConfig';
+import { buildHostNativeModulesManifestJson, TAMER_HOST_NATIVE_MODULES_FILENAME } from '../common/hostNativeModulesManifest';
+import { addResourceToXcodeProject } from './syncHost';
 
 const autolink = () => {
     let resolved: ReturnType<typeof resolveHostPaths>;
@@ -320,9 +323,7 @@ const autolink = () => {
         if (importPackages.length === 0) {
             const placeholder = '        // No native modules found by Tamer4Lynx autolinker.';
             updateGeneratedSection(lynxInitPath, placeholder, '// GENERATED AUTOLINK START', '// GENERATED AUTOLINK END');
-            return;
-        }
-
+        } else {
         const seenModules2 = new Set<string>();
         const seenElements2 = new Set<string>();
 
@@ -349,6 +350,21 @@ const autolink = () => {
 
         const content = blocks.join('\n\n');
         updateGeneratedSection(lynxInitPath, content, '// GENERATED AUTOLINK START', '// GENERATED AUTOLINK END');
+        }
+
+        const hasDevClient = packages.some((p) => p.name === '@tamer4lynx/tamer-dev-client');
+        const androidNames = getDedupedAndroidModuleClassNames(packages);
+        let devClientSupportedBody: string;
+        if (hasDevClient && androidNames.length > 0) {
+            devClientSupportedBody = `        DevClientModule.attachSupportedModuleClassNames([\n${androidNames.map((n) => `            "${n.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join(',\n')}\n        ])`;
+        } else if (hasDevClient) {
+            devClientSupportedBody = '        DevClientModule.attachSupportedModuleClassNames([])';
+        } else {
+            devClientSupportedBody = '        // @tamer4lynx/tamer-dev-client not linked';
+        }
+        if (fs.readFileSync(lynxInitPath, 'utf8').includes('GENERATED DEV_CLIENT_SUPPORTED START')) {
+            updateGeneratedSection(lynxInitPath, devClientSupportedBody, '// GENERATED DEV_CLIENT_SUPPORTED START', '// GENERATED DEV_CLIENT_SUPPORTED END');
+        }
     }
 
     function findInfoPlist(): string | null {
@@ -493,6 +509,7 @@ ${schemesXml}
         ensureLynxPatchInPodfile();
         ensurePodBuildSettings();
         updateLynxInitProcessor(packages);
+        writeHostNativeModulesManifest();
         syncInfoPlistPermissions(packages);
         syncInfoPlistUrlSchemes();
 
@@ -508,6 +525,23 @@ ${schemesXml}
 
         runPodInstall();
         console.log('✨ Autolinking complete for iOS.');
+    }
+
+    function writeHostNativeModulesManifest(): void {
+        const allPkgs = discoverModules(projectRoot);
+        const hasDevClient = allPkgs.some((p) => p.name === '@tamer4lynx/tamer-dev-client');
+        const appFolder = resolved.config.ios?.appName;
+        if (!hasDevClient || !appFolder) return;
+        const androidNames = getDedupedAndroidModuleClassNames(allPkgs);
+        const appDir = path.join(iosProjectPath, appFolder);
+        fs.mkdirSync(appDir, { recursive: true });
+        const manifestPath = path.join(appDir, TAMER_HOST_NATIVE_MODULES_FILENAME);
+        fs.writeFileSync(manifestPath, buildHostNativeModulesManifestJson(androidNames), 'utf8');
+        console.log(`✅ Wrote ${TAMER_HOST_NATIVE_MODULES_FILENAME} (native module ids for dev-client checks)`);
+        const pbxprojPath = path.join(iosProjectPath, `${appFolder}.xcodeproj`, 'project.pbxproj');
+        if (fs.existsSync(pbxprojPath)) {
+            addResourceToXcodeProject(pbxprojPath, appFolder, TAMER_HOST_NATIVE_MODULES_FILENAME);
+        }
     }
 
     run();

@@ -292,6 +292,7 @@ export function getProjectActivity(vars: PatchVars): string {
   const devClientImports = hasDevClient
     ? `
 import ${vars.packageName}.DevClientManager
+import com.nanofuxion.tamerdevclient.DevClientModule
 import com.nanofuxion.tamerdevclient.TamerRelogLogService`
     : "";
 
@@ -307,7 +308,7 @@ import com.nanofuxion.tamerdevclient.TamerRelogLogService`
         setContentView(nextView)
         GeneratedActivityLifecycle.onViewAttached(nextView)
         GeneratedLynxExtensions.onHostViewChanged(nextView)
-        nextView.renderTemplateUrl("main.lynx.bundle", "")
+        nextView.renderTemplateUrl("main.lynx.bundle", DevClientModule.getProjectInitDataJson(this))
         GeneratedActivityLifecycle.onCreateDelayed(handler)
     }
 `
@@ -340,7 +341,7 @@ ${devClientField}    private val handler = Handler(Looper.getMainLooper())
         setContentView(lynxView)
         GeneratedActivityLifecycle.onViewAttached(lynxView)
         GeneratedLynxExtensions.onHostViewChanged(lynxView)
-        lynxView?.renderTemplateUrl("main.lynx.bundle", "")${devClientInit}
+        lynxView?.renderTemplateUrl("main.lynx.bundle", ${hasDevClient ? "DevClientModule.getProjectInitDataJson(this)" : '""'})${devClientInit}
         GeneratedActivityLifecycle.onCreateDelayed(handler)
     }
 

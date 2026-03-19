@@ -1,18 +1,30 @@
 import { getAndroidModuleClassNames } from './config';
 import type { DiscoveredModule } from './discoverModules';
 
-export function generateLynxExtensionsKotlin(packages: DiscoveredModule[], projectPackage: string): string {
-    const modulePackages = packages.filter((p) => getAndroidModuleClassNames(p.config.android).length > 0);
-    const elementPackages = packages.filter((p) => p.config.android?.elements && Object.keys(p.config.android.elements).length > 0);
-
+export function getDedupedAndroidModuleClassNames(packages: DiscoveredModule[]): string[] {
     const seenNames = new Set<string>();
-    const allModuleClasses = modulePackages.flatMap((p) => getAndroidModuleClassNames(p.config.android))
+    return packages
+        .flatMap((p) => getAndroidModuleClassNames(p.config.android))
         .filter((fullClassName) => {
             const simple = fullClassName.split('.').pop()!;
             if (seenNames.has(simple)) return false;
             seenNames.add(simple);
             return true;
         });
+}
+
+export function generateLynxExtensionsKotlin(packages: DiscoveredModule[], projectPackage: string): string {
+    const modulePackages = packages.filter((p) => getAndroidModuleClassNames(p.config.android).length > 0);
+    const elementPackages = packages.filter((p) => p.config.android?.elements && Object.keys(p.config.android.elements).length > 0);
+
+    const allModuleClasses = getDedupedAndroidModuleClassNames(packages);
+    const hasDevClient = packages.some((p) => p.name === '@tamer4lynx/tamer-dev-client');
+    const devClientSupportedBlock =
+        hasDevClient && allModuleClasses.length > 0
+            ? `\n        com.nanofuxion.tamerdevclient.DevClientModule.attachSupportedModuleClassNames(listOf(\n${allModuleClasses.map((c) => `            "${c.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join(',\n')}\n        ))\n`
+            : hasDevClient
+              ? '\n        com.nanofuxion.tamerdevclient.DevClientModule.attachSupportedModuleClassNames(emptyList())\n'
+              : '';
     const moduleImports = allModuleClasses.map((c) => `import ${c}`).join('\n');
     const elementImports = elementPackages
         .flatMap((p) => Object.values(p.config.android!.elements!).map((cls) => `import ${cls}`))
@@ -66,7 +78,7 @@ ${elementImports}
 
 object GeneratedLynxExtensions {
     fun register(context: Context) {
-${allRegistrations}
+${allRegistrations}${devClientSupportedBlock}
     }
 
     fun configureViewBuilder(viewBuilder: LynxViewBuilder) {

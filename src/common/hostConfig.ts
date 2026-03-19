@@ -11,10 +11,35 @@ export interface HostConfigPaths {
 
 export type DevMode = 'standalone' | 'embedded' | 'off';
 
+export interface AdaptiveForegroundPadding {
+  left?: number | string;
+  top?: number | string;
+  right?: number | string;
+  bottom?: number | string;
+}
+
+export interface HostConfigIconAdaptive {
+  /** Project-relative path to foreground layer (png/webp). */
+  foreground: string;
+  /** Project-relative path to background layer (png/webp). Omit if using `backgroundColor`. */
+  background?: string;
+  /** Solid adaptive-icon background. Hex: `#RGB`, `#RRGGBB`, or `#AARRGGBB`. e.g. `"#000000"`. */
+  backgroundColor?: string;
+  /** Uniform shrink 0–1. e.g. `0.62` keeps the logo inside the safe zone. Implemented as `<layer-list>` insets. */
+  foregroundScale?: number;
+  /**
+   * Extra padding per edge. Number = % per side (e.g. `6` → 6%). String = `"8dp"` or `"10%"`.
+   * Object: `{ left, top, right, bottom }`. Combined with `foregroundScale` into `<layer-list>` insets.
+   */
+  foregroundPadding?: number | string | AdaptiveForegroundPadding;
+}
+
 export interface HostConfigIcon {
   source?: string;
   android?: string;
   ios?: string;
+  /** Android 8+ adaptive icon layers; generates mipmap-anydpi-v26 when set. */
+  androidAdaptive?: HostConfigIconAdaptive;
 }
 
 export interface DeepLinkConfig {
@@ -308,10 +333,78 @@ export function loadHostConfig(cwd: string = process.cwd()): HostConfig {
   return cfg;
 }
 
-export function resolveIconPaths(
-  projectRoot: string,
-  config: HostConfig
-): { source?: string; android?: string; ios?: string } | null {
+export type ResolvedAdaptiveForegroundLayout = {
+  scale?: number;
+  padding?: { left: string; top: string; right: string; bottom: string };
+};
+
+export type ResolvedIconPaths = {
+  source?: string;
+  android?: string;
+  ios?: string;
+  androidAdaptiveForeground?: string;
+  androidAdaptiveBackground?: string;
+  /** Normalized `#AARRGGBB` for generated `ic_launcher_background` shape drawable. */
+  androidAdaptiveBackgroundColor?: string;
+  androidAdaptiveForegroundLayout?: ResolvedAdaptiveForegroundLayout;
+};
+
+function formatAdaptiveInsetValue(v: number | string | undefined, fallback: string): string {
+  if (v === undefined) return fallback;
+  if (typeof v === 'number') {
+    if (!Number.isFinite(v) || v < 0 || v > 50) return fallback;
+    return `${v}%`;
+  }
+  const s = String(v).trim();
+  if (s.endsWith('%') || s.endsWith('dp')) return s;
+  if (/^\d+(\.\d+)?$/.test(s)) return `${s}%`;
+  return fallback;
+}
+
+export function resolveAdaptiveForegroundLayoutFromConfig(
+  ad: HostConfigIconAdaptive
+): ResolvedAdaptiveForegroundLayout | undefined {
+  const hasLayoutOpt = ad.foregroundScale != null || ad.foregroundPadding != null;
+  if (!hasLayoutOpt) return undefined;
+  let scale = ad.foregroundScale;
+  if (scale != null && typeof scale === 'number') {
+    if (!Number.isFinite(scale)) scale = undefined;
+    else scale = Math.min(1, Math.max(0.05, scale));
+  }
+  let padding: ResolvedAdaptiveForegroundLayout['padding'] | undefined;
+  if (ad.foregroundPadding != null) {
+    const pad = ad.foregroundPadding;
+    if (typeof pad === 'number' || typeof pad === 'string') {
+      const u = formatAdaptiveInsetValue(pad, '0%');
+      padding = { left: u, top: u, right: u, bottom: u };
+    } else {
+      const d = '0%';
+      padding = {
+        left: formatAdaptiveInsetValue(pad.left, d),
+        top: formatAdaptiveInsetValue(pad.top, d),
+        right: formatAdaptiveInsetValue(pad.right, d),
+        bottom: formatAdaptiveInsetValue(pad.bottom, d),
+      };
+    }
+  }
+  return { scale, padding };
+}
+
+/** Returns `#AARRGGBB` or null if invalid. */
+export function normalizeAndroidAdaptiveColor(input: string): string | null {
+  const raw = input.trim().replace(/^#/, '');
+  if (!/^[0-9a-fA-F]{3}$|^[0-9a-fA-F]{6}$|^[0-9a-fA-F]{8}$/.test(raw)) return null;
+  let h = raw;
+  if (h.length === 3) {
+    h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+  }
+  if (h.length === 6) {
+    h = 'FF' + h;
+  }
+  return `#${h.toUpperCase()}`;
+}
+
+export function resolveIconPaths(projectRoot: string, config: HostConfig): ResolvedIconPaths | null {
   const raw = config.icon;
   if (!raw) return null;
   const join = (p: string) => (path.isAbsolute(p) ? p : path.join(projectRoot, p));
@@ -319,7 +412,7 @@ export function resolveIconPaths(
     const p = join(raw);
     return fs.existsSync(p) ? { source: p } : null;
   }
-  const out: { source?: string; android?: string; ios?: string } = {};
+  const out: ResolvedIconPaths = {};
   if (raw.source) {
     const p = join(raw.source);
     if (fs.existsSync(p)) out.source = p;
@@ -331,6 +424,32 @@ export function resolveIconPaths(
   if (raw.ios) {
     const p = join(raw.ios);
     if (fs.existsSync(p)) out.ios = p;
+  }
+  const ad = raw.androidAdaptive;
+  if (ad?.foreground) {
+    const fg = join(ad.foreground);
+    if (fs.existsSync(fg)) {
+      let usedAdaptive = false;
+      if (ad.background) {
+        const bg = join(ad.background);
+        if (fs.existsSync(bg)) {
+          out.androidAdaptiveForeground = fg;
+          out.androidAdaptiveBackground = bg;
+          usedAdaptive = true;
+        }
+      }
+      if (!usedAdaptive && ad.backgroundColor) {
+        const norm = normalizeAndroidAdaptiveColor(ad.backgroundColor);
+        if (norm) {
+          out.androidAdaptiveForeground = fg;
+          out.androidAdaptiveBackgroundColor = norm;
+        }
+      }
+      if (out.androidAdaptiveForeground) {
+        const lay = resolveAdaptiveForegroundLayoutFromConfig(ad);
+        if (lay) out.androidAdaptiveForegroundLayout = lay;
+      }
+    }
   }
   return Object.keys(out).length ? out : null;
 }

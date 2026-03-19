@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from '@lynx-js/react'
 import { getItemAsync, setItemAsync } from '@tamer4lynx/tamer-secure-store'
 import { authenticateAsync, type AuthenticateResult } from '@tamer4lynx/tamer-biometric'
 
+import '../App.css'
+
 const FLAG_KEY = 'secure-number-exists'
 const NUMBER_KEY = 'secure-number'
 
@@ -84,39 +86,27 @@ export default function SecurePage() {
   }, [])
 
   return (
-    <view style={{ padding: 32, flex: 1, display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <text style={{ fontSize: 32, color: '#aaa' }}>
+    <view style={{ padding: 24, flex: 1, display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <text className="Description" style={{ marginBottom: 16 }}>
         Store a random number with biometric protection.
       </text>
 
-      {loading && (
-        <text style={{ fontSize: 32, color: '#aaa' }}>Loading...</text>
-      )}
+      {loading && <text className="Description">Loading...</text>}
       {error && (
-        <view style={{ padding: 28, backgroundColor: '#fee', borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <text style={{ fontSize: 32, color: '#c00' }}>{error}</text>
+        <view style={{ padding: 16, backgroundColor: '#fee', borderRadius: 8 }}>
+          <text className="Description" style={{ color: '#c00' }}>{error}</text>
         </view>
       )}
 
       {hasNumber === null && !loading && (
-        <text style={{ fontSize: 32, color: '#aaa' }}>Checking...</text>
+        <text className="Description">Checking...</text>
       )}
 
       {hasNumber === false && (
         <view style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <text style={{ fontSize: 32, color: '#aaa' }}>No number saved yet.</text>
-          <view
-            bindtap={handleSetNumber}
-            style={{
-              padding: 28,
-              backgroundColor: '#555',
-              borderRadius: 12,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-            }}
-          >
-            <text style={{ fontSize: 48 }}>Set random number</text>
+          <text className="Description" style={{ marginBottom: 8 }}>No number saved yet.</text>
+          <view className="Button" bindtap={handleSetNumber}>
+            <text className="ButtonText">Set random number</text>
           </view>
         </view>
       )}
@@ -125,44 +115,24 @@ export default function SecurePage() {
         <view style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <view
             style={{
-              padding: 28,
+              padding: "4px 24px",
               backgroundColor: '#555',
-              borderRadius: 12,
+              borderRadius: "8px",
               display: 'flex',
               flexDirection: 'column',
-              gap: 8,
               justifyContent: 'center',
+              height: "48px",
             }}
           >
-            <text style={{ fontSize: 48 }}>
+            <text className="Title">
               {displayValue ?? '••••••'}
             </text>
           </view>
-          <view
-            bindtap={handleViewNumber}
-            style={{
-              padding: 28,
-              backgroundColor: '#555',
-              borderRadius: 12,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-            }}
-          >
-            <text style={{ fontSize: 48 }}>View number</text>
+          <view className="Button" bindtap={handleViewNumber}>
+            <text className="ButtonText">View number</text>
           </view>
-          <view
-            bindtap={handleChangeNumber}
-            style={{
-              padding: 28,
-              backgroundColor: '#555',
-              borderRadius: 12,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 8,
-            }}
-          >
-            <text style={{ fontSize: 48 }}>Change number</text>
+          <view className="Button" bindtap={handleChangeNumber}>
+            <text className="ButtonText">Change number</text>
           </view>
         </view>
       )}

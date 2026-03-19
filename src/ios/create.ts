@@ -4,6 +4,7 @@ import { execSync } from "child_process";
 import { setupCocoaPods } from "./getPod";
 import { randomBytes } from "crypto";
 import { loadHostConfig, resolveIconPaths, findTamerHostPackage } from "../common/hostConfig";
+import { applyIosAppIconAssets } from "../common/syncAppIcons";
 
 function readAndSubstituteTemplate(templatePath: string, vars: Record<string, string>): string {
 	const raw = fs.readFileSync(templatePath, "utf-8");
@@ -413,26 +414,8 @@ final class LynxInitProcessor {
 	const appIconDir = path.join(projectDir, "Assets.xcassets", "AppIcon.appiconset");
 	fs.mkdirSync(appIconDir, { recursive: true });
 	const iconPaths = resolveIconPaths(process.cwd(), config);
-	if (iconPaths?.ios) {
-		const entries = fs.readdirSync(iconPaths.ios, { withFileTypes: true });
-		for (const e of entries) {
-			const dest = path.join(appIconDir, e.name);
-			if (e.isDirectory()) {
-				fs.cpSync(path.join(iconPaths.ios!, e.name), dest, { recursive: true });
-			} else {
-				fs.copyFileSync(path.join(iconPaths.ios!, e.name), dest);
-			}
-		}
-		console.log("✅ Copied iOS icon from tamer.config.json icon.ios");
-	} else if (iconPaths?.source) {
-		const ext = path.extname(iconPaths.source) || ".png";
-		const icon1024 = `Icon-1024${ext}`;
-		fs.copyFileSync(iconPaths.source, path.join(appIconDir, icon1024));
-		writeFile(path.join(appIconDir, "Contents.json"), JSON.stringify({
-			images: [{ filename: icon1024, idiom: "universal", platform: "ios", size: "1024x1024" }],
-			info: { author: "xcode", version: 1 }
-		}, null, 2));
-		console.log("✅ Copied app icon from tamer.config.json icon.source");
+	if (applyIosAppIconAssets(appIconDir, iconPaths)) {
+		console.log(iconPaths?.ios ? "✅ Copied iOS icon from tamer.config.json icon.ios" : "✅ Copied app icon from tamer.config.json icon.source");
 	} else {
 		writeFile(path.join(appIconDir, "Contents.json"), `
 {

@@ -66,6 +66,29 @@ async function init() {
     const configPath = path.join(process.cwd(), "tamer.config.json");
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
     console.log(`\n✅ Generated tamer.config.json at ${configPath}`);
+
+    const tamerTypesInclude = "node_modules/@tamer4lynx/tamer-*/src/**/*.d.ts";
+    const tsconfigCandidates = lynxProject
+        ? [path.join(process.cwd(), lynxProject, "tsconfig.json"), path.join(process.cwd(), "tsconfig.json")]
+        : [path.join(process.cwd(), "tsconfig.json")];
+    for (const tsconfigPath of tsconfigCandidates) {
+        if (!fs.existsSync(tsconfigPath)) continue;
+        try {
+            const raw = fs.readFileSync(tsconfigPath, "utf-8");
+            const tsconfig = JSON.parse(raw) as { include?: string | string[] };
+            const include = tsconfig.include ?? [];
+            const arr = Array.isArray(include) ? include : [include];
+            if (arr.some((p) => (typeof p === "string" ? p : "").includes("tamer-"))) continue;
+            arr.push(tamerTypesInclude);
+            tsconfig.include = arr;
+            fs.writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2));
+            console.log(`✅ Updated ${path.relative(process.cwd(), tsconfigPath)} to include tamer type declarations`);
+            break;
+        } catch (e) {
+            console.warn(`⚠ Could not update ${tsconfigPath}:`, (e as Error).message);
+        }
+    }
+
     rl.close();
 }
 

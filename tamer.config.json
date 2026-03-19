@@ -9,7 +9,14 @@
     "bundleId": "com.nanofuxion.MyApp"
   },
   "icon": {
-    "source": "assets/icon.png"
+    "source": "packages/example/src/assets/tamer-logo.png",
+    "androidAdaptive": {
+      "foreground": "packages/example/src/assets/tamer-logo.png",
+      "backgroundColor": "#000000",
+      "foregroundFit": "contain",
+      "foregroundScale": 0.62,
+      "foregroundPadding": 6
+    }
   },
   "lynxProject": "packages/example",
   "paths": {

@@ -235,7 +235,7 @@ class ProjectViewController: UIViewController {
         let lv = buildLynxView()
         view.addSubview(lv)
         TamerInsetsModule.attachHostView(lv)
-        lv.loadTemplate(fromURL: "main.lynx.bundle", initData: nil)
+        lv.loadTemplate(fromURL: "main.lynx.bundle", initData: DevServerPrefs.getProjectInitTemplateData())
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self, weak lv] in
             guard let self, let lv else { return }
             self.logViewport("project post-load", lynxView: lv)

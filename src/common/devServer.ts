@@ -10,6 +10,52 @@ import { resolveHostPaths, resolveIconPaths } from './hostConfig';
 
 const DEFAULT_PORT = 3000;
 
+const STATIC_MIME: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.ico': 'image/x-icon',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.pdf': 'application/pdf',
+};
+
+function sendFileFromDisk(res: http.ServerResponse, absPath: string) {
+  fs.readFile(absPath, (err, data) => {
+    if (err) {
+      res.writeHead(404);
+      res.end('Not found');
+      return;
+    }
+    const ext = path.extname(absPath).toLowerCase();
+    res.setHeader('Content-Type', STATIC_MIME[ext] ?? 'application/octet-stream');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.end(data);
+  });
+}
+
+function isPortInUse(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = http.createServer();
+    server.once('error', (err: NodeJS.ErrnoException) => {
+      resolve(err.code === 'EADDRINUSE');
+    });
+    server.once('listening', () => {
+      server.close(() => resolve(false));
+    });
+    server.listen(port, '127.0.0.1');
+  });
+}
+
+async function findAvailablePort(preferred: number, maxAttempts = 10): Promise<number> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const port = preferred + i;
+    if (!(await isPortInUse(port))) return port;
+  }
+  throw new Error(`No available port in range ${preferred}-${preferred + maxAttempts - 1}`);
+}
+
 function getLanIp(): string {
   const nets = os.networkInterfaces();
   for (const name of Object.keys(nets)) {
@@ -27,7 +73,6 @@ async function startDevServer(opts?: { verbose?: boolean }) {
   const resolved = resolveHostPaths();
   const { projectRoot, lynxProjectDir, lynxBundlePath, lynxBundleFile, config } = resolved;
   const distDir = path.dirname(lynxBundlePath);
-  const port = config.devServer?.port ?? config.devServer?.httpPort ?? DEFAULT_PORT;
 
   let buildProcess: ReturnType<typeof spawn> | null = null;
 
@@ -56,12 +101,20 @@ async function startDevServer(opts?: { verbose?: boolean }) {
     });
   }
 
+  const preferredPort = config.devServer?.port ?? config.devServer?.httpPort ?? DEFAULT_PORT;
+  const port = await findAvailablePort(preferredPort);
+  if (port !== preferredPort) {
+    console.log(`\x1b[33m⚠ Port ${preferredPort} in use, using ${port}\x1b[0m`);
+  }
+
   const projectName = path.basename(lynxProjectDir);
   const basePath = `/${projectName}`;
   const iconPaths = resolveIconPaths(projectRoot, config);
   let iconFilePath: string | null = null;
   if (iconPaths?.source && fs.statSync(iconPaths.source).isFile()) {
     iconFilePath = iconPaths.source;
+  } else if (iconPaths?.androidAdaptiveForeground && fs.statSync(iconPaths.androidAdaptiveForeground).isFile()) {
+    iconFilePath = iconPaths.androidAdaptiveForeground;
   } else if (iconPaths?.android) {
     const androidIcon = path.join(iconPaths.android, 'mipmap-xxxhdpi', 'ic_launcher.png');
     if (fs.existsSync(androidIcon)) iconFilePath = androidIcon;
@@ -70,14 +123,6 @@ async function startDevServer(opts?: { verbose?: boolean }) {
     if (fs.existsSync(iosIcon)) iconFilePath = iosIcon;
   }
   const iconExt = iconFilePath ? path.extname(iconFilePath) || '.png' : '';
-  const iconMime: Record<string, string> = {
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.webp': 'image/webp',
-    '.ico': 'image/x-icon',
-  };
-
   const httpServer = http.createServer((req, res) => {
     let reqPath = (req.url || '/').split('?')[0];
     if (reqPath === `${basePath}/status`) {
@@ -89,6 +134,11 @@ async function startDevServer(opts?: { verbose?: boolean }) {
     if (reqPath === `${basePath}/meta.json`) {
       const lanIp = getLanIp();
       const nativeModules = discoverNativeExtensions(projectRoot);
+      const androidPackageName = config.android?.packageName?.trim();
+      const iosBundleId = config.ios?.bundleId?.trim();
+      const idParts = [androidPackageName?.toLowerCase(), iosBundleId?.toLowerCase()].filter(
+        (x): x is string => Boolean(x)
+      );
       const meta: Record<string, unknown> = {
         name: projectName,
         slug: projectName,
@@ -100,6 +150,15 @@ async function startDevServer(opts?: { verbose?: boolean }) {
         packagerStatus: 'running',
         nativeModules: nativeModules.map((m) => ({ packageName: m.packageName, moduleClassName: m.moduleClassName })),
       };
+      if (androidPackageName) meta.androidPackageName = androidPackageName;
+      if (iosBundleId) meta.iosBundleId = iosBundleId;
+      if (idParts.length > 0) meta.tamerAppKey = idParts.join('|');
+      const rawIcon = config.icon;
+      if (rawIcon && typeof rawIcon === 'object' && 'source' in rawIcon && typeof (rawIcon as { source?: string }).source === 'string') {
+        meta.iconSource = (rawIcon as { source: string }).source;
+      } else if (typeof rawIcon === 'string') {
+        meta.iconSource = rawIcon;
+      }
       if (iconFilePath) {
         meta.icon = `http://${lanIp}:${port}${basePath}/icon${iconExt}`;
       }
@@ -115,10 +174,45 @@ async function startDevServer(opts?: { verbose?: boolean }) {
           res.end();
           return;
         }
-        res.setHeader('Content-Type', iconMime[iconExt] ?? 'image/png');
+        res.setHeader('Content-Type', STATIC_MIME[iconExt] ?? 'image/png');
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.end(data);
       });
+      return;
+    }
+    const lynxStaticMounts: { prefix: string; rootSub: string }[] = [
+      { prefix: `${basePath}/src/assets/`, rootSub: 'src/assets' },
+      { prefix: `${basePath}/assets/`, rootSub: 'assets' },
+    ];
+    for (const { prefix, rootSub } of lynxStaticMounts) {
+      if (!reqPath.startsWith(prefix)) continue;
+      let rel = reqPath.slice(prefix.length);
+      try {
+        rel = decodeURIComponent(rel);
+      } catch {
+        res.writeHead(400);
+        res.end();
+        return;
+      }
+      const safe = path.normalize(rel).replace(/^(\.\.(\/|\\|$))+/, '');
+      if (path.isAbsolute(safe) || safe.startsWith('..')) {
+        res.writeHead(403);
+        res.end();
+        return;
+      }
+      const allowedRoot = path.resolve(lynxProjectDir, rootSub);
+      const abs = path.resolve(allowedRoot, safe);
+      if (!abs.startsWith(allowedRoot + path.sep) && abs !== allowedRoot) {
+        res.writeHead(403);
+        res.end();
+        return;
+      }
+      if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) {
+        res.writeHead(404);
+        res.end('Not found');
+        return;
+      }
+      sendFileFromDisk(res, abs);
       return;
     }
     if (reqPath === '/' || reqPath === basePath || reqPath === `${basePath}/`) {

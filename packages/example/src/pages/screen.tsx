@@ -61,11 +61,11 @@ export default function ScreenPage() {
 
       <AvoidKeyboard behavior="padding">
         <view style={{ display: 'flex', flexDirection: 'column', flexShrink: 0, paddingLeft: '16px', paddingRight: '16px', paddingTop: '12px', paddingBottom: '12px', backgroundColor: '#1a1a1a', borderTop: '1px solid #333' }}>
-          <textarea
+          <input
             value={inputValue}
             placeholder="Type to test AvoidKeyboard..."
             enable-scroll-bar
-            style={{ backgroundColor: '#222', color: '#ffffff', borderRadius: '12px', border: '1px solid #444', minHeight: MIN_INPUT_HEIGHT, maxHeight: MAX_INPUT_HEIGHT, padding: '8px' }}
+            style={{ backgroundColor: '#222', color: '#ffffff', borderRadius: '12px', border: '1px solid #444', height: '48px', padding: '8px' }}
             bindinput={(e) => {
               'background only'
               setInputValue(e.detail.value)

@@ -1,7 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
-import { resolveHostPaths, findDevClientPackage } from '../common/hostConfig';
+import { resolveHostPaths, findDevClientPackage, resolveIconPaths } from '../common/hostConfig';
+import { applyIosAppIconAssets } from '../common/syncAppIcons';
 import { copyDistAssets } from '../common/copyDistAssets';
 import ios_autolink from './autolink';
 import syncHostIos, { addResourceToXcodeProject } from './syncHost';
@@ -29,6 +30,14 @@ function bundleAndDeploy(opts: { release?: boolean } = {}) {
 
     syncHostIos({ release, includeDevClient });
     ios_autolink();
+
+    const iconPaths = resolveIconPaths(resolved.projectRoot, resolved.config);
+    if (iconPaths) {
+        const appIconDir = path.join(destinationDir, 'Assets.xcassets', 'AppIcon.appiconset');
+        if (applyIosAppIconAssets(appIconDir, iconPaths)) {
+            console.log('✅ Synced iOS AppIcon from tamer.config.json');
+        }
+    }
 
     try {
         console.log('📦 Building Lynx bundle...');

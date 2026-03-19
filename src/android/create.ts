@@ -3,6 +3,7 @@ import path from "path";
 import os from "os";
 import { setupGradleWrapper } from "./getGradle";
 import { loadHostConfig, resolveAbiFilters, resolveDevMode, resolveHostPaths, resolveIconPaths, findTamerHostPackage, findDevClientPackage, findDevAppPackage, findRepoRoot } from "../common/hostConfig";
+import { applyAndroidLauncherIcons } from "../common/syncAppIcons";
 import {
   fetchAndPatchApplication,
   fetchAndPatchTemplateProvider,
@@ -453,27 +454,17 @@ object GeneratedLynxExtensions {
 
     if (iconPaths) {
       const resDir = path.join(mainDir, "res");
-      if (iconPaths.android) {
-        const src = iconPaths.android;
-        const entries = fs.readdirSync(src, { withFileTypes: true });
-        for (const e of entries) {
-          const dest = path.join(resDir, e.name);
-          if (e.isDirectory()) {
-            fs.cpSync(path.join(src, e.name), dest, { recursive: true });
-          } else {
-            fs.mkdirSync(resDir, { recursive: true });
-            fs.copyFileSync(path.join(src, e.name), dest);
-          }
+      if (applyAndroidLauncherIcons(resDir, iconPaths)) {
+        if (
+          iconPaths.androidAdaptiveForeground &&
+          (iconPaths.androidAdaptiveBackground || iconPaths.androidAdaptiveBackgroundColor)
+        ) {
+          console.log("✅ Android adaptive launcher from tamer.config.json icon.androidAdaptive");
+        } else if (iconPaths.android) {
+          console.log("✅ Copied Android icon from tamer.config.json icon.android");
+        } else if (iconPaths.source) {
+          console.log("✅ Copied app icon from tamer.config.json icon.source");
         }
-        console.log("✅ Copied Android icon from tamer.config.json icon.android");
-      } else if (iconPaths.source) {
-        const mipmapDensities = ["mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"];
-        for (const d of mipmapDensities) {
-          const dir = path.join(resDir, `mipmap-${d}`);
-          fs.mkdirSync(dir, { recursive: true });
-          fs.copyFileSync(iconPaths.source, path.join(dir, "ic_launcher.png"));
-        }
-        console.log("✅ Copied app icon from tamer.config.json icon.source");
       }
     }
 

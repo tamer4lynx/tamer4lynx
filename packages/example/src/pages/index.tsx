@@ -70,6 +70,9 @@ export default function Home() {
           <view className="Button" style={{ flex: "45%", maxWidth: "50%" }} bindtap={() => push('/native')}>
             <text className="ButtonText">Native Tests</text>
           </view>
+          <view className="Button" style={{ flex: "45%", maxWidth: "50%" }} bindtap={() => push('/native/storage')}>
+            <text className="ButtonText">Storage</text>
+          </view>
           <view className="Button" style={{ flex: "45%", display: 'flex', backgroundColor: '#dd7777', flexDirection: 'row', gap: 16, justifyContent: 'center', alignItems: 'center' }}>
             <Icon name="search" set="material" size={20} color="#ffffff" />
             <Icon name="home" set="material" size={20} color="#fff" />

@@ -2,7 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 import { copyDistAssets } from '../common/copyDistAssets';
-import { resolveHostPaths, findDevClientPackage } from '../common/hostConfig';
+import { resolveHostPaths, findDevClientPackage, resolveIconPaths } from '../common/hostConfig';
+import { applyAndroidLauncherIcons, ensureAndroidManifestLauncherIcon } from '../common/syncAppIcons';
 import android_autolink from './autolink';
 import android_syncDevClient from './syncDevClient';
 
@@ -24,18 +25,22 @@ async function bundleAndDeploy(opts: { release?: boolean } = {}) {
     android_autolink({ includeDevClient });
     await android_syncDevClient({ includeDevClient });
 
-    const bundleExists = fs.existsSync(lynxBundlePath);
-    if (!bundleExists) {
-        try {
-            console.log('📦 Building Lynx bundle...');
-            execSync('npm run build', { stdio: 'inherit', cwd: lynxProjectDir });
-            console.log('✅ Build completed successfully.');
-        } catch (error) {
-            console.error('❌ Build process failed.');
-            process.exit(1);
+    const iconPaths = resolveIconPaths(projectRoot, resolved.config);
+    if (iconPaths) {
+        const resDir = path.join(resolved.androidAppDir, 'src', 'main', 'res');
+        if (applyAndroidLauncherIcons(resDir, iconPaths)) {
+            console.log('✅ Synced Android launcher icon(s) from tamer.config.json');
+            ensureAndroidManifestLauncherIcon(path.join(resolved.androidAppDir, 'src', 'main', 'AndroidManifest.xml'));
         }
-    } else {
-        console.log('📦 Using pre-built Lynx bundle.');
+    }
+
+    try {
+        console.log('📦 Building Lynx bundle...');
+        execSync('npm run build', { stdio: 'inherit', cwd: lynxProjectDir });
+        console.log('✅ Build completed successfully.');
+    } catch (error) {
+        console.error('❌ Build process failed.');
+        process.exit(1);
     }
 
     if (includeDevClient && devClientBundlePath && !fs.existsSync(devClientBundlePath)) {
