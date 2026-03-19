@@ -8,6 +8,7 @@ ReactLynx app built with Tamer4Lynx. Includes HMR, WebSocket support via tamer-t
 
 ```bash
 npm install
+# or: pnpm install | bun install
 npm run build        # build t4l CLI
 t4l android create  # one-time
 t4l start           # dev server with HMR + WebSocket
@@ -26,7 +27,9 @@ Create a new Lynx project and add packages from npm:
 ```bash
 pnpm create rspeedy
 cd my-app
-pnpm add @tamer4lynx/tamer-transports @tamer4lynx/jiggle
+pnpm add @tamer4lynx/tamer-transports@prerelease @tamer4lynx/jiggle@prerelease
+# or: npm i @tamer4lynx/tamer-transports@prerelease @tamer4lynx/jiggle@prerelease
+# or: bun add @tamer4lynx/tamer-transports@prerelease @tamer4lynx/jiggle@prerelease
 t4l init
 t4l start
 ```

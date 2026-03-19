@@ -1,8 +1,13 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { execSync } from 'child_process';
 import { resolveHostPaths } from '../common/hostConfig';
 import ios_bundle from './bundle';
+
+function hostArch(): string {
+    return os.arch() === 'arm64' ? 'arm64' : 'x86_64';
+}
 
 function findBootedSimulator(): string | null {
     try {
@@ -38,9 +43,17 @@ async function buildIpa(opts: { install?: boolean; release?: boolean } = {}) {
     const derivedDataPath = path.join(iosDir, 'build');
 
     const sdk = opts.install ? 'iphonesimulator' : 'iphoneos';
+    const signingArgs = opts.install ? '' : ' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO';
+
+    const archFlag = opts.install ? `-arch ${hostArch()} ` : '';
+    const extraSettings = [
+        'ONLY_ACTIVE_ARCH=YES',
+        'CLANG_ENABLE_EXPLICIT_MODULES=NO',
+    ].join(' ');
+
     console.log(`\n🔨 Building ${configuration} (${sdk})...`);
     execSync(
-        `xcodebuild ${flag} "${xcproject}" -scheme "${scheme}" -configuration ${configuration} -sdk ${sdk} -derivedDataPath "${derivedDataPath}"`,
+        `xcodebuild ${flag} "${xcproject}" -scheme "${scheme}" -configuration ${configuration} -sdk ${sdk} ${archFlag}-derivedDataPath "${derivedDataPath}" ${extraSettings}${signingArgs}`,
         { stdio: 'inherit', cwd: iosDir }
     );
     console.log(`✅ Build completed.`);

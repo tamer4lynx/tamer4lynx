@@ -244,7 +244,7 @@ program
 
 program
     .command('add-core')
-    .description('Add core packages (app-shell, screen, router, insets, transports, text-input, system-ui, icons)')
+    .description('Add core packages (app-shell, screen, router, insets, transports, input/text-input, system-ui, icons)')
     .action(() => addCore());
 
 program

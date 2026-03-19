@@ -44,10 +44,18 @@ export async function setupCocoaPods(rootDir: string): Promise<void> {
         }
 
         console.log(`🚀 Executing pod install in: ${rootDir}`);
-        execSync(`pod install`, {
-            cwd: rootDir,
-            stdio: "inherit",
-        });
+        try {
+            execSync('pod install', {
+                cwd: rootDir,
+                stdio: 'inherit',
+            });
+        } catch {
+            console.log('ℹ️ Retrying CocoaPods install with repo update...');
+            execSync('pod install --repo-update', {
+                cwd: rootDir,
+                stdio: 'inherit',
+            });
+        }
 
         console.log("✅ CocoaPods dependencies installed successfully.");
     } catch (err: any) {

@@ -403,6 +403,7 @@ ${reloadMethod}
     private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
         viewBuilder.setTemplateProvider(TemplateProvider(this))
+        GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
     }
 }
@@ -591,6 +592,7 @@ ${devClientField}    private var lynxView: LynxView? = null${!hasDevClient ? '\n
     private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
         viewBuilder.setTemplateProvider(TemplateProvider(this))
+        GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
     }${standaloneLifecycle}${devClientCleanup}
 }

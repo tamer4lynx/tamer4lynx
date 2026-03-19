@@ -643,7 +643,9 @@ post_install do |installer|
     target.build_configurations.each do |config|
       config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+      config.build_settings['CLANG_ENABLE_EXPLICIT_MODULES'] = 'NO'
       config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
+      config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
     end
 
     if target.name == 'Lynx'
@@ -658,7 +660,8 @@ post_install do |installer|
           '-Wno-macro-redefined',
           '-Wno-enum-compare',
           '-Wno-enum-compare-conditional',
-          '-Wno-enum-conversion'
+          '-Wno-enum-conversion',
+          '-Wno-error'
         ].join(' ')
 
         config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) #{flags}"
@@ -668,6 +671,19 @@ post_install do |installer|
         config.build_settings['CLANG_WARN_ENUM_CONVERSION'] = 'NO'
       end
     end
+  end
+  Dir.glob(File.join(installer.sandbox.root, 'Target Support Files', 'Lynx', '*.xcconfig')).each do |xcconfig_path|
+    next unless File.file?(xcconfig_path)
+    content = File.read(xcconfig_path)
+    next unless content.include?('-Werror')
+    File.write(xcconfig_path, content.gsub('-Werror', ''))
+  end
+  Dir.glob(File.join(installer.sandbox.root, 'Lynx/platform/darwin/**/*.{m,mm}')).each do |lynx_source|
+    next unless File.file?(lynx_source)
+    content = File.read(lynx_source)
+    next unless content.match?(/\\btypeof\\(/)
+    File.chmod(0644, lynx_source) rescue nil
+    File.write(lynx_source, content.gsub(/\\btypeof\\(/, '__typeof__('))
   end
 end
 `;

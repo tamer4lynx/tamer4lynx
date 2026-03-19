@@ -14,6 +14,10 @@ const CORE_PACKAGES = [
   '@tamer4lynx/tamer-icons',
 ];
 
+const PACKAGE_ALIASES: Record<string, string> = {
+  input: '@tamer4lynx/tamer-text-input',
+};
+
 function detectPackageManager(cwd: string): 'npm' | 'pnpm' | 'bun' {
   const dir = path.resolve(cwd);
   if (fs.existsSync(path.join(dir, 'pnpm-lock.yaml'))) return 'pnpm';
@@ -46,9 +50,10 @@ export function add(packages: string[] = []) {
   }
   const { lynxProjectDir } = resolveHostPaths();
   const pm = detectPackageManager(lynxProjectDir);
-  const normalized = list.map((p) =>
-    p.startsWith('@') ? p : `@tamer4lynx/${p}`
-  );
+  const normalized = list.map((p) => {
+    if (p.startsWith('@')) return p;
+    return PACKAGE_ALIASES[p] ?? `@tamer4lynx/${p}`;
+  });
   console.log(`Adding ${normalized.join(', ')} to ${lynxProjectDir} (using ${pm})...`);
   runInstall(lynxProjectDir, normalized, pm);
   console.log('✅ Packages installed. Run `t4l link` to link native modules.');

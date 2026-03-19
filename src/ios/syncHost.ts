@@ -91,7 +91,7 @@ export function addSwiftSourceToXcodeProject(pbxprojPath: string, appName: strin
     let content = fs.readFileSync(pbxprojPath, 'utf8');
 
     const escaped = filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    if (new RegExp(`path = ${escaped};`).test(content)) return;
+    if (new RegExp(`path = "?${escaped}"?;`).test(content)) return;
 
     const fileRefUUID = deterministicUUID(`fileRef:${appName}:${filename}`);
     const buildFileUUID = deterministicUUID(`buildFile:${appName}:${filename}`);
@@ -124,7 +124,7 @@ export function addResourceToXcodeProject(pbxprojPath: string, appName: string, 
     let content = fs.readFileSync(pbxprojPath, 'utf8');
 
     const escaped = filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    if (new RegExp(`path = ${escaped};`).test(content)) return;
+    if (new RegExp(`path = "?${escaped}"?;`).test(content)) return;
 
     const fileRefUUID = deterministicUUID(`fileRef:${appName}:${filename}`);
     const buildFileUUID = deterministicUUID(`buildFile:${appName}:${filename}`);

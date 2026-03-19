@@ -8,17 +8,12 @@ Inspired by [Expo](https://expo.dev) and [Expo Go](https://expo.dev/go).
 
 ## Installation
 
-All Tamer packages are published under the `@tamer4lynx` scope on npm. Install the CLI globally:
+All Tamer packages are published under the `@tamer4lynx` scope on npm. Install the CLI globally (use `@prerelease` for latest):
 
 ```bash
-npm i -g @tamer4lynx/cli
-```
-
-With pnpm or Bun:
-
-```bash
-pnpm add -g @tamer4lynx/cli
-bun add -g @tamer4lynx/cli
+npm i -g @tamer4lynx/cli@prerelease
+pnpm add -g @tamer4lynx/cli@prerelease
+bun add -g @tamer4lynx/cli@prerelease
 ```
 
 Or from GitHub (run `npm uninstall -g @tamer4lynx/cli` first if switching):
@@ -175,7 +170,7 @@ Builds your app. Dev client (QR scan, HMR) is included when you use **debug** (`
 | Command | Flags | Description |
 |---------|-------|-------------|
 | `t4l add [packages...]` | — | Add @tamer4lynx packages. Future: version tracking (Expo-style). |
-| `t4l add-core` | — | Add core packages (app-shell, screen, router, insets, transports, text-input, system-ui, icons). |
+| `t4l add-core` | — | Add core packages (app-shell, screen, router, insets, transports, input, system-ui, icons). |
 | `t4l start` | `-v, --verbose` | Dev server with HMR. `--verbose` shows native + JS logs. |
 | `t4l link` | `-i, --ios`, `-a, --android`, `-s, --silent` | Link modules. `--ios`/`--android` limit to one platform. `--silent` for CI/postinstall. |
 | `t4l autolink-toggle` | — | Toggle `autolink` in tamer.config.json (postinstall linking). |
@@ -266,29 +261,29 @@ Extensions are discovered via **lynx.ext.json** (RFC standard) or **tamer.json**
 
 ## Native Module References
 
-Install from npm and run `t4l link` after adding to your app:
+Install from npm (use `@prerelease` for latest) and run `t4l link` after adding to your app. Also: `pnpm add @tamer4lynx/<pkg>@prerelease` | `bun add @tamer4lynx/<pkg>@prerelease`
 
 | Package | Install | Description |
 |---------|---------|-------------|
-| [@tamer4lynx/jiggle](https://www.npmjs.com/package/@tamer4lynx/jiggle) | `npm i @tamer4lynx/jiggle` | Vibration/haptic |
-| [@tamer4lynx/lynxwebsockets](https://www.npmjs.com/package/@tamer4lynx/lynxwebsockets) | `npm i @tamer4lynx/lynxwebsockets` | WebSocket native bridge |
-| [@tamer4lynx/tamer-host](https://www.npmjs.com/package/@tamer4lynx/tamer-host) | `npm i @tamer4lynx/tamer-host` | Production Lynx host templates |
-| [@tamer4lynx/tamer-dev-client](https://www.npmjs.com/package/@tamer4lynx/tamer-dev-client) | `npm i @tamer4lynx/tamer-dev-client` | Dev launcher UI (QR scan, HMR). Add to your app and build with `-d` for a dev build; `-r` omits it. |
+| [@tamer4lynx/jiggle](https://www.npmjs.com/package/@tamer4lynx/jiggle) | `npm i @tamer4lynx/jiggle@prerelease` | Vibration/haptic |
+| [@tamer4lynx/lynxwebsockets](https://www.npmjs.com/package/@tamer4lynx/lynxwebsockets) | `npm i @tamer4lynx/lynxwebsockets@prerelease` | WebSocket native bridge |
+| [@tamer4lynx/tamer-host](https://www.npmjs.com/package/@tamer4lynx/tamer-host) | `npm i @tamer4lynx/tamer-host@prerelease` | Production Lynx host templates |
+| [@tamer4lynx/tamer-dev-client](https://www.npmjs.com/package/@tamer4lynx/tamer-dev-client) | `npm i @tamer4lynx/tamer-dev-client@prerelease` | Dev launcher UI (QR scan, HMR). Add to your app and build with `-d` for a dev build; `-r` omits it. |
 | [@tamer4lynx/tamer-dev-app](https://www.npmjs.com/package/@tamer4lynx/tamer-dev-app) | workspace / npm | Standalone dev app (store build). Your app can use tamer-dev-client for dev builds instead. |
-| [@tamer4lynx/tamer-plugin](https://www.npmjs.com/package/@tamer4lynx/tamer-plugin) | `npm i @tamer4lynx/tamer-plugin` | Rsbuild plugin middleman |
-| [@tamer4lynx/tamer-router](https://www.npmjs.com/package/@tamer4lynx/tamer-router) | `npm i @tamer4lynx/tamer-router` | File-based routing, Stack/Tabs |
-| [@tamer4lynx/tamer-icons](https://www.npmjs.com/package/@tamer4lynx/tamer-icons) | `npm i @tamer4lynx/tamer-icons` | Icon fonts (Material, Font Awesome) |
-| [@tamer4lynx/tamer-insets](https://www.npmjs.com/package/@tamer4lynx/tamer-insets) | `npm i @tamer4lynx/tamer-insets` | System insets, keyboard state |
-| [@tamer4lynx/tamer-system-ui](https://www.npmjs.com/package/@tamer4lynx/tamer-system-ui) | `npm i @tamer4lynx/tamer-system-ui` | Status bar, navigation bar |
-| [@tamer4lynx/tamer-app-shell](https://www.npmjs.com/package/@tamer4lynx/tamer-app-shell) | `npm i @tamer4lynx/tamer-app-shell` | AppBar, TabBar, Content layout |
-| [@tamer4lynx/tamer-text-input](https://www.npmjs.com/package/@tamer4lynx/tamer-text-input) | `npm i @tamer4lynx/tamer-text-input` | React TextInput |
-| [@tamer4lynx/tamer-auth](https://www.npmjs.com/package/@tamer4lynx/tamer-auth) | `npm i @tamer4lynx/tamer-auth` | OAuth 2.0 / OIDC |
-| [@tamer4lynx/tamer-biometric](https://www.npmjs.com/package/@tamer4lynx/tamer-biometric) | `npm i @tamer4lynx/tamer-biometric` | Fingerprint, Face ID |
-| [@tamer4lynx/tamer-display-browser](https://www.npmjs.com/package/@tamer4lynx/tamer-display-browser) | `npm i @tamer4lynx/tamer-display-browser` | Open URLs in system browser |
-| [@tamer4lynx/tamer-linking](https://www.npmjs.com/package/@tamer4lynx/tamer-linking) | `npm i @tamer4lynx/tamer-linking` | Deep linking |
-| [@tamer4lynx/tamer-screen](https://www.npmjs.com/package/@tamer4lynx/tamer-screen) | `npm i @tamer4lynx/tamer-screen` | SafeArea, Screen, AvoidKeyboard |
-| [@tamer4lynx/tamer-secure-store](https://www.npmjs.com/package/@tamer4lynx/tamer-secure-store) | `npm i @tamer4lynx/tamer-secure-store` | Secure key-value storage |
-| [@tamer4lynx/tamer-transports](https://www.npmjs.com/package/@tamer4lynx/tamer-transports) | `npm i @tamer4lynx/tamer-transports` | Fetch, WebSocket, EventSource polyfills |
+| [@tamer4lynx/tamer-plugin](https://www.npmjs.com/package/@tamer4lynx/tamer-plugin) | `npm i @tamer4lynx/tamer-plugin@prerelease` | Rsbuild plugin middleman |
+| [@tamer4lynx/tamer-router](https://www.npmjs.com/package/@tamer4lynx/tamer-router) | `npm i @tamer4lynx/tamer-router@prerelease` | File-based routing, Stack/Tabs |
+| [@tamer4lynx/tamer-icons](https://www.npmjs.com/package/@tamer4lynx/tamer-icons) | `npm i @tamer4lynx/tamer-icons@prerelease` | Icon fonts (Material, Font Awesome) |
+| [@tamer4lynx/tamer-insets](https://www.npmjs.com/package/@tamer4lynx/tamer-insets) | `npm i @tamer4lynx/tamer-insets@prerelease` | System insets, keyboard state |
+| [@tamer4lynx/tamer-system-ui](https://www.npmjs.com/package/@tamer4lynx/tamer-system-ui) | `npm i @tamer4lynx/tamer-system-ui@prerelease` | Status bar, navigation bar |
+| [@tamer4lynx/tamer-app-shell](https://www.npmjs.com/package/@tamer4lynx/tamer-app-shell) | `npm i @tamer4lynx/tamer-app-shell@prerelease` | AppBar, TabBar, Content layout |
+| [@tamer4lynx/tamer-text-input](https://www.npmjs.com/package/@tamer4lynx/tamer-text-input) | `npm i @tamer4lynx/tamer-text-input@prerelease` | React TextInput |
+| [@tamer4lynx/tamer-auth](https://www.npmjs.com/package/@tamer4lynx/tamer-auth) | `npm i @tamer4lynx/tamer-auth@prerelease` | OAuth 2.0 / OIDC |
+| [@tamer4lynx/tamer-biometric](https://www.npmjs.com/package/@tamer4lynx/tamer-biometric) | `npm i @tamer4lynx/tamer-biometric@prerelease` | Fingerprint, Face ID |
+| [@tamer4lynx/tamer-display-browser](https://www.npmjs.com/package/@tamer4lynx/tamer-display-browser) | `npm i @tamer4lynx/tamer-display-browser@prerelease` | Open URLs in system browser |
+| [@tamer4lynx/tamer-linking](https://www.npmjs.com/package/@tamer4lynx/tamer-linking) | `npm i @tamer4lynx/tamer-linking@prerelease` | Deep linking |
+| [@tamer4lynx/tamer-screen](https://www.npmjs.com/package/@tamer4lynx/tamer-screen) | `npm i @tamer4lynx/tamer-screen@prerelease` | SafeArea, Screen, AvoidKeyboard |
+| [@tamer4lynx/tamer-secure-store](https://www.npmjs.com/package/@tamer4lynx/tamer-secure-store) | `npm i @tamer4lynx/tamer-secure-store@prerelease` | Secure key-value storage |
+| [@tamer4lynx/tamer-transports](https://www.npmjs.com/package/@tamer4lynx/tamer-transports) | `npm i @tamer4lynx/tamer-transports@prerelease` | Fetch, WebSocket, EventSource polyfills |
 
 The iOS autolinking feature runs `pod install` automatically.
 
@@ -305,6 +300,7 @@ Contributions are welcome! To develop on Tamer4Lynx:
 git clone https://github.com/tamer4lynx/tamer4lynx.git
 cd tamer4lynx
 npm install
+# or: pnpm install | bun install
 ```
 
 Please feel free to submit issues or pull requests.

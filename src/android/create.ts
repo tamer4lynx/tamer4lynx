@@ -143,6 +143,8 @@ lynx-service-http = { module = "org.lynxsdk.lynx:lynx-service-http", version.ref
 lynx-service-image = { module = "org.lynxsdk.lynx:lynx-service-image", version.ref = "lynx" }
 lynx-service-log = { module = "org.lynxsdk.lynx:lynx-service-log", version.ref = "lynx" }
 lynx-trace = { module = "org.lynxsdk.lynx:lynx-trace", version.ref = "lynx" }
+lynx-xelement = { module = "org.lynxsdk.lynx:xelement", version.ref = "lynx" }
+lynx-xelement-input = { module = "org.lynxsdk.lynx:xelement-input", version.ref = "lynx" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 androidx-activity = { group = "androidx.activity", name = "activity", version.ref = "activity" }
 androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
@@ -299,6 +301,8 @@ dependencies {
     implementation(libs.animated.base)
     implementation(libs.lynx.service.log)
     implementation(libs.lynx.service.http)
+    implementation(libs.lynx.xelement)
+    implementation(libs.lynx.xelement.input)
     implementation(libs.okhttp)
     implementation(libs.zxing)
     kapt(libs.lynx.processor)

@@ -12,7 +12,7 @@ import path24 from "path";
 import { program } from "commander";
 
 // package.json
-var version = "0.0.6";
+var version = "0.0.7";
 
 // src/android/create.ts
 import fs3 from "fs";
@@ -2247,10 +2247,18 @@ async function setupCocoaPods(rootDir) {
       throw new Error(`Podfile not found at ${podfilePath}`);
     }
     console.log(`\u{1F680} Executing pod install in: ${rootDir}`);
-    execSync4(`pod install`, {
-      cwd: rootDir,
-      stdio: "inherit"
-    });
+    try {
+      execSync4("pod install", {
+        cwd: rootDir,
+        stdio: "inherit"
+      });
+    } catch {
+      console.log("\u2139\uFE0F Retrying CocoaPods install with repo update...");
+      execSync4("pod install --repo-update", {
+        cwd: rootDir,
+        stdio: "inherit"
+      });
+    }
     console.log("\u2705 CocoaPods dependencies installed successfully.");
   } catch (err) {
     console.error("\u274C Failed to install CocoaPods dependencies.", err.message);
@@ -2384,6 +2392,13 @@ post_install do |installer|
         config.build_settings['CLANG_WARN_ENUM_CONVERSION'] = 'NO'
       end
     end
+  end
+  Dir.glob(File.join(installer.sandbox.root, 'Lynx/platform/darwin/**/*.{m,mm}')).each do |lynx_source|
+    next unless File.file?(lynx_source)
+    content = File.read(lynx_source)
+    next unless content.match?(/\\btypeof\\(/)
+    File.chmod(0644, lynx_source) rescue nil
+    File.write(lynx_source, content.gsub(/\\btypeof\\(/, '__typeof__('))
   end
 end
 	`);
@@ -2987,9 +3002,35 @@ ${replacementBlock}
     fs12.writeFileSync(filePath, fileContent, "utf8");
     console.log(`\u2705 Updated autolinked section in ${path13.basename(filePath)}`);
   }
+  function resolvePodDirectory(pkg) {
+    const configuredDir = path13.join(pkg.packagePath, pkg.config.ios?.podspecPath || ".");
+    if (fs12.existsSync(configuredDir)) {
+      return configuredDir;
+    }
+    const iosDir = path13.join(pkg.packagePath, "ios");
+    if (fs12.existsSync(iosDir)) {
+      const stack = [iosDir];
+      while (stack.length > 0) {
+        const current = stack.pop();
+        try {
+          const entries = fs12.readdirSync(current, { withFileTypes: true });
+          const podspec = entries.find((entry) => entry.isFile() && entry.name.endsWith(".podspec"));
+          if (podspec) {
+            return current;
+          }
+          for (const entry of entries) {
+            if (entry.isDirectory()) {
+              stack.push(path13.join(current, entry.name));
+            }
+          }
+        } catch {
+        }
+      }
+    }
+    return configuredDir;
+  }
   function resolvePodName(pkg) {
-    const podspecDir = pkg.config.ios?.podspecPath || ".";
-    const fullPodspecDir = path13.join(pkg.packagePath, podspecDir);
+    const fullPodspecDir = resolvePodDirectory(pkg);
     if (fs12.existsSync(fullPodspecDir)) {
       try {
         const files = fs12.readdirSync(fullPodspecDir);
@@ -3007,8 +3048,7 @@ ${replacementBlock}
     const iosPackages = packages.filter((p) => p.config.ios);
     if (iosPackages.length > 0) {
       iosPackages.forEach((pkg) => {
-        const podspecPath = pkg.config.ios?.podspecPath || ".";
-        const relativePath = path13.relative(iosProjectPath, path13.join(pkg.packagePath, podspecPath));
+        const relativePath = path13.relative(iosProjectPath, resolvePodDirectory(pkg));
         const podName = resolvePodName(pkg);
         scriptContent += `
   pod '${podName}', :path => '${relativePath}'`;
@@ -3018,6 +3058,24 @@ ${replacementBlock}
   # No native modules found by Tamer4Lynx autolinker.`;
     }
     updateGeneratedSection(podfilePath, scriptContent.trim(), "# GENERATED AUTOLINK DEPENDENCIES START", "# GENERATED AUTOLINK DEPENDENCIES END");
+  }
+  function ensureLynxPatchInPodfile() {
+    const podfilePath = path13.join(iosProjectPath, "Podfile");
+    if (!fs12.existsSync(podfilePath)) return;
+    let content = fs12.readFileSync(podfilePath, "utf8");
+    if (content.includes("content.gsub(/\\btypeof\\(/, '__typeof__(')")) return;
+    const patch = `
+  Dir.glob(File.join(installer.sandbox.root, 'Lynx/platform/darwin/**/*.{m,mm}')).each do |lynx_source|
+    next unless File.file?(lynx_source)
+    content = File.read(lynx_source)
+    next unless content.match?(/\\btypeof\\(/)
+    File.chmod(0644, lynx_source) rescue nil
+    File.write(lynx_source, content.gsub(/\\btypeof\\(/, '__typeof__('))
+  end`;
+    content = content.replace(/(\n  end\s*\n)(end\s*)$/, `$1${patch}
+$2`);
+    fs12.writeFileSync(podfilePath, content, "utf8");
+    console.log("\u2705 Added Lynx typeof patch to Podfile post_install.");
   }
   function updateLynxInitProcessor(packages) {
     const appNameFromConfig = resolved.config.ios?.appName;
@@ -3202,7 +3260,12 @@ $1`
     const cwd = path13.dirname(podfilePath);
     try {
       console.log(`\u2139\uFE0F Running \`pod install\` in ${cwd}...`);
-      execSync5("pod install", { cwd, stdio: "inherit" });
+      try {
+        execSync5("pod install", { cwd, stdio: "inherit" });
+      } catch {
+        console.log("\u2139\uFE0F Retrying `pod install` with repo update...");
+        execSync5("pod install --repo-update", { cwd, stdio: "inherit" });
+      }
       console.log("\u2705 `pod install` completed successfully.");
     } catch (e) {
       console.warn(`\u26A0\uFE0F 'pod install' failed: ${e.message}`);
@@ -3218,6 +3281,7 @@ $1`
       console.log("\u2139\uFE0F No Tamer4Lynx native packages found.");
     }
     updatePodfile(packages);
+    ensureLynxPatchInPodfile();
     updateLynxInitProcessor(packages);
     syncInfoPlistPermissions(packages);
     syncInfoPlistUrlSchemes();
@@ -3335,7 +3399,7 @@ function addLaunchScreenToXcodeProject(pbxprojPath, appName) {
 function addSwiftSourceToXcodeProject(pbxprojPath, appName, filename) {
   let content = fs13.readFileSync(pbxprojPath, "utf8");
   const escaped = filename.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  if (new RegExp(`path = ${escaped};`).test(content)) return;
+  if (new RegExp(`path = "?${escaped}"?;`).test(content)) return;
   const fileRefUUID = deterministicUUID(`fileRef:${appName}:${filename}`);
   const buildFileUUID = deterministicUUID(`buildFile:${appName}:${filename}`);
   content = content.replace(
@@ -3364,7 +3428,7 @@ function addSwiftSourceToXcodeProject(pbxprojPath, appName, filename) {
 function addResourceToXcodeProject(pbxprojPath, appName, filename) {
   let content = fs13.readFileSync(pbxprojPath, "utf8");
   const escaped = filename.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  if (new RegExp(`path = ${escaped};`).test(content)) return;
+  if (new RegExp(`path = "?${escaped}"?;`).test(content)) return;
   const fileRefUUID = deterministicUUID(`fileRef:${appName}:${filename}`);
   const buildFileUUID = deterministicUUID(`buildFile:${appName}:${filename}`);
   content = content.replace(
@@ -3844,10 +3908,11 @@ async function buildIpa(opts = {}) {
   const flag = xcproject.endsWith(".xcworkspace") ? "-workspace" : "-project";
   const derivedDataPath = path16.join(iosDir, "build");
   const sdk = opts.install ? "iphonesimulator" : "iphoneos";
+  const signingArgs = opts.install ? "" : " CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO";
   console.log(`
 \u{1F528} Building ${configuration} (${sdk})...`);
   execSync7(
-    `xcodebuild ${flag} "${xcproject}" -scheme "${scheme}" -configuration ${configuration} -sdk ${sdk} -derivedDataPath "${derivedDataPath}"`,
+    `xcodebuild ${flag} "${xcproject}" -scheme "${scheme}" -configuration ${configuration} -sdk ${sdk} -derivedDataPath "${derivedDataPath}"${signingArgs}`,
     { stdio: "inherit", cwd: iosDir }
   );
   console.log(`\u2705 Build completed.`);
@@ -4950,6 +5015,9 @@ var CORE_PACKAGES = [
   "@tamer4lynx/tamer-system-ui",
   "@tamer4lynx/tamer-icons"
 ];
+var PACKAGE_ALIASES = {
+  input: "@tamer4lynx/tamer-text-input"
+};
 function detectPackageManager(cwd) {
   const dir = path23.resolve(cwd);
   if (fs22.existsSync(path23.join(dir, "pnpm-lock.yaml"))) return "pnpm";
@@ -4979,9 +5047,10 @@ function add(packages = []) {
   }
   const { lynxProjectDir } = resolveHostPaths();
   const pm = detectPackageManager(lynxProjectDir);
-  const normalized = list.map(
-    (p) => p.startsWith("@") ? p : `@tamer4lynx/${p}`
-  );
+  const normalized = list.map((p) => {
+    if (p.startsWith("@")) return p;
+    return PACKAGE_ALIASES[p] ?? `@tamer4lynx/${p}`;
+  });
   console.log(`Adding ${normalized.join(", ")} to ${lynxProjectDir} (using ${pm})...`);
   runInstall(lynxProjectDir, normalized, pm);
   console.log("\u2705 Packages installed. Run `t4l link` to link native modules.");
@@ -5104,7 +5173,7 @@ program.command("build-dev-app").option("-p, --platform <platform>", "Platform: 
   }
 });
 program.command("add [packages...]").description("Add @tamer4lynx packages to the Lynx project. Future: will track versions for compatibility (Expo-style).").action((packages) => add(packages));
-program.command("add-core").description("Add core packages (app-shell, screen, router, insets, transports, text-input, system-ui, icons)").action(() => addCore());
+program.command("add-core").description("Add core packages (app-shell, screen, router, insets, transports, input/text-input, system-ui, icons)").action(() => addCore());
 program.command("create").description("Create a new Lynx extension project (RFC-compliant)").action(() => create_default3());
 program.command("codegen").description("Generate code from @lynxmodule declarations").action(() => {
   codegen_default();

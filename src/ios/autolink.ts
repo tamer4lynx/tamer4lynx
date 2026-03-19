@@ -57,9 +57,39 @@ const autolink = () => {
         console.log(`✅ Updated autolinked section in ${path.basename(filePath)}`);
     }
 
+    function resolvePodDirectory(pkg: DiscoveredModule): string {
+        const configuredDir = path.join(pkg.packagePath, pkg.config.ios?.podspecPath || '.');
+        if (fs.existsSync(configuredDir)) {
+            return configuredDir;
+        }
+
+        const iosDir = path.join(pkg.packagePath, 'ios');
+        if (fs.existsSync(iosDir)) {
+            const stack = [iosDir];
+            while (stack.length > 0) {
+                const current = stack.pop()!;
+                try {
+                    const entries = fs.readdirSync(current, { withFileTypes: true });
+                    const podspec = entries.find((entry) => entry.isFile() && entry.name.endsWith('.podspec'));
+                    if (podspec) {
+                        return current;
+                    }
+                    for (const entry of entries) {
+                        if (entry.isDirectory()) {
+                            stack.push(path.join(current, entry.name));
+                        }
+                    }
+                } catch {
+                    // Ignore unreadable directories and keep searching.
+                }
+            }
+        }
+
+        return configuredDir;
+    }
+
     function resolvePodName(pkg: DiscoveredModule): string {
-        const podspecDir = pkg.config.ios?.podspecPath || '.';
-        const fullPodspecDir = path.join(pkg.packagePath, podspecDir);
+        const fullPodspecDir = resolvePodDirectory(pkg);
         if (fs.existsSync(fullPodspecDir)) {
             try {
                 const files = fs.readdirSync(fullPodspecDir);
@@ -78,8 +108,7 @@ const autolink = () => {
 
         if (iosPackages.length > 0) {
             iosPackages.forEach(pkg => {
-                const podspecPath = pkg.config.ios?.podspecPath || '.';
-                const relativePath = path.relative(iosProjectPath, path.join(pkg.packagePath, podspecPath));
+                const relativePath = path.relative(iosProjectPath, resolvePodDirectory(pkg));
                 const podName = resolvePodName(pkg);
                 scriptContent += `\n  pod '${podName}', :path => '${relativePath}'`;
             });
@@ -88,6 +117,84 @@ const autolink = () => {
         }
 
         updateGeneratedSection(podfilePath, scriptContent.trim(), '# GENERATED AUTOLINK DEPENDENCIES START', '# GENERATED AUTOLINK DEPENDENCIES END');
+    }
+
+    function ensureXElementPod(): void {
+        const podfilePath = path.join(iosProjectPath, 'Podfile');
+        if (!fs.existsSync(podfilePath)) return;
+        let content = fs.readFileSync(podfilePath, 'utf8');
+        if (content.includes("pod 'XElement'")) return;
+
+        const lynxVersionMatch = content.match(/pod\s+'Lynx',\s*'([^']+)'/);
+        const lynxVersion = lynxVersionMatch?.[1] ?? '3.6.0';
+
+        const xelementLine = `\n  pod 'XElement', '${lynxVersion}'`;
+        const insertAfter = /pod\s+'LynxService'[^\n]*(?:\n\s*'[^']*',?\s*)*/;
+        const serviceMatch = content.match(insertAfter);
+        if (serviceMatch) {
+            const idx = serviceMatch.index! + serviceMatch[0].length;
+            content = content.slice(0, idx) + xelementLine + content.slice(idx);
+        } else {
+            content = content.replace(
+                /(# GENERATED AUTOLINK DEPENDENCIES START)/,
+                `pod 'XElement', '${lynxVersion}'\n\n  $1`
+            );
+        }
+        fs.writeFileSync(podfilePath, content, 'utf8');
+        console.log(`✅ Added XElement pod (v${lynxVersion}) to Podfile`);
+    }
+
+    function ensureLynxPatchInPodfile(): void {
+        const podfilePath = path.join(iosProjectPath, 'Podfile');
+        if (!fs.existsSync(podfilePath)) return;
+        let content = fs.readFileSync(podfilePath, 'utf8');
+        if (content.includes("content.gsub(/\\btypeof\\(/, '__typeof__(')")) return;
+        const patch = `
+  Dir.glob(File.join(installer.sandbox.root, 'Lynx/platform/darwin/**/*.{m,mm}')).each do |lynx_source|
+    next unless File.file?(lynx_source)
+    content = File.read(lynx_source)
+    next unless content.match?(/\\btypeof\\(/)
+    File.chmod(0644, lynx_source) rescue nil
+    File.write(lynx_source, content.gsub(/\\btypeof\\(/, '__typeof__('))
+  end`;
+        content = content.replace(/(\n  end\s*\n)(end\s*)$/, `$1${patch}\n$2`);
+        fs.writeFileSync(podfilePath, content, 'utf8');
+        console.log('✅ Added Lynx typeof patch to Podfile post_install.');
+    }
+
+    function ensurePodBuildSettings(): void {
+        const podfilePath = path.join(iosProjectPath, 'Podfile');
+        if (!fs.existsSync(podfilePath)) return;
+        let content = fs.readFileSync(podfilePath, 'utf8');
+
+        let changed = false;
+        if (!content.includes('CLANG_ENABLE_EXPLICIT_MODULES')) {
+            content = content.replace(
+                /config\.build_settings\['IPHONEOS_DEPLOYMENT_TARGET'\]\s*=\s*'[^']*'/,
+                `$&\n      config.build_settings['CLANG_ENABLE_EXPLICIT_MODULES'] = 'NO'\n      config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'`
+            );
+            changed = true;
+        }
+
+        if (!content.includes("gsub('-Werror'")) {
+            const xcconfigStrip = `
+  Dir.glob(File.join(installer.sandbox.root, 'Target Support Files', 'Lynx', '*.xcconfig')).each do |xcconfig_path|
+    next unless File.file?(xcconfig_path)
+    content = File.read(xcconfig_path)
+    next unless content.include?('-Werror')
+    File.write(xcconfig_path, content.gsub('-Werror', ''))
+  end`;
+            content = content.replace(
+                /(Dir\.glob.*?Lynx\/platform\/darwin)/s,
+                `${xcconfigStrip}\n  $1`
+            );
+            changed = true;
+        }
+
+        if (changed) {
+            fs.writeFileSync(podfilePath, content, 'utf8');
+            console.log('✅ Added Xcode compatibility build settings to Podfile post_install.');
+        }
     }
 
     /**
@@ -108,6 +215,34 @@ const autolink = () => {
 
         const iosPackages = packages.filter(p => getIosModuleClassNames(p.config.ios).length > 0 || Object.keys(getIosElements(p.config.ios)).length > 0);
 
+        // --- Deduplicate: compute which packages contribute unique registrations ---
+        const seenModules = new Set<string>();
+        const seenElements = new Set<string>();
+        const packagesWithContributions = new Set<DiscoveredModule>();
+
+        for (const pkg of iosPackages) {
+            let hasUnique = false;
+            for (const cls of getIosModuleClassNames(pkg.config.ios)) {
+                if (!seenModules.has(cls)) {
+                    seenModules.add(cls);
+                    hasUnique = true;
+                } else {
+                    console.warn(`⚠️ Skipping duplicate module "${cls}" from ${pkg.name} (already registered by another package)`);
+                }
+            }
+            for (const tag of Object.keys(getIosElements(pkg.config.ios))) {
+                if (!seenElements.has(tag)) {
+                    seenElements.add(tag);
+                    hasUnique = true;
+                } else {
+                    console.warn(`⚠️ Skipping duplicate element "${tag}" from ${pkg.name} (already registered by another package)`);
+                }
+            }
+            if (hasUnique) packagesWithContributions.add(pkg);
+        }
+
+        const importPackages = iosPackages.filter(p => packagesWithContributions.has(p));
+
         // --- Generate import statements for discovered native packages ---
         function updateImportsSection(filePath: string, pkgs: DiscoveredModule[]) {
             const startMarker = '// GENERATED IMPORTS START';
@@ -115,7 +250,6 @@ const autolink = () => {
 
             if (pkgs.length === 0) {
                 const placeholder = '// No native imports found by Tamer4Lynx autolinker.';
-                // If markers exist, replace the block, otherwise try to insert after existing imports
                 updateGeneratedSection(filePath, placeholder, startMarker, endMarker);
                 return;
             }
@@ -125,15 +259,12 @@ const autolink = () => {
                 return `import ${podName}`;
             }).join('\n');
 
-            // If the file already contains markers, let updateGeneratedSection handle replacement.
             const fileContent = fs.readFileSync(filePath, 'utf8');
             if (fileContent.indexOf(startMarker) !== -1) {
                 updateGeneratedSection(filePath, imports, startMarker, endMarker);
                 return;
             }
 
-            // Otherwise insert the generated imports after the last existing import statement (if any),
-            // or after `import Foundation` specifically, or at the top as a fallback.
             const importRegex = /^(import\s+[^\r\n]+)\r?\n/gm;
             let match: RegExpExecArray | null = null;
             let lastMatchEnd = -1;
@@ -157,7 +288,6 @@ const autolink = () => {
                     const after = fileContent.slice(insertPos);
                     newContent = `${before}\n${block}\n${after}`;
                 } else {
-                    // Prepend at top
                     newContent = `${block}\n\n${fileContent}`;
                 }
             }
@@ -166,22 +296,32 @@ const autolink = () => {
             console.log(`✅ Updated imports in ${path.basename(filePath)}`);
         }
 
-        // Update imports first so registration lines can reference imported modules if needed
-        updateImportsSection(lynxInitPath, iosPackages);
+        updateImportsSection(lynxInitPath, importPackages);
 
-        if (iosPackages.length === 0) {
+        if (importPackages.length === 0) {
             const placeholder = '        // No native modules found by Tamer4Lynx autolinker.';
             updateGeneratedSection(lynxInitPath, placeholder, '// GENERATED AUTOLINK START', '// GENERATED AUTOLINK END');
             return;
         }
 
-        const blocks = iosPackages.flatMap((pkg) => {
+        const seenModules2 = new Set<string>();
+        const seenElements2 = new Set<string>();
+
+        const blocks = importPackages.flatMap((pkg) => {
             const classNames = getIosModuleClassNames(pkg.config.ios);
-            const moduleBlocks = classNames.map((classNameRaw) => [
+            const moduleBlocks = classNames.filter((cls) => {
+                if (seenModules2.has(cls)) return false;
+                seenModules2.add(cls);
+                return true;
+            }).map((classNameRaw) => [
                 `        // Register module from package: ${pkg.name}`,
                 `        globalConfig.register(${classNameRaw}.self)`,
             ].join('\n'));
-            const elementBlocks = Object.entries(getIosElements(pkg.config.ios)).map(([tagName, classNameRaw]) => [
+            const elementBlocks = Object.entries(getIosElements(pkg.config.ios)).filter(([tagName]) => {
+                if (seenElements2.has(tagName)) return false;
+                seenElements2.add(tagName);
+                return true;
+            }).map(([tagName, classNameRaw]) => [
                 `        // Register element from package: ${pkg.name}`,
                 `        globalConfig.registerUI(${classNameRaw}.self, withName: "${tagName}")`,
             ].join('\n'));
@@ -305,7 +445,12 @@ ${schemesXml}
         const cwd = path.dirname(podfilePath);
         try {
             console.log(`ℹ️ Running ` + '`pod install`' + ` in ${cwd}...`);
-            execSync('pod install', { cwd, stdio: 'inherit' });
+            try {
+                execSync('pod install', { cwd, stdio: 'inherit' });
+            } catch {
+                console.log('ℹ️ Retrying `pod install` with repo update...');
+                execSync('pod install --repo-update', { cwd, stdio: 'inherit' });
+            }
             console.log('✅ `pod install` completed successfully.');
         } catch (e: any) {
             console.warn(`⚠️ 'pod install' failed: ${e.message}`);
@@ -325,6 +470,9 @@ ${schemesXml}
         }
 
         updatePodfile(packages);
+        ensureXElementPod();
+        ensureLynxPatchInPodfile();
+        ensurePodBuildSettings();
         updateLynxInitProcessor(packages);
         syncInfoPlistPermissions(packages);
         syncInfoPlistUrlSchemes();

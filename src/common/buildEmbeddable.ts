@@ -26,6 +26,8 @@ lynx = { module = "org.lynxsdk.lynx:lynx", version.ref = "lynx" }
 lynx-jssdk = { module = "org.lynxsdk.lynx:lynx-jssdk", version.ref = "lynx" }
 lynx-processor = { module = "org.lynxsdk.lynx:lynx-processor", version.ref = "lynx" }
 lynx-trace = { module = "org.lynxsdk.lynx:lynx-trace", version.ref = "lynx" }
+lynx-xelement = { module = "org.lynxsdk.lynx:xelement", version.ref = "lynx" }
+lynx-xelement-input = { module = "org.lynxsdk.lynx:xelement-input", version.ref = "lynx" }
 lynx-service-http = { module = "org.lynxsdk.lynx:lynx-service-http", version.ref = "lynx" }
 lynx-service-image = { module = "org.lynxsdk.lynx:lynx-service-image", version.ref = "lynx" }
 lynx-service-log = { module = "org.lynxsdk.lynx:lynx-service-log", version.ref = "lynx" }
@@ -163,6 +165,8 @@ dependencies {
     implementation(libs.lynx)
     implementation(libs.lynx.jssdk)
     implementation(libs.lynx.trace)
+    implementation(libs.lynx.xelement)
+    implementation(libs.lynx.xelement.input)
     implementation(libs.primjs)
     implementation(libs.lynx.service.image)
     implementation(libs.lynx.service.http)

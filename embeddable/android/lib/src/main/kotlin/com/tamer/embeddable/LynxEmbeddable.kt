@@ -26,9 +26,10 @@ object LynxEmbeddable {
                 }.start()
             }
         }
-        val lv = LynxViewBuilder()
+        val viewBuilder = LynxViewBuilder()
             .setTemplateProvider(provider)
-            .build(ctx)
+        com.tamer.embeddable.generated.GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
+        val lv = viewBuilder.build(ctx)
         lv.layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT

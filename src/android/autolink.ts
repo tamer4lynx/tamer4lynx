@@ -236,6 +236,7 @@ ${generateActivityLifecycleKotlin(packages, projectPackage)}`;
         syncManifestPermissions(packages);
         syncDeepLinkIntentFilters();
         syncVersionCatalog(packages);
+        ensureXElementDeps();
         ensureReleaseSigning();
 
         console.log('✨ Autolinking complete.');
@@ -285,6 +286,38 @@ ${generateActivityLifecycleKotlin(packages, projectPackage)}`;
         if (updated) {
             fs.writeFileSync(libsTomlPath, toml);
             console.log('✅ Synced version catalog (libs.versions.toml) for linked modules.');
+        }
+    }
+
+    function ensureXElementDeps(): void {
+        const libsTomlPath = path.join(appAndroidPath, 'gradle', 'libs.versions.toml');
+        if (fs.existsSync(libsTomlPath)) {
+            let toml = fs.readFileSync(libsTomlPath, 'utf8');
+            let updated = false;
+            if (!toml.includes('lynx-xelement =')) {
+                toml = toml.replace(
+                    /(lynx-trace\s*=\s*\{[^\n]*\n)/,
+                    `$1lynx-xelement = { module = "org.lynxsdk.lynx:xelement", version.ref = "lynx" }\nlynx-xelement-input = { module = "org.lynxsdk.lynx:xelement-input", version.ref = "lynx" }\n`
+                );
+                updated = true;
+            }
+            if (updated) {
+                fs.writeFileSync(libsTomlPath, toml);
+                console.log('✅ Added XElement entries to version catalog.');
+            }
+        }
+
+        const appBuildPath = path.join(appAndroidPath, 'app', 'build.gradle.kts');
+        if (fs.existsSync(appBuildPath)) {
+            let content = fs.readFileSync(appBuildPath, 'utf8');
+            if (!content.includes('lynx.xelement')) {
+                content = content.replace(
+                    /(implementation\(libs\.lynx\.service\.http\))/,
+                    `$1\n    implementation(libs.lynx.xelement)\n    implementation(libs.lynx.xelement.input)`
+                );
+                fs.writeFileSync(appBuildPath, content);
+                console.log('✅ Added XElement dependencies to app build.gradle.kts.');
+            }
         }
     }
 

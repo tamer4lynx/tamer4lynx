@@ -59,12 +59,18 @@ export function generateLynxExtensionsKotlin(packages: DiscoveredModule[], proje
 
 import android.content.Context
 import com.lynx.tasm.LynxEnv
+import com.lynx.tasm.LynxViewBuilder
+import com.lynx.xelement.XElementBehaviors
 ${moduleImports}
 ${elementImports}
 
 object GeneratedLynxExtensions {
     fun register(context: Context) {
 ${allRegistrations}
+    }
+
+    fun configureViewBuilder(viewBuilder: LynxViewBuilder) {
+        viewBuilder.addBehaviors(XElementBehaviors().create())
     }${hostViewMethod}
 }
 `;
