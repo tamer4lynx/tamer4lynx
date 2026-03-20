@@ -3,9 +3,19 @@
 import './src/suppress-punycode-warning.ts';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 import { program } from 'commander';
-import { version } from './package.json';
+
+function readCliVersion(): string {
+    const root = path.dirname(fileURLToPath(import.meta.url));
+    const here = path.join(root, 'package.json');
+    const parent = path.join(root, '..', 'package.json');
+    const pkgPath = fs.existsSync(here) ? here : parent;
+    return JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version as string;
+}
+
+const version = readCliVersion();
 
 function validateDebugRelease(debug: boolean, release: boolean) {
     if (debug && release) {
@@ -192,12 +202,16 @@ program
 program
     .command('add [packages...]')
     .description('Add @tamer4lynx packages to the Lynx project. Future: will track versions for compatibility (Expo-style).')
-    .action((packages: string[]) => add(packages));
+    .action(async (packages: string[]) => {
+        await add(packages);
+    });
 
 program
     .command('add-core')
     .description('Add core packages (app-shell, screen, router, insets, transports, system-ui, icons)')
-    .action(() => addCore());
+    .action(async () => {
+        await addCore();
+    });
 
 program
     .command('codegen')

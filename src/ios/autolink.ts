@@ -7,6 +7,7 @@ import { getDedupedAndroidModuleClassNames } from '../common/generateExtCode';
 import { resolveHostPaths, type IosUrlSchemeConfig } from '../common/hostConfig';
 import { buildHostNativeModulesManifestJson, TAMER_HOST_NATIVE_MODULES_FILENAME } from '../common/hostNativeModulesManifest';
 import { addResourceToXcodeProject } from './syncHost';
+import syncHostIos from './syncHost';
 
 const autolink = () => {
     let resolved: ReturnType<typeof resolveHostPaths>;
@@ -504,6 +505,7 @@ ${schemesXml}
             console.log('ℹ️ No Tamer4Lynx native packages found.');
         }
 
+        syncHostIos();
         updatePodfile(packages);
         ensureXElementPod();
         ensureLynxPatchInPodfile();

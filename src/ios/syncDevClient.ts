@@ -72,7 +72,6 @@ function getDevLauncherViewControllerSwift(): string {
 import Lynx
 import tamerdevclient
 import tamerinsets
-import tamersystemui
 
 class DevLauncherViewController: UIViewController {
     private var lynxView: LynxView?
@@ -102,7 +101,7 @@ class DevLauncherViewController: UIViewController {
         TamerInsetsModule.reRequestInsets()
     }
 
-    override var preferredStatusBarStyle: UIStatusBarStyle { SystemUIModule.statusBarStyleForHost }
+    override var preferredStatusBarStyle: UIStatusBarStyle { TamerPreferredStatusBar.style }
 
     private func setupLynxView() {
         let size = fullscreenBounds().size
@@ -180,7 +179,6 @@ function getProjectViewControllerSwift(): string {
 import Lynx
 import tamerdevclient
 import tamerinsets
-import tamersystemui
 
 class ProjectViewController: UIViewController {
     private var lynxView: LynxView?
@@ -215,7 +213,7 @@ class ProjectViewController: UIViewController {
         TamerInsetsModule.reRequestInsets()
     }
 
-    override var preferredStatusBarStyle: UIStatusBarStyle { SystemUIModule.statusBarStyleForHost }
+    override var preferredStatusBarStyle: UIStatusBarStyle { TamerPreferredStatusBar.style }
 
     private func buildLynxView() -> LynxView {
         let size = fullscreenBounds().size

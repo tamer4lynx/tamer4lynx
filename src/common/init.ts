@@ -71,11 +71,20 @@ async function init() {
     const tsconfigCandidates = lynxProject
         ? [path.join(process.cwd(), lynxProject, "tsconfig.json"), path.join(process.cwd(), "tsconfig.json")]
         : [path.join(process.cwd(), "tsconfig.json")];
+    function parseTsconfigJson(raw: string): { include?: string | string[] } {
+        try {
+            return JSON.parse(raw) as { include?: string | string[] };
+        } catch {
+            const noTrailingCommas = raw.replace(/,\s*([\]}])/g, "$1");
+            return JSON.parse(noTrailingCommas) as { include?: string | string[] };
+        }
+    }
+
     for (const tsconfigPath of tsconfigCandidates) {
         if (!fs.existsSync(tsconfigPath)) continue;
         try {
             const raw = fs.readFileSync(tsconfigPath, "utf-8");
-            const tsconfig = JSON.parse(raw) as { include?: string | string[] };
+            const tsconfig = parseTsconfigJson(raw);
             const include = tsconfig.include ?? [];
             const arr = Array.isArray(include) ? include : [include];
             if (arr.some((p) => (typeof p === "string" ? p : "").includes("tamer-"))) continue;

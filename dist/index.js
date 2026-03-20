@@ -9,10 +9,8 @@ process.on("warning", (w) => {
 // index.ts
 import fs24 from "fs";
 import path25 from "path";
+import { fileURLToPath } from "url";
 import { program } from "commander";
-
-// package.json
-var version = "0.0.10";
 
 // src/android/create.ts
 import fs4 from "fs";
@@ -3522,7 +3520,6 @@ function getDevViewControllerSwift() {
 import Lynx
 import tamerdevclient
 import tamerinsets
-import tamersystemui
 
 class ViewController: UIViewController {
     private var lynxView: LynxView?
@@ -3552,7 +3549,7 @@ class ViewController: UIViewController {
         TamerInsetsModule.reRequestInsets()
     }
 
-    override var preferredStatusBarStyle: UIStatusBarStyle { SystemUIModule.statusBarStyleForHost }
+    override var preferredStatusBarStyle: UIStatusBarStyle { TamerPreferredStatusBar.style }
 
     private func setupLynxView() {
         let size = fullscreenBounds().size
@@ -4198,6 +4195,7 @@ $1`
     } else {
       console.log("\u2139\uFE0F No Tamer4Lynx native packages found.");
     }
+    syncHost_default();
     updatePodfile(packages);
     ensureXElementPod();
     ensureLynxPatchInPodfile();
@@ -4464,11 +4462,19 @@ async function init() {
 \u2705 Generated tamer.config.json at ${configPath}`);
   const tamerTypesInclude = "node_modules/@tamer4lynx/tamer-*/src/**/*.d.ts";
   const tsconfigCandidates = lynxProject ? [path18.join(process.cwd(), lynxProject, "tsconfig.json"), path18.join(process.cwd(), "tsconfig.json")] : [path18.join(process.cwd(), "tsconfig.json")];
+  function parseTsconfigJson(raw) {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      const noTrailingCommas = raw.replace(/,\s*([\]}])/g, "$1");
+      return JSON.parse(noTrailingCommas);
+    }
+  }
   for (const tsconfigPath of tsconfigCandidates) {
     if (!fs17.existsSync(tsconfigPath)) continue;
     try {
       const raw = fs17.readFileSync(tsconfigPath, "utf-8");
-      const tsconfig = JSON.parse(raw);
+      const tsconfig = parseTsconfigJson(raw);
       const include = tsconfig.include ?? [];
       const arr = Array.isArray(include) ? include : [include];
       if (arr.some((p) => (typeof p === "string" ? p : "").includes("tamer-"))) continue;
@@ -5661,7 +5667,10 @@ ${podDeps.map((d) => `pod '${d.podName}', :path => '${d.absPath}'`).join("\n")}
 // src/common/add.ts
 import fs23 from "fs";
 import path24 from "path";
-import { execSync as execSync10 } from "child_process";
+import { execFile, execSync as execSync10 } from "child_process";
+import { promisify } from "util";
+import semver from "semver";
+var execFileAsync = promisify(execFile);
 var CORE_PACKAGES = [
   "@tamer4lynx/tamer-app-shell",
   "@tamer4lynx/tamer-screen",
@@ -5672,6 +5681,30 @@ var CORE_PACKAGES = [
   "@tamer4lynx/tamer-icons"
 ];
 var PACKAGE_ALIASES = {};
+async function getHighestPublishedVersion(fullName) {
+  try {
+    const { stdout } = await execFileAsync("npm", ["view", fullName, "versions", "--json"], {
+      maxBuffer: 10 * 1024 * 1024
+    });
+    const parsed = JSON.parse(stdout.trim());
+    const list = Array.isArray(parsed) ? parsed : [parsed];
+    const valid = list.filter((v) => typeof v === "string" && !!semver.valid(v));
+    if (valid.length === 0) return null;
+    return semver.rsort(valid)[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+async function normalizeTamerInstallSpec(pkg) {
+  if (!pkg.startsWith("@tamer4lynx/")) return pkg;
+  if (/^@[^/]+\/[^@]+@/.test(pkg)) return pkg;
+  const highest = await getHighestPublishedVersion(pkg);
+  if (highest) {
+    return `${pkg}@${highest}`;
+  }
+  console.warn(`\u26A0\uFE0F  Could not resolve published versions for ${pkg}; using @prerelease`);
+  return `${pkg}@prerelease`;
+}
 function detectPackageManager(cwd) {
   const dir = path24.resolve(cwd);
   if (fs23.existsSync(path24.join(dir, "pnpm-lock.yaml"))) return "pnpm";
@@ -5683,14 +5716,16 @@ function runInstall(cwd, packages, pm) {
   const cmd = pm === "npm" ? "npm" : pm === "pnpm" ? "pnpm" : "bun";
   execSync10(`${cmd} ${args.join(" ")}`, { stdio: "inherit", cwd });
 }
-function addCore() {
+async function addCore() {
   const { lynxProjectDir } = resolveHostPaths();
   const pm = detectPackageManager(lynxProjectDir);
-  console.log(`Adding core packages to ${lynxProjectDir} (using ${pm})...`);
-  runInstall(lynxProjectDir, CORE_PACKAGES, pm);
+  console.log(`Resolving latest published versions (npm)\u2026`);
+  const resolved = await Promise.all(CORE_PACKAGES.map(normalizeTamerInstallSpec));
+  console.log(`Adding core packages to ${lynxProjectDir} (using ${pm})\u2026`);
+  runInstall(lynxProjectDir, resolved, pm);
   console.log("\u2705 Core packages installed. Run `t4l link` to link native modules.");
 }
-function add(packages = []) {
+async function add(packages = []) {
   const list = Array.isArray(packages) ? packages : [];
   if (list.length === 0) {
     console.log("Usage: t4l add <package> [package...]");
@@ -5701,16 +5736,27 @@ function add(packages = []) {
   }
   const { lynxProjectDir } = resolveHostPaths();
   const pm = detectPackageManager(lynxProjectDir);
-  const normalized = list.map((p) => {
-    if (p.startsWith("@")) return p;
-    return PACKAGE_ALIASES[p] ?? `@tamer4lynx/${p}`;
-  });
-  console.log(`Adding ${normalized.join(", ")} to ${lynxProjectDir} (using ${pm})...`);
+  console.log(`Resolving latest published versions (npm)\u2026`);
+  const normalized = await Promise.all(
+    list.map(async (p) => {
+      const spec = p.startsWith("@") ? p : PACKAGE_ALIASES[p] ?? `@tamer4lynx/${p}`;
+      return normalizeTamerInstallSpec(spec);
+    })
+  );
+  console.log(`Adding ${normalized.join(", ")} to ${lynxProjectDir} (using ${pm})\u2026`);
   runInstall(lynxProjectDir, normalized, pm);
   console.log("\u2705 Packages installed. Run `t4l link` to link native modules.");
 }
 
 // index.ts
+function readCliVersion() {
+  const root = path25.dirname(fileURLToPath(import.meta.url));
+  const here = path25.join(root, "package.json");
+  const parent = path25.join(root, "..", "package.json");
+  const pkgPath = fs24.existsSync(here) ? here : parent;
+  return JSON.parse(fs24.readFileSync(pkgPath, "utf8")).version;
+}
+var version = readCliVersion();
 function validateDebugRelease(debug, release) {
   if (debug && release) {
     console.error("Cannot use --debug and --release together.");
@@ -5825,8 +5871,12 @@ program.command("build-dev-app").option("-p, --platform <platform>", "Platform: 
     await build_default2({ install: opts.install, release: false });
   }
 });
-program.command("add [packages...]").description("Add @tamer4lynx packages to the Lynx project. Future: will track versions for compatibility (Expo-style).").action((packages) => add(packages));
-program.command("add-core").description("Add core packages (app-shell, screen, router, insets, transports, system-ui, icons)").action(() => addCore());
+program.command("add [packages...]").description("Add @tamer4lynx packages to the Lynx project. Future: will track versions for compatibility (Expo-style).").action(async (packages) => {
+  await add(packages);
+});
+program.command("add-core").description("Add core packages (app-shell, screen, router, insets, transports, system-ui, icons)").action(async () => {
+  await addCore();
+});
 program.command("codegen").description("Generate code from @lynxmodule declarations").action(() => {
   codegen_default();
 });

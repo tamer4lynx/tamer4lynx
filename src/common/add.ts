@@ -1,7 +1,11 @@
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { execFile, execSync } from 'child_process';
+import { promisify } from 'util';
+import semver from 'semver';
 import { resolveHostPaths } from './hostConfig';
+
+const execFileAsync = promisify(execFile);
 
 const CORE_PACKAGES = [
   '@tamer4lynx/tamer-app-shell',
@@ -14,6 +18,33 @@ const CORE_PACKAGES = [
 ];
 
 const PACKAGE_ALIASES: Record<string, string> = {};
+
+async function getHighestPublishedVersion(fullName: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync('npm', ['view', fullName, 'versions', '--json'], {
+      maxBuffer: 10 * 1024 * 1024,
+    });
+    const parsed = JSON.parse(stdout.trim()) as string | string[];
+    const list = Array.isArray(parsed) ? parsed : [parsed];
+    const valid = list.filter((v): v is string => typeof v === 'string' && !!semver.valid(v));
+    if (valid.length === 0) return null;
+    return semver.rsort(valid)[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Picks the highest semver published on npm for @tamer4lynx/* (npm `latest` / dist-tags can lag). */
+async function normalizeTamerInstallSpec(pkg: string): Promise<string> {
+  if (!pkg.startsWith('@tamer4lynx/')) return pkg;
+  if (/^@[^/]+\/[^@]+@/.test(pkg)) return pkg;
+  const highest = await getHighestPublishedVersion(pkg);
+  if (highest) {
+    return `${pkg}@${highest}`;
+  }
+  console.warn(`⚠️  Could not resolve published versions for ${pkg}; using @prerelease`);
+  return `${pkg}@prerelease`;
+}
 
 function detectPackageManager(cwd: string): 'npm' | 'pnpm' | 'bun' {
   const dir = path.resolve(cwd);
@@ -28,15 +59,17 @@ function runInstall(cwd: string, packages: string[], pm: 'npm' | 'pnpm' | 'bun')
   execSync(`${cmd} ${args.join(' ')}`, { stdio: 'inherit', cwd });
 }
 
-export function addCore() {
+export async function addCore() {
   const { lynxProjectDir } = resolveHostPaths();
   const pm = detectPackageManager(lynxProjectDir);
-  console.log(`Adding core packages to ${lynxProjectDir} (using ${pm})...`);
-  runInstall(lynxProjectDir, CORE_PACKAGES, pm);
+  console.log(`Resolving latest published versions (npm)…`);
+  const resolved = await Promise.all(CORE_PACKAGES.map(normalizeTamerInstallSpec));
+  console.log(`Adding core packages to ${lynxProjectDir} (using ${pm})…`);
+  runInstall(lynxProjectDir, resolved, pm);
   console.log('✅ Core packages installed. Run `t4l link` to link native modules.');
 }
 
-export function add(packages: string[] = []) {
+export async function add(packages: string[] = []) {
   const list = Array.isArray(packages) ? packages : [];
   if (list.length === 0) {
     console.log('Usage: t4l add <package> [package...]');
@@ -47,11 +80,14 @@ export function add(packages: string[] = []) {
   }
   const { lynxProjectDir } = resolveHostPaths();
   const pm = detectPackageManager(lynxProjectDir);
-  const normalized = list.map((p) => {
-    if (p.startsWith('@')) return p;
-    return PACKAGE_ALIASES[p] ?? `@tamer4lynx/${p}`;
-  });
-  console.log(`Adding ${normalized.join(', ')} to ${lynxProjectDir} (using ${pm})...`);
+  console.log(`Resolving latest published versions (npm)…`);
+  const normalized = await Promise.all(
+    list.map(async (p) => {
+      const spec = p.startsWith('@') ? p : PACKAGE_ALIASES[p] ?? `@tamer4lynx/${p}`;
+      return normalizeTamerInstallSpec(spec);
+    })
+  );
+  console.log(`Adding ${normalized.join(', ')} to ${lynxProjectDir} (using ${pm})…`);
   runInstall(lynxProjectDir, normalized, pm);
   console.log('✅ Packages installed. Run `t4l link` to link native modules.');
 }
