@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **`@tamer4lynx/cli`** — Declare **`dotenv`** as a runtime dependency (`loadProjectEnv` / `appendEnvFile` import `parse` from `dotenv`). Without it, global installs (e.g. `bun add -g @tamer4lynx/cli`) fail at startup with `ERR_MODULE_NOT_FOUND: Cannot find package 'dotenv'`.
+
 - **`@tamer4lynx/tamer-plugin` + `@tamer4lynx/tamer-dev-client`** — `pluginTamer` now discovers packages that export `tamer.config` from **ancestor** `node_modules` folders (npm hoisting), so `@tamer4lynx/tamer-router` runs when the dev-client package is nested under `node_modules`. Dev-client overrides the router plugin to emit `src/generated-routes.tsx` (avoids resolving `../../src` from under `node_modules/.tamer-router`), publishes `src` and `tsconfig.json` so route generation and `.js`→`.tsx` resolution work in consumer installs.
 
 - **iOS host `ViewController.swift` (dev)** — use `SystemUIModule.statusBarStyleForHost` (not a non-existent `TamerPreferredStatusBar`), add `import tamersystemui`, and gate `viewRespectsSystemMinimumLayoutMargins` with `if #available(iOS 15.0, *)`. Same availability guard in `t4l ios create` template, dev-app VCs, `syncDevClient` embedded Swift, and `tamer-dev-client` iOS templates.
