@@ -5,13 +5,16 @@ import http from 'http';
 import os from 'os';
 import path from 'path';
 import { render, useInput, useApp } from 'ink';
-import { WebSocketServer } from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 import { discoverNativeExtensions } from './config';
 import { resolveHostPaths, resolveIconPaths } from './hostConfig';
+import { getCliVersion } from './cliVersion';
 import { ServerDashboard } from './tui/components/ServerDashboard';
 import type { BuildPhase } from './tui/hooks/useServerStatus';
 
 const DEFAULT_PORT = 3000;
+const TAMER_CLI_VERSION = getCliVersion();
+const MAX_LOG_LINES = 800;
 
 const STATIC_MIME: Record<string, string> = {
   '.png': 'image/png',
@@ -94,7 +97,6 @@ type DevUiState = {
   buildError?: string;
   wsConnections: number;
   logLines: string[];
-  showLogs: boolean;
   qrLines: string[];
 };
 
@@ -111,7 +113,6 @@ const initialUi = (): DevUiState => ({
   buildPhase: 'idle',
   wsConnections: 0,
   logLines: [],
-  showLogs: false,
   qrLines: [],
 });
 
@@ -126,13 +127,21 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
   const cleanupRef = useRef<(() => Promise<void>) | null>(null);
   const rebuildRef = useRef<() => Promise<void>>(() => Promise.resolve());
   const quitOnceRef = useRef(false);
-  const appendLog = useCallback((chunk: string) => {
-    const lines = chunk.split(/\r?\n/).filter(Boolean);
+  const appendLogLine = useCallback((line: string) => {
     setUi((prev) => ({
       ...prev,
-      logLines: [...prev.logLines, ...lines].slice(-400),
+      logLines: [...prev.logLines, line].slice(-MAX_LOG_LINES),
     }));
   }, []);
+
+  const appendLog = useCallback(
+    (chunk: string) => {
+      for (const line of chunk.split(/\r?\n/)) {
+        appendLogLine(line);
+      }
+    },
+    [appendLogLine],
+  );
 
   const handleQuit = useCallback(() => {
     if (quitOnceRef.current) return;
@@ -142,7 +151,7 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
   }, [exit]);
 
   useInput((input, key) => {
-    if (key.ctrl && key.name === 'c') {
+    if (key.ctrl && input === 'c') {
       handleQuit();
       return;
     }
@@ -154,8 +163,9 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
       void rebuildRef.current();
       return;
     }
-    if (input === 'l') {
-      setUi((s) => ({ ...s, showLogs: !s.showLogs }));
+    if (input === 'c') {
+      setUi((s) => ({ ...s, logLines: [] }));
+      return;
     }
   });
 
@@ -216,19 +226,15 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
               stdio: 'pipe',
               shell: process.platform === 'win32',
             });
-            let stderr = '';
-            buildProcess.stdout?.on('data', (d) => {
-              appendLog(d.toString());
-            });
+            let stderrRaw = '';
+            buildProcess.stdout?.resume();
             buildProcess.stderr?.on('data', (d) => {
-              const t = d.toString();
-              stderr += t;
-              appendLog(t);
+              stderrRaw += d.toString();
             });
             buildProcess.on('close', (code) => {
               buildProcess = null;
               if (code === 0) resolve();
-              else reject(new Error(stderr || `Build exited ${code}`));
+              else reject(new Error(stderrRaw.trim() || `Build exited ${code}`));
             });
           });
         };
@@ -369,6 +375,15 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
 
         const wssInst = new WebSocketServer({ noServer: true });
 
+        const syncWsClientCount = () => {
+          if (!alive) return;
+          let n = 0;
+          wssInst.clients.forEach((c) => {
+            if (c.readyState === WebSocket.OPEN) n++;
+          });
+          setUi((s) => ({ ...s, wsConnections: n }));
+        };
+
         rebuildRef.current = async () => {
           try {
             await doBuild();
@@ -393,12 +408,15 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
 
         wssInst.on('connection', (ws, req) => {
           const clientIp = req.socket.remoteAddress ?? 'unknown';
-          setUi((s) => ({ ...s, wsConnections: s.wsConnections + 1 }));
           appendLog(`[WS] connected: ${clientIp}`);
           ws.send(JSON.stringify({ type: 'connected' }));
+          syncWsClientCount();
           ws.on('close', () => {
-            setUi((s) => ({ ...s, wsConnections: Math.max(0, s.wsConnections - 1) }));
             appendLog(`[WS] disconnected: ${clientIp}`);
+            queueMicrotask(() => syncWsClientCount());
+          });
+          ws.on('error', () => {
+            queueMicrotask(() => syncWsClientCount());
           });
           ws.on('message', (data) => {
             try {
@@ -520,10 +538,11 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
       alive = false;
       void cleanupRef.current?.();
     };
-  }, [appendLog, verbose]);
+  }, [appendLog, appendLogLine, verbose]);
 
   return (
     <ServerDashboard
+      cliVersion={TAMER_CLI_VERSION}
       projectName={ui.projectName}
       port={ui.port}
       lanIp={ui.lanIp}
@@ -536,7 +555,6 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
       buildError={ui.buildError}
       wsConnections={ui.wsConnections}
       logLines={ui.logLines}
-      showLogs={ui.showLogs}
       qrLines={ui.qrLines}
       phase={ui.phase}
       startError={ui.startError}

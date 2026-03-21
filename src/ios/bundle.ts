@@ -6,7 +6,7 @@ import { fixTsconfigReferencesForBuild } from '../common/tsconfigUtils';
 import { applyIosAppIconAssets } from '../common/syncAppIcons';
 import { copyDistAssets } from '../common/copyDistAssets';
 import ios_autolink from './autolink';
-import syncHostIos, { addResourceToXcodeProject } from './syncHost';
+import { addResourceToXcodeProject } from './syncHost';
 
 function bundleAndDeploy(opts: { release?: boolean; production?: boolean } = {}) {
     const release = opts.release === true || opts.production === true;
@@ -29,8 +29,7 @@ function bundleAndDeploy(opts: { release?: boolean; production?: boolean } = {})
     const destinationDir = path.join(resolved.iosDir, appName);
     const destinationBundlePath = path.join(destinationDir, resolved.lynxBundleFile);
 
-    syncHostIos({ release, includeDevClient });
-    ios_autolink();
+    ios_autolink({ release, includeDevClient });
 
     const iconPaths = resolveIconPaths(resolved.projectRoot, resolved.config);
     if (iconPaths) {

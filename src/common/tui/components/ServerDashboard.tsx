@@ -2,9 +2,12 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import { TuiSpinner } from './Spinner';
 
+const LOG_DISPLAY_MAX = 120;
+
 export type BuildPhase = 'idle' | 'building' | 'success' | 'error';
 
 export type ServerDashboardProps = {
+  cliVersion: string;
   projectName: string;
   port: number;
   lanIp: string;
@@ -17,13 +20,13 @@ export type ServerDashboardProps = {
   buildError?: string;
   wsConnections: number;
   logLines: string[];
-  showLogs: boolean;
   qrLines: string[];
   phase: 'starting' | 'running' | 'failed';
   startError?: string;
 };
 
 export function ServerDashboard({
+  cliVersion,
   projectName,
   port,
   lanIp,
@@ -36,7 +39,6 @@ export function ServerDashboard({
   buildError,
   wsConnections,
   logLines,
-  showLogs,
   qrLines,
   phase,
   startError,
@@ -61,6 +63,9 @@ export function ServerDashboard({
     <Box flexDirection="column">
       <Text bold color="green">
         Tamer4Lynx dev server ({projectName})
+      </Text>
+      <Text dimColor>
+        t4l v{cliVersion}
       </Text>
       {verbose ? <Text dimColor>Logs: verbose (native + JS)</Text> : null}
       <Box marginTop={1} flexDirection="row" columnGap={3} alignItems="flex-start">
@@ -107,11 +112,13 @@ export function ServerDashboard({
           <Box marginTop={1} flexDirection="column">
             <Text bold>Build</Text>
             {buildPhase === 'building' ? (
-              <TuiSpinner label="Building…" />
+              <TuiSpinner label="building…" />
             ) : buildPhase === 'error' ? (
               <Text color="red">{buildError ?? 'Build failed'}</Text>
+            ) : buildPhase === 'success' ? (
+              <Text color="green">Lynx bundle ready</Text>
             ) : (
-              <Text color="green">Ready</Text>
+              <Text dimColor>—</Text>
             )}
           </Box>
           <Box marginTop={1} flexDirection="column">
@@ -120,19 +127,19 @@ export function ServerDashboard({
           </Box>
         </Box>
       </Box>
-      {showLogs && logLines.length > 0 ? (
-        <Box marginTop={1} flexDirection="column" borderStyle="single" paddingX={1}>
-          <Text dimColor>Build / output (last {logLines.length} lines)</Text>
-          {logLines.slice(-12).map((line, i) => (
-            <Text key={i} dimColor>
-              {line}
-            </Text>
+      <Box marginTop={1}>
+        <Text dimColor>r rebuild · c clear output · Ctrl+C or q quit</Text>
+      </Box>
+      {logLines.length > 0 ? (
+        <Box marginTop={1} flexDirection="column">
+          {logLines.length > LOG_DISPLAY_MAX ? (
+            <Text dimColor>… {logLines.length - LOG_DISPLAY_MAX} earlier lines omitted</Text>
+          ) : null}
+          {logLines.slice(-LOG_DISPLAY_MAX).map((line, i) => (
+            <Text key={i}>{line}</Text>
           ))}
         </Box>
       ) : null}
-      <Box marginTop={1}>
-        <Text dimColor>r rebuild · l toggle logs · q quit</Text>
-      </Box>
     </Box>
   );
 }

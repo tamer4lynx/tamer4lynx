@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { randomBytes } from 'crypto';
 import { execSync } from 'child_process';
 import { resolveHostPaths } from '../common/hostConfig';
 import ios_bundle from './bundle';
@@ -19,6 +20,35 @@ function findBootedSimulator(): string | null {
             }
         }
     } catch {}
+    return null;
+}
+
+function findFirstConnectedIosDeviceUdid(): string | null {
+    const jsonPath = path.join(os.tmpdir(), `t4l-devicectl-${randomBytes(8).toString('hex')}.json`);
+    try {
+        execSync(`xcrun devicectl list devices --json-output "${jsonPath}"`, {
+            stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        if (!fs.existsSync(jsonPath)) return null;
+        const raw = fs.readFileSync(jsonPath, 'utf8');
+        fs.unlinkSync(jsonPath);
+        const data = JSON.parse(raw) as {
+            result?: { devices?: Array<{ hardwareProperties?: { udid?: string }; identifier?: string }> };
+        };
+        const devices = data.result?.devices ?? [];
+        for (const d of devices) {
+            const udid = d.hardwareProperties?.udid ?? d.identifier;
+            if (typeof udid === 'string' && udid.length >= 20) {
+                return udid;
+            }
+        }
+    } catch {
+        try {
+            if (fs.existsSync(jsonPath)) fs.unlinkSync(jsonPath);
+        } catch {
+            /* ignore */
+        }
+    }
     return null;
 }
 
@@ -43,13 +73,16 @@ async function buildIpa(opts: { install?: boolean; release?: boolean; production
     const flag = xcproject.endsWith('.xcworkspace') ? '-workspace' : '-project';
     const derivedDataPath = path.join(iosDir, 'build');
 
-    const sdk = opts.install ? 'iphonesimulator' : 'iphoneos';
-    const signingArgs = opts.install ? '' : ' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO';
+    const production = opts.production === true;
+    const sdk = production ? 'iphoneos' : opts.install ? 'iphonesimulator' : 'iphoneos';
+    const signingArgs =
+        production || opts.install ? '' : ' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO';
 
-    const archFlag = opts.install ? `-arch ${hostArch()} ` : '';
+    const archFlag = opts.install && !production ? `-arch ${hostArch()} ` : '';
     const extraSettings = [
         'ONLY_ACTIVE_ARCH=YES',
         'CLANG_ENABLE_EXPLICIT_MODULES=NO',
+        ...(configuration === 'Debug' ? ['COMPILER_INDEX_STORE_ENABLE=NO'] : []),
     ].join(' ');
 
     console.log(`\n🔨 Building ${configuration} (${sdk})...`);
@@ -60,30 +93,75 @@ async function buildIpa(opts: { install?: boolean; release?: boolean; production
     console.log(`✅ Build completed.`);
 
     if (opts.install) {
-        const appGlob = path.join(
-            derivedDataPath,
-            'Build', 'Products', `${configuration}-iphonesimulator`, `${appName}.app`
-        );
-        if (!fs.existsSync(appGlob)) {
-            console.error(`❌ Built app not found at: ${appGlob}`);
-            process.exit(1);
-        }
+        if (production) {
+            const appPath = path.join(
+                derivedDataPath,
+                'Build',
+                'Products',
+                `${configuration}-iphoneos`,
+                `${appName}.app`
+            );
+            if (!fs.existsSync(appPath)) {
+                console.error(`❌ Built app not found at: ${appPath}`);
+                process.exit(1);
+            }
 
-        const udid = findBootedSimulator();
-        if (!udid) {
-            console.error('❌ No booted simulator found. Start one with: xcrun simctl boot <udid>');
-            process.exit(1);
-        }
+            const udid = findFirstConnectedIosDeviceUdid();
+            if (!udid) {
+                console.error(
+                    '❌ No connected iOS device found. Connect an iPhone/iPad with a trusted cable, unlock it, and ensure Developer Mode is on (iOS 16+). Requires Xcode 15+ (`xcrun devicectl`).'
+                );
+                process.exit(1);
+            }
 
-        console.log(`📲 Installing on simulator ${udid}...`);
-        execSync(`xcrun simctl install "${udid}" "${appGlob}"`, { stdio: 'inherit' });
+            console.log(`📲 Installing on device ${udid}...`);
+            execSync(`xcrun devicectl device install app --device "${udid}" "${appPath}"`, {
+                stdio: 'inherit',
+            });
 
-        if (bundleId) {
-            console.log(`🚀 Launching ${bundleId}...`);
-            execSync(`xcrun simctl launch "${udid}" "${bundleId}"`, { stdio: 'inherit' });
-            console.log('✅ App launched.');
+            if (bundleId) {
+                console.log(`🚀 Launching ${bundleId}...`);
+                try {
+                    execSync(
+                        `xcrun devicectl device process launch --device "${udid}" "${bundleId}"`,
+                        { stdio: 'inherit' }
+                    );
+                    console.log('✅ App launched.');
+                } catch {
+                    console.log('✅ Installed. Launch manually on the device if auto-launch failed.');
+                }
+            } else {
+                console.log('✅ App installed. (Set "ios.bundleId" in tamer.config.json to auto-launch.)');
+            }
         } else {
-            console.log('✅ App installed. (Set "ios.bundleId" in tamer.config.json to auto-launch.)');
+            const appGlob = path.join(
+                derivedDataPath,
+                'Build',
+                'Products',
+                `${configuration}-iphonesimulator`,
+                `${appName}.app`
+            );
+            if (!fs.existsSync(appGlob)) {
+                console.error(`❌ Built app not found at: ${appGlob}`);
+                process.exit(1);
+            }
+
+            const udid = findBootedSimulator();
+            if (!udid) {
+                console.error('❌ No booted simulator found. Start one with: xcrun simctl boot <udid>');
+                process.exit(1);
+            }
+
+            console.log(`📲 Installing on simulator ${udid}...`);
+            execSync(`xcrun simctl install "${udid}" "${appGlob}"`, { stdio: 'inherit' });
+
+            if (bundleId) {
+                console.log(`🚀 Launching ${bundleId}...`);
+                execSync(`xcrun simctl launch "${udid}" "${bundleId}"`, { stdio: 'inherit' });
+                console.log('✅ App launched.');
+            } else {
+                console.log('✅ App installed. (Set "ios.bundleId" in tamer.config.json to auto-launch.)');
+            }
         }
     }
 }

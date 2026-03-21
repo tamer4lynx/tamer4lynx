@@ -67,6 +67,13 @@ export function generateLynxExtensionsKotlin(packages: DiscoveredModule[], proje
             ? `\n    fun onHostViewChanged(view: android.view.View?) {\n${hostViewLines}\n    }`
             : '\n    fun onHostViewChanged(view: android.view.View?) {}\n';
 
+    const devToolBootstrapPrefix = hasDevClient
+        ? '        com.nanofuxion.tamerdevclient.LynxDevToolBootstrap.configure(context)\n'
+        : '';
+    const devToolBootstrapSuffix = hasDevClient
+        ? '        com.nanofuxion.tamerdevclient.LynxDevToolBootstrap.enableLynxDebugFlags()\n'
+        : '';
+
     return `package ${projectPackage}.generated
 
 import android.content.Context
@@ -78,7 +85,7 @@ ${elementImports}
 
 object GeneratedLynxExtensions {
     fun register(context: Context) {
-${allRegistrations}${devClientSupportedBlock}
+${devToolBootstrapPrefix}${allRegistrations}${devClientSupportedBlock}${devToolBootstrapSuffix}
     }
 
     fun configureViewBuilder(viewBuilder: LynxViewBuilder) {

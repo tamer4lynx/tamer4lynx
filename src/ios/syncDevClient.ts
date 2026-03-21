@@ -624,6 +624,8 @@ function getInfoPlist(): string {
 function getPodfile(): string {
     return `source 'https://cdn.cocoapods.org/'
 
+install! 'cocoapods', :incremental_installation => true, :generate_multiple_pod_projects => true
+
 platform :ios, '13.0'
 
 target '${APP_NAME}' do
@@ -637,7 +639,9 @@ target '${APP_NAME}' do
     'Image',
     'Log',
     'Http',
+    'Devtool',
   ]
+  pod 'LynxDevtool', '3.6.0'
   pod 'SDWebImage','5.15.5'
   pod 'SDWebImageWebPCoder', '0.11.0'
 

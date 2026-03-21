@@ -17,23 +17,21 @@ const CORE_PACKAGES = [
   '@tamer4lynx/tamer-icons',
 ];
 
-/** Union of `dependencies` from published @tamer4lynx/tamer-dev-app and @tamer4lynx/tamer-dev-client (all @tamer4lynx/*). Update when those packages change. */
+/**
+ * Installed by `t4l add-dev`. Each name is resolved to the highest published semver via `normalizeTamerInstallSpec`
+ * so hosts do not rely on transitive installs alone (avoids stale or mismatched versions).
+ * Align with `packages/tamer-dev-client/package.json` dependencies + `lynx.config` aliases (screen, icons).
+ */
 const DEV_STACK_PACKAGES = [
-  '@tamer4lynx/jiggle',
-  '@tamer4lynx/tamer-app-shell',
-  '@tamer4lynx/tamer-biometric',
   '@tamer4lynx/tamer-dev-app',
   '@tamer4lynx/tamer-dev-client',
-  '@tamer4lynx/tamer-display-browser',
+  '@tamer4lynx/tamer-app-shell',
   '@tamer4lynx/tamer-icons',
   '@tamer4lynx/tamer-insets',
-  '@tamer4lynx/tamer-linking',
   '@tamer4lynx/tamer-plugin',
   '@tamer4lynx/tamer-router',
   '@tamer4lynx/tamer-screen',
-  '@tamer4lynx/tamer-secure-store',
   '@tamer4lynx/tamer-system-ui',
-  '@tamer4lynx/tamer-transports',
 ] as const
 
 const PACKAGE_ALIASES: Record<string, string> = {};

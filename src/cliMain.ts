@@ -1,19 +1,12 @@
 import './suppress-punycode-warning.ts';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
 import { program } from 'commander';
 
-function readCliVersion(): string {
-    const root = path.dirname(fileURLToPath(import.meta.url));
-    const here = path.join(root, 'package.json');
-    const parent = path.join(root, '..', 'package.json');
-    const pkgPath = fs.existsSync(here) ? here : parent;
-    return JSON.parse(fs.readFileSync(pkgPath, 'utf8')).version as string;
-}
+import { getCliVersion } from './common/cliVersion.ts';
 
-const version = readCliVersion();
+const version = getCliVersion();
 
 function validateBuildMode(debug: boolean, release: boolean, production: boolean) {
     const modes = [debug, release, production].filter(Boolean).length;
@@ -219,7 +212,7 @@ program
 
 program
     .command('add-core')
-    .description('Add core packages')
+    .description('Add core packages (app-shell, screen, router, insets, transports, system-ui, icons)')
     .action(async () => {
         await addCore();
     });

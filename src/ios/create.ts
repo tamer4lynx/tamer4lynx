@@ -93,6 +93,8 @@ const create = () => {
 	writeFile(path.join(rootDir, "Podfile"), `
 source 'https://cdn.cocoapods.org/'
 
+install! 'cocoapods', :incremental_installation => true, :generate_multiple_pod_projects => true
+
 platform :ios, '13.0'
 
 target '${appName}' do

@@ -28,6 +28,73 @@ function resolveNodeModulesPath(projectRoot: string): string {
     return nodeModulesPath;
 }
 
+function resolvePackageRoot(projectRoot: string, packageName: string): string | null {
+    const nodeModulesPath = resolveNodeModulesPath(projectRoot);
+    const hasPkg = (dir: string) => fs.existsSync(path.join(dir, 'package.json'));
+    if (packageName.startsWith('@')) {
+        const parts = packageName.split('/');
+        if (parts.length !== 2 || !parts[0].startsWith('@')) return null;
+        const direct = path.join(nodeModulesPath, parts[0], parts[1]);
+        if (hasPkg(direct)) return direct;
+        const underDevClient = path.join(
+            nodeModulesPath,
+            '@tamer4lynx',
+            'tamer-dev-client',
+            'node_modules',
+            parts[0],
+            parts[1]
+        );
+        if (hasPkg(underDevClient)) return underDevClient;
+        return null;
+    }
+    const direct = path.join(nodeModulesPath, packageName);
+    return hasPkg(direct) ? direct : null;
+}
+
+/**
+ * For `@tamer4lynx/tamer-dev-app` only: limit autolink to the npm dependency tree of that package
+ * (avoids linking every hoisted workspace package under root node_modules).
+ */
+function collectTransitiveTamer4LynxPackageNames(projectRoot: string): Set<string> | null {
+    const hostPjPath = path.join(projectRoot, 'package.json');
+    if (!fs.existsSync(hostPjPath)) return null;
+    const hostPj = JSON.parse(fs.readFileSync(hostPjPath, 'utf8')) as {
+        name?: string;
+        dependencies?: Record<string, string>;
+        optionalDependencies?: Record<string, string>;
+    };
+    if (hostPj.name !== '@tamer4lynx/tamer-dev-app') return null;
+
+    const visited = new Set<string>();
+    const queue: string[] = [];
+    const enqueue = (deps: Record<string, string> | undefined) => {
+        if (!deps) return;
+        for (const name of Object.keys(deps)) {
+            if (name.startsWith('@tamer4lynx/')) queue.push(name);
+        }
+    };
+    enqueue(hostPj.dependencies);
+    enqueue(hostPj.optionalDependencies);
+
+    while (queue.length) {
+        const name = queue.shift()!;
+        if (visited.has(name)) continue;
+        visited.add(name);
+        const pkgRoot = resolvePackageRoot(projectRoot, name);
+        if (!pkgRoot || !fs.existsSync(path.join(pkgRoot, 'package.json'))) continue;
+        const sub = JSON.parse(fs.readFileSync(path.join(pkgRoot, 'package.json'), 'utf8')) as {
+            dependencies?: Record<string, string>;
+            optionalDependencies?: Record<string, string>;
+        };
+        const merged = { ...sub.dependencies, ...sub.optionalDependencies };
+        for (const dep of Object.keys(merged)) {
+            if (dep.startsWith('@tamer4lynx/') && !visited.has(dep)) queue.push(dep);
+        }
+    }
+
+    return visited;
+}
+
 export function discoverModules(projectRoot: string): DiscoveredModule[] {
     const nodeModulesPath = resolveNodeModulesPath(projectRoot);
     const packages: DiscoveredModule[] = [];
@@ -63,5 +130,9 @@ export function discoverModules(projectRoot: string): DiscoveredModule[] {
         }
     }
 
+    const allowed = collectTransitiveTamer4LynxPackageNames(projectRoot);
+    if (allowed) {
+        return packages.filter((p) => allowed.has(p.name));
+    }
     return packages;
 }

@@ -9,7 +9,12 @@ import { buildHostNativeModulesManifestJson, TAMER_HOST_NATIVE_MODULES_FILENAME 
 import { addResourceToXcodeProject } from './syncHost';
 import syncHostIos from './syncHost';
 
-const autolink = () => {
+export type IosAutolinkSyncOpts = {
+    release?: boolean;
+    includeDevClient?: boolean;
+};
+
+const autolink = (syncHostOpts?: IosAutolinkSyncOpts) => {
     let resolved: ReturnType<typeof resolveHostPaths>;
     try {
         resolved = resolveHostPaths();
@@ -150,6 +155,44 @@ const autolink = () => {
         }
         fs.writeFileSync(podfilePath, content, 'utf8');
         console.log(`✅ Added XElement pod (v${lynxVersion}) to Podfile`);
+    }
+
+    function ensureLynxDevToolPods(packages: DiscoveredModule[]): void {
+        const hasDevClient = packages.some(
+            (p) => p.name === '@tamer4lynx/tamer-dev-client' || p.name === 'tamer-dev-client',
+        );
+        if (!hasDevClient) return;
+
+        const podfilePath = path.join(iosProjectPath, 'Podfile');
+        if (!fs.existsSync(podfilePath)) return;
+        let content = fs.readFileSync(podfilePath, 'utf8');
+        if (content.includes("pod 'LynxDevtool'") || content.includes('pod "LynxDevtool"')) return;
+
+        const lynxVersionMatch = content.match(/pod\s+'Lynx',\s*'([^']+)'/);
+        const lynxVersion = lynxVersionMatch?.[1] ?? '3.6.0';
+
+        if (!content.includes("'Devtool'") && !content.includes('"Devtool"')) {
+            content = content.replace(
+                /(\s+'Http',\s*\n)(\s*\])/,
+                "$1    'Devtool',\n$2",
+            );
+        }
+
+        const devtoolLine = `  pod 'LynxDevtool', '${lynxVersion}'\n\n  `;
+        if (content.includes('# GENERATED AUTOLINK DEPENDENCIES START')) {
+            content = content.replace(/(# GENERATED AUTOLINK DEPENDENCIES START)/, `${devtoolLine}$1`);
+        } else {
+            const insertAfter = /pod\s+'LynxService'[^\n]*(?:\n\s*'[^']*',?\s*)*\]\s*/;
+            const serviceMatch = content.match(insertAfter);
+            if (serviceMatch) {
+                const idx = serviceMatch.index! + serviceMatch[0].length;
+                content = content.slice(0, idx) + `\n  pod 'LynxDevtool', '${lynxVersion}'` + content.slice(idx);
+            } else {
+                content += `\n  pod 'LynxDevtool', '${lynxVersion}'\n`;
+            }
+        }
+        fs.writeFileSync(podfilePath, content, 'utf8');
+        console.log(`✅ Added Lynx DevTool pods (v${lynxVersion}) to Podfile`);
     }
 
     function ensureLynxPatchInPodfile(): void {
@@ -505,9 +548,10 @@ ${schemesXml}
             console.log('ℹ️ No Tamer4Lynx native packages found.');
         }
 
-        syncHostIos();
+        syncHostIos(syncHostOpts);
         updatePodfile(packages);
         ensureXElementPod();
+        ensureLynxDevToolPods(discoverModules(projectRoot));
         ensureLynxPatchInPodfile();
         ensurePodBuildSettings();
         updateLynxInitProcessor(packages);

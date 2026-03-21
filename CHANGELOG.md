@@ -6,11 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Version bumps (workspace; publish separately)
+
+- `@tamer4lynx/cli` **0.0.18** · `@tamer4lynx/tamer-dev-app` **0.0.9** · `@tamer4lynx/tamer-dev-client` **0.0.21** · `@tamer4lynx/tamer-router` **0.0.4** · `@tamer4lynx/tamer-transports` **0.0.7** · `@tamer4lynx/tamer-local-storage` **0.0.2**
+
+### Added
+
+- **`@tamer4lynx/tamer-dev-client` — Lynx DevTool** — Android: `lynx-devtool` / `lynx-service-devtool` (debug classpath only) plus `LynxDevToolBootstrap`; iOS: `LynxDevtool` pod + `LynxService` `Devtool` subspec (via `t4l link`), `LynxInitProcessor` sets `lynxDebugEnabled` / `devtoolEnabled` / `logBoxEnabled` under `#if DEBUG` only. `GeneratedLynxExtensions.register()` calls the bootstrap when the package is linked. **Not active** for `t4l build` **`-r`** / **`-p`** (release/production).
+
+### Changed
+
+- **`@tamer4lynx/tamer-router`** — Re-exports **`useLocation`**, **`useNavigate`**, **`useOutlet`**, **`useParams`** from react-router (same pattern as **`Outlet`** / **`Slot`**).
+
+- **`@tamer4lynx/tamer-dev-client`** — Removed direct **`react-router`** dependency; **`useLocation`** is imported from **`@tamer4lynx/tamer-router`**.
+
+- **`@tamer4lynx/tamer-dev-app`** — `package.json` depends only on **`@tamer4lynx/tamer-dev-client`** (removed unused `@tamer4lynx/*` packages not required by **tamer-dev-client**’s JS sources). Autolink for the dev app now only wires native modules in that npm dependency tree (not every hoisted workspace package under root `node_modules`).
+
+- **`t4l add-dev`** — Installs **tamer-dev-app**, **tamer-dev-client**, and **app-shell / icons / insets / plugin / router / screen / system-ui** explicitly so each is resolved to the **highest published semver** (same version-pinning goal as **`t4l add-core`** / **`t4l add`**, not only transitive installs).
+
+- **`@tamer4lynx/tamer-dev-app` (Android)** — `gradle/libs.versions.toml`: **Lynx `3.6.0`**, **PrimJS `3.6.1`**, aligned with iOS pods and `t4l android create` / embeddable (was 3.3.1 / 2.12.0).
+
+- **iOS CocoaPods** — Generated Podfiles (`t4l ios create`, dev-app sync) use `install! 'cocoapods', :incremental_installation => true, :generate_multiple_pod_projects => true` for faster incremental `pod install` (CocoaPods requires both options together).
+
+- **`t4l build ios` (Debug)** — Passes `COMPILER_INDEX_STORE_ENABLE=NO` to `xcodebuild` to reduce indexing work on dev builds (Release unchanged).
+
+- **`t4l build ios -p`** — Always builds for **iphoneos** (device), never the simulator. **`t4l build ios -p -i`** installs on a **connected physical device** via `xcrun devicectl` (first listed device) instead of the booted simulator. Debug **`t4l build ios -d -i`** is unchanged (simulator + `simctl`).
+
 ### Fixed
 
-- **`@tamer4lynx/cli`** — Declare **`dotenv`** as a runtime dependency (`loadProjectEnv` / `appendEnvFile` import `parse` from `dotenv`). Without it, global installs (e.g. `bun add -g @tamer4lynx/cli`) fail at startup with `ERR_MODULE_NOT_FOUND: Cannot find package 'dotenv'`.
-
-- **`@tamer4lynx/tamer-plugin` + `@tamer4lynx/tamer-dev-client`** — `pluginTamer` now discovers packages that export `tamer.config` from **ancestor** `node_modules` folders (npm hoisting), so `@tamer4lynx/tamer-router` runs when the dev-client package is nested under `node_modules`. Dev-client overrides the router plugin to emit `src/generated-routes.tsx` (avoids resolving `../../src` from under `node_modules/.tamer-router`), publishes `src` and `tsconfig.json` so route generation and `.js`→`.tsx` resolution work in consumer installs.
+- **`t4l build ios -p` / `-r`** — `ios link` / autolink called `syncHostIos()` with no options, which **re-applied embedded dev host Swift** after bundle had already synced release mode. Autolink now receives `{ release, includeDevClient }` so production/release builds stay on the non–dev-client `ViewController` and do not log “embedded dev mode” after “controller files”. Dev-client Lynx bundle was already skipped in release; this fixes the misleading second sync and wrong native entry UI for store builds.
 
 - **iOS host `ViewController.swift` (dev)** — use `SystemUIModule.statusBarStyleForHost` (not a non-existent `TamerPreferredStatusBar`), add `import tamersystemui`, and gate `viewRespectsSystemMinimumLayoutMargins` with `if #available(iOS 15.0, *)`. Same availability guard in `t4l ios create` template, dev-app VCs, `syncDevClient` embedded Swift, and `tamer-dev-client` iOS templates.
 
