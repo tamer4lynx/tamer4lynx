@@ -1,6 +1,6 @@
 {
   "name": "@tamer4lynx/cli",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "module": "index.ts",
   "type": "module",
   "description": "A CLI tool for managing LynxJS native modules.",

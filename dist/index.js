@@ -6202,6 +6202,23 @@ var CORE_PACKAGES = [
   "@tamer4lynx/tamer-system-ui",
   "@tamer4lynx/tamer-icons"
 ];
+var DEV_STACK_PACKAGES = [
+  "@tamer4lynx/jiggle",
+  "@tamer4lynx/tamer-app-shell",
+  "@tamer4lynx/tamer-biometric",
+  "@tamer4lynx/tamer-dev-app",
+  "@tamer4lynx/tamer-dev-client",
+  "@tamer4lynx/tamer-display-browser",
+  "@tamer4lynx/tamer-icons",
+  "@tamer4lynx/tamer-insets",
+  "@tamer4lynx/tamer-linking",
+  "@tamer4lynx/tamer-plugin",
+  "@tamer4lynx/tamer-router",
+  "@tamer4lynx/tamer-screen",
+  "@tamer4lynx/tamer-secure-store",
+  "@tamer4lynx/tamer-system-ui",
+  "@tamer4lynx/tamer-transports"
+];
 var PACKAGE_ALIASES = {};
 async function getHighestPublishedVersion(fullName) {
   try {
@@ -6250,12 +6267,11 @@ async function addCore() {
 async function addDev() {
   const { lynxProjectDir } = resolveHostPaths();
   const pm = detectPackageManager2(lynxProjectDir);
-  const DEV_PACKAGES = ["@tamer4lynx/tamer-dev-app", "@tamer4lynx/tamer-dev-client"];
   console.log(`Resolving latest published versions (npm)\u2026`);
-  const resolved = await Promise.all(DEV_PACKAGES.map(normalizeTamerInstallSpec));
-  console.log(`Adding dev packages to ${lynxProjectDir} (using ${pm})\u2026`);
+  const resolved = await Promise.all([...DEV_STACK_PACKAGES].map(normalizeTamerInstallSpec));
+  console.log(`Adding dev stack (${DEV_STACK_PACKAGES.length} @tamer4lynx packages) to ${lynxProjectDir} (using ${pm})\u2026`);
   runInstall(lynxProjectDir, resolved, pm);
-  console.log("\u2705 Dev packages installed. Run `t4l link` to link native modules.");
+  console.log("\u2705 Dev stack installed. Run `t4l link` to link native modules.");
 }
 async function add(packages = []) {
   const list = Array.isArray(packages) ? packages : [];
@@ -7009,7 +7025,7 @@ program.command("build [platform]").description("Build app. Platform: ios | andr
     await build_default2({ install: opts.install, release, production });
   }
 });
-program.command("link [platform]").description("Link native modules. Platform: ios | android | both (default: both)").option("-s, --silent", "Run in silent mode (e.g. for postinstall)").action((platform, opts) => {
+program.command("link [platform]").description("Link native modules. Platform: ios | android | both (default: both)").option("-s, --silent", "Run without output").action((platform, opts) => {
   if (opts.silent) {
     console.log = () => {
     };
@@ -7038,7 +7054,7 @@ program.command("bundle [platform]").description("Build Lynx bundle and copy to 
   if (p === "android" || p === "all") await bundle_default({ release, production });
   if (p === "ios" || p === "all") bundle_default2({ release, production });
 });
-program.command("inject <platform>").description("Inject tamer-host templates into an existing project. Platform: ios | android").option("-f, --force", "Overwrite existing files").action(async (platform, opts) => {
+program.command("inject <platform>").description("Inject host templates into an existing project. Platform: ios | android").option("-f, --force", "Overwrite existing files").action(async (platform, opts) => {
   const p = platform?.toLowerCase();
   if (p === "ios") {
     await injectHostIos({ force: opts.force });
@@ -7051,7 +7067,7 @@ program.command("inject <platform>").description("Inject tamer-host templates in
   console.error(`Invalid inject platform: ${platform}. Use ios | android`);
   process.exit(1);
 });
-program.command("sync [platform]").description("Sync dev client files from tamer.config.json. Platform: android (default)").action(async (platform) => {
+program.command("sync [platform]").description("Sync dev client. Platform: android (default)").action(async (platform) => {
   const p = (platform ?? "android").toLowerCase();
   if (p !== "android") {
     console.error("sync only supports android.");
@@ -7072,13 +7088,13 @@ program.command("build-dev-app").option("-p, --platform <platform>", "Platform: 
     await build_default2({ install: opts.install, release: false });
   }
 });
-program.command("add [packages...]").description("Add @tamer4lynx packages to the Lynx project. Future: will track versions for compatibility (Expo-style).").action(async (packages) => {
+program.command("add [packages...]").description("Add @tamer4lynx packages to the Lynx project").action(async (packages) => {
   await add(packages);
 });
-program.command("add-core").description("Add core packages (app-shell, screen, router, insets, transports, system-ui, icons)").action(async () => {
+program.command("add-core").description("Add core packages").action(async () => {
   await addCore();
 });
-program.command("add-dev").description("Add dev packages (dev-app, dev-client, and all their dependencies)").action(async () => {
+program.command("add-dev").description("Add dev-app, dev-client, and their dependencies").action(async () => {
   await addDev();
 });
 program.command("signing [platform]").description("Configure Android and iOS signing interactively").action(async (platform) => {
