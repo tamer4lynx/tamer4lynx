@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Version bumps (workspace; publish separately)
 
-- `@tamer4lynx/cli` **0.0.19** · `@tamer4lynx/tamer-dev-app` **0.0.11** · `@tamer4lynx/tamer-dev-client` **0.0.22** · `@tamer4lynx/tamer-router` **0.0.4** · `@tamer4lynx/tamer-transports` **0.0.7** · `@tamer4lynx/tamer-local-storage` **0.0.2** · `@tamer4lynx/tamer-webview` **0.0.1** (first npm publish)
+- `@tamer4lynx/cli` **0.0.20** · `@tamer4lynx/tamer-dev-app` **0.0.11** · `@tamer4lynx/tamer-dev-client` **0.0.22** · `@tamer4lynx/tamer-router` **0.0.6** · `@tamer4lynx/tamer-transports` **0.0.8** · `@tamer4lynx/tamer-local-storage` **0.0.3** · `@tamer4lynx/tamer-webview` **0.0.1** (first npm publish)
 
 ### Added
 
