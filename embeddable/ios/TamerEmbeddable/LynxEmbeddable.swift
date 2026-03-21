@@ -12,6 +12,7 @@ import tamerrouter
 import tamersecurestore
 import tamersystemui
 import tamertransports
+import tamerwebview
 
 public enum LynxEmbeddable {
     public static func initEnvironment() {
@@ -22,6 +23,7 @@ public enum LynxEmbeddable {
                 globalConfig.register(DevClientModule.self)
                 globalConfig.register(DisplayBrowserModule.self)
                 globalConfig.registerUI(TamerIconElement.self, withName: "icon")
+                globalConfig.registerUI(TamerWebViewElement.self, withName: "webview")
                 globalConfig.register(TamerInsetsModule.self)
                 globalConfig.register(LinkingModule.self)
                 globalConfig.register(TamerRouterNativeModule.self)

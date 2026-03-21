@@ -8,6 +8,7 @@ export default function DevLayout() {
       <Stack.Screen name="linking" path="/native/linking" options={{ title: 'tamer-linking' }} />
       <Stack.Screen name="browser" path="/native/browser" options={{ title: 'tamer-display-browser' }} />
       <Stack.Screen name="storage" path="/native/storage" options={{ title: 'tamer-secure-store' }} />
+      <Stack.Screen name="webview" path="/native/webview" options={{ title: 'tamer-webview' }} />
     </Stack>
   )
 }

@@ -3,8 +3,11 @@ import path from 'path';
 import { execSync } from 'child_process';
 import { resolveHostPaths } from '../common/hostConfig';
 import android_bundle from './bundle';
+import { cleanTamerAndroidLibBuildsIfVersionsChanged } from './cleanTamerAndroidCaches.ts';
 
-async function buildApk(opts: { install?: boolean; release?: boolean; production?: boolean } = {}) {
+async function buildApk(
+    opts: { install?: boolean; release?: boolean; production?: boolean; clean?: boolean } = {},
+) {
     let resolved: ReturnType<typeof resolveHostPaths>;
     try {
         resolved = resolveHostPaths();
@@ -15,11 +18,17 @@ async function buildApk(opts: { install?: boolean; release?: boolean; production
     const release = opts.release === true || opts.production === true;
     await android_bundle({ release, production: opts.production });
 
-    const androidDir = resolved.androidDir;
+    const { androidDir, projectRoot } = resolved;
+    cleanTamerAndroidLibBuildsIfVersionsChanged(projectRoot);
+
     const gradlew = path.join(androidDir, process.platform === 'win32' ? 'gradlew.bat' : 'gradlew');
     const variant = release ? 'Release' : 'Debug';
     const task = opts.install ? `install${variant}` : `assemble${variant}`;
     console.log(`\n🔨 Building ${variant.toLowerCase()} APK${opts.install ? ' and installing' : ''}...`);
+    if (opts.clean === true) {
+        console.log('ℹ️  Running Gradle clean (--clean)...');
+        execSync(`"${gradlew}" clean`, { stdio: 'inherit', cwd: androidDir });
+    }
     execSync(`"${gradlew}" ${task}`, { stdio: 'inherit', cwd: androidDir });
     console.log(`✅ APK ${opts.install ? 'installed' : 'built'} successfully.`);
 

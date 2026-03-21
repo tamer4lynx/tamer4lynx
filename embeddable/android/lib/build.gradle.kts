@@ -45,4 +45,5 @@ dependencies {
     implementation(project(":tamer-system-ui"))
     implementation(project(":tamer-text-input"))
     implementation(project(":tamer-transports"))
+    implementation(project(":tamer-webview"))
 }

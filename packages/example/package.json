@@ -26,6 +26,7 @@
     "@tamer4lynx/tamer-app-shell": "^0.0.2",
     "@tamer4lynx/tamer-screen": "^0.0.2",
     "@tamer4lynx/tamer-system-ui": "^0.0.1",
+    "@tamer4lynx/tamer-webview": "file:../tamer-webview",
     "@tamer4lynx/tamer-plugin": "^0.0.3",
     "@tamer4lynx/tamer-router": "^0.0.1",
     "@tamer4lynx/tamer-secure-store": "^0.0.1",

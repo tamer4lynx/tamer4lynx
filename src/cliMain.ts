@@ -92,6 +92,7 @@ program
     .option('-r, --release', 'Release build without dev client (unsigned)')
     .option('-p, --production', 'Production build for app store (signed)')
     .option('-i, --install', 'Install after building')
+    .option('-C, --clean', 'Run Gradle clean before Android build (fixes stubborn caches)')
     .action(async (platform: string | undefined, opts) => {
         validateBuildMode(opts.debug, opts.release, opts.production);
         const release = opts.release === true || opts.production === true;
@@ -105,7 +106,7 @@ program
             assertProductionSigningReady(p);
         }
         if (p === 'android' || p === 'all') {
-            await android_build({ install: opts.install, release, production });
+            await android_build({ install: opts.install, release, production, clean: opts.clean });
         }
         if (p === 'ios' || p === 'all') {
             await ios_build({ install: opts.install, release, production });
@@ -250,6 +251,7 @@ program
     .option('-r, --release', 'Create: dev-app project. Bundle/build: release without dev client.')
     .option('-p, --production', 'Bundle/build: production for app store (signed)')
     .option('-i, --install', 'Install after build')
+    .option('-C, --clean', 'Run Gradle clean before Android build')
     .option('-e, --embeddable', 'Build embeddable')
     .option('-f, --force', 'Force (inject)')
     .action(async (subcommand: string, opts) => {
@@ -278,7 +280,12 @@ program
             if (opts.embeddable) await buildEmbeddable({ release: true });
             else {
                 if (opts.production === true) assertProductionSigningReady('android');
-                await android_build({ install: opts.install, release, production: opts.production === true });
+                await android_build({
+                    install: opts.install,
+                    release,
+                    production: opts.production === true,
+                    clean: opts.clean,
+                });
             }
             return;
         }

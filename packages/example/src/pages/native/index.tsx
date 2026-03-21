@@ -9,6 +9,7 @@ export default function DevIndex() {
   const goBrowser = useCallback(() => { 'background only'; push('/native/browser') }, [push])
   const goAuth = useCallback(() => { 'background only'; push('/native/auth') }, [push])
   const goStorage = useCallback(() => { 'background only'; push('/native/storage') }, [push])
+  const goWebView = useCallback(() => { 'background only'; push('/native/webview') }, [push])
 
   return (
     <view style={{ padding: px(32), display: 'flex', flexDirection: 'column', gap: px(24) }}>
@@ -27,6 +28,10 @@ export default function DevIndex() {
       <view style={{ padding: px(8), backgroundColor: '#555', borderRadius: px(6), display: 'flex', flexDirection: 'column', gap: px(8) }} bindtap={goStorage}>
         <text style={{ fontSize: px(18) }}>Storage</text>
         <text style={{ fontSize: px(18), color: '#aaa' }}>Local storage</text>
+      </view>
+      <view style={{ padding: px(8), backgroundColor: '#555', borderRadius: px(6), display: 'flex', flexDirection: 'column', gap: px(8) }} bindtap={goWebView}>
+        <text style={{ fontSize: px(18) }}>tamer-webview (webview)</text>
+        <text style={{ fontSize: px(18), color: '#aaa' }}>Embedded WKWebView / WebView</text>
       </view>
     </view>
   )

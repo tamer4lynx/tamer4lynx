@@ -27,4 +27,5 @@ Pod::Spec.new do |s|
   s.dependency 'tamersystemui'
   s.dependency 'tamertextinput'
   s.dependency 'tamertransports'
+  s.dependency 'tamerwebview'
 end

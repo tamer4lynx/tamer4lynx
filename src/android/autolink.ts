@@ -4,6 +4,7 @@ import { execSync } from 'child_process';
 import { discoverModules, type DiscoveredModule } from '../common/discoverModules';
 import { generateActivityLifecycleKotlin, generateLynxExtensionsKotlin } from '../common/generateExtCode';
 import { resolveHostPaths, type DeepLinkConfig } from '../common/hostConfig';
+import { invalidateTamerAndroidLibVersionMarker } from './cleanTamerAndroidCaches.ts';
 import type { NormalizedExtensionConfig } from '../common/config';
 
 const TAMER_DEV_CLIENT_FALLBACK: DiscoveredModule = {
@@ -241,6 +242,7 @@ ${generateActivityLifecycleKotlin(packages, projectPackage)}`;
         ensureReleaseSigning();
 
         runGradleSync();
+        invalidateTamerAndroidLibVersionMarker(projectRoot);
         console.log('✨ Autolinking complete.');
     }
 
