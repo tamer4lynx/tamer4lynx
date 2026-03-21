@@ -4403,101 +4403,507 @@ async function buildIpa(opts = {}) {
 }
 var build_default2 = buildIpa;
 
-// src/common/init.ts
+// src/common/init.tsx
 import fs17 from "fs";
 import path18 from "path";
-import readline from "readline";
-var rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-  terminal: false
-});
-function ask(question) {
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => resolve(answer.trim()));
-  });
+import { useState as useState4, useEffect as useEffect2, useCallback as useCallback3 } from "react";
+import { render, Text as Text9, Box as Box8 } from "ink";
+
+// src/common/tui/components/TextInput.tsx
+import { useState, useEffect } from "react";
+import { Box, Text } from "ink";
+import InkTextInput from "ink-text-input";
+import { jsx, jsxs } from "react/jsx-runtime";
+function TuiTextInput({
+  label,
+  value: valueProp,
+  defaultValue = "",
+  onChange: onChangeProp,
+  onSubmitValue,
+  onSubmit,
+  hint,
+  error
+}) {
+  const controlled = valueProp !== void 0;
+  const [internal, setInternal] = useState(defaultValue);
+  useEffect(() => {
+    if (!controlled) setInternal(defaultValue);
+  }, [defaultValue, controlled]);
+  const value = controlled ? valueProp : internal;
+  const onChange = (v) => {
+    if (!controlled) setInternal(v);
+    onChangeProp?.(v);
+  };
+  return /* @__PURE__ */ jsxs(Box, { flexDirection: "column", children: [
+    label ? /* @__PURE__ */ jsx(Text, { children: label }) : null,
+    /* @__PURE__ */ jsx(
+      InkTextInput,
+      {
+        value,
+        onChange,
+        onSubmit: () => {
+          const r = onSubmitValue?.(value);
+          if (r === false) return;
+          onSubmit();
+        }
+      }
+    ),
+    error ? /* @__PURE__ */ jsx(Text, { color: "red", children: error }) : hint ? /* @__PURE__ */ jsx(Text, { dimColor: true, children: hint }) : null
+  ] });
 }
-async function init() {
-  console.log("Tamer4Lynx Init: Let's set up your tamer.config.json\n");
-  const androidAppName = await ask("Android app name: ");
-  const androidPackageName = await ask("Android package name (e.g. com.example.app): ");
-  let androidSdk = await ask("Android SDK path (e.g. ~/Library/Android/sdk or $ANDROID_HOME): ");
+
+// src/common/tui/components/SelectInput.tsx
+import "react";
+import { Box as Box2, Text as Text2 } from "ink";
+import InkSelectInput from "ink-select-input";
+import { jsx as jsx2, jsxs as jsxs2 } from "react/jsx-runtime";
+function TuiSelectInput({
+  label,
+  items,
+  onSelect,
+  hint
+}) {
+  return /* @__PURE__ */ jsxs2(Box2, { flexDirection: "column", children: [
+    label ? /* @__PURE__ */ jsx2(Text2, { children: label }) : null,
+    /* @__PURE__ */ jsx2(
+      InkSelectInput,
+      {
+        items,
+        onSelect: (item) => onSelect(item.value)
+      }
+    ),
+    hint ? /* @__PURE__ */ jsx2(Text2, { dimColor: true, children: hint }) : null
+  ] });
+}
+
+// src/common/tui/components/PasswordInput.tsx
+import "react";
+import { Box as Box3, Text as Text3 } from "ink";
+import InkTextInput2 from "ink-text-input";
+import { jsx as jsx3, jsxs as jsxs3 } from "react/jsx-runtime";
+
+// src/common/tui/components/ConfirmInput.tsx
+import "react";
+import { Box as Box4, Text as Text4 } from "ink";
+import { jsx as jsx4, jsxs as jsxs4 } from "react/jsx-runtime";
+function TuiConfirmInput({
+  label,
+  onConfirm,
+  defaultYes = false,
+  hint
+}) {
+  const items = defaultYes ? [
+    { label: "Yes (default)", value: "yes" },
+    { label: "No", value: "no" }
+  ] : [
+    { label: "No (default)", value: "no" },
+    { label: "Yes", value: "yes" }
+  ];
+  return /* @__PURE__ */ jsxs4(Box4, { flexDirection: "column", children: [
+    label ? /* @__PURE__ */ jsx4(Text4, { children: label }) : null,
+    /* @__PURE__ */ jsx4(
+      TuiSelectInput,
+      {
+        items,
+        onSelect: (v) => onConfirm(v === "yes"),
+        hint
+      }
+    )
+  ] });
+}
+
+// src/common/tui/components/Spinner.tsx
+import "react";
+import { Text as Text5 } from "ink";
+import InkSpinner from "ink-spinner";
+import { jsx as jsx5, jsxs as jsxs5 } from "react/jsx-runtime";
+function TuiSpinner({ label, type = "dots" }) {
+  return /* @__PURE__ */ jsxs5(Text5, { color: "cyan", children: [
+    /* @__PURE__ */ jsx5(InkSpinner, { type }),
+    label ? ` ${label}` : ""
+  ] });
+}
+
+// src/common/tui/components/StatusBox.tsx
+import "react";
+import { Box as Box5, Text as Text6 } from "ink";
+import { jsx as jsx6, jsxs as jsxs6 } from "react/jsx-runtime";
+var colors = {
+  success: "green",
+  error: "red",
+  warning: "yellow",
+  info: "cyan"
+};
+function StatusBox({ variant, children, title }) {
+  const c = colors[variant];
+  return /* @__PURE__ */ jsxs6(Box5, { flexDirection: "column", borderStyle: "round", borderColor: c, paddingX: 1, children: [
+    title ? /* @__PURE__ */ jsx6(Text6, { bold: true, color: c, children: title }) : null,
+    /* @__PURE__ */ jsx6(Box5, { flexDirection: "column", children })
+  ] });
+}
+
+// src/common/tui/components/Wizard.tsx
+import "react";
+import { Box as Box6, Text as Text7 } from "ink";
+import { jsx as jsx7, jsxs as jsxs7 } from "react/jsx-runtime";
+function Wizard({ step, total, title, children }) {
+  return /* @__PURE__ */ jsxs7(Box6, { flexDirection: "column", children: [
+    /* @__PURE__ */ jsxs7(Text7, { dimColor: true, children: [
+      "Step ",
+      step,
+      "/",
+      total,
+      title ? ` \u2014 ${title}` : ""
+    ] }),
+    /* @__PURE__ */ jsx7(Box6, { marginTop: 1, flexDirection: "column", children })
+  ] });
+}
+
+// src/common/tui/components/ServerDashboard.tsx
+import "react";
+import { Box as Box7, Text as Text8 } from "ink";
+import { jsx as jsx8, jsxs as jsxs8 } from "react/jsx-runtime";
+function ServerDashboard({
+  projectName,
+  port,
+  lanIp,
+  devUrl,
+  wsUrl,
+  lynxBundleFile,
+  bonjour,
+  verbose,
+  buildPhase,
+  buildError,
+  wsConnections,
+  logLines,
+  showLogs,
+  qrLines,
+  phase,
+  startError
+}) {
+  if (phase === "failed") {
+    return /* @__PURE__ */ jsxs8(Box7, { flexDirection: "column", children: [
+      /* @__PURE__ */ jsx8(Text8, { color: "red", bold: true, children: "Dev server failed to start" }),
+      startError ? /* @__PURE__ */ jsx8(Text8, { color: "red", children: startError }) : null,
+      /* @__PURE__ */ jsx8(Box7, { marginTop: 1, children: /* @__PURE__ */ jsx8(Text8, { dimColor: true, children: "Press Ctrl+C or 'q' to quit" }) })
+    ] });
+  }
+  const bundlePath = `${devUrl}/${lynxBundleFile}`;
+  return /* @__PURE__ */ jsxs8(Box7, { flexDirection: "column", children: [
+    /* @__PURE__ */ jsxs8(Text8, { bold: true, color: "green", children: [
+      "Tamer4Lynx dev server (",
+      projectName,
+      ")"
+    ] }),
+    verbose ? /* @__PURE__ */ jsx8(Text8, { dimColor: true, children: "Logs: verbose (native + JS)" }) : null,
+    /* @__PURE__ */ jsxs8(Box7, { marginTop: 1, flexDirection: "row", columnGap: 3, alignItems: "flex-start", children: [
+      qrLines.length > 0 ? /* @__PURE__ */ jsxs8(Box7, { flexDirection: "column", flexShrink: 0, children: [
+        /* @__PURE__ */ jsx8(Text8, { bold: true, children: "Scan" }),
+        qrLines.map((line, i) => /* @__PURE__ */ jsx8(Text8, { children: line }, i)),
+        /* @__PURE__ */ jsxs8(Box7, { marginTop: 1, flexDirection: "column", children: [
+          /* @__PURE__ */ jsx8(Text8, { bold: true, children: "Open" }),
+          /* @__PURE__ */ jsx8(Text8, { color: "cyan", wrap: "truncate-end", children: devUrl })
+        ] })
+      ] }) : /* @__PURE__ */ jsxs8(Box7, { flexDirection: "column", flexShrink: 0, children: [
+        /* @__PURE__ */ jsx8(Text8, { bold: true, children: "Open" }),
+        /* @__PURE__ */ jsx8(Text8, { color: "cyan", wrap: "truncate-end", children: devUrl })
+      ] }),
+      /* @__PURE__ */ jsxs8(
+        Box7,
+        {
+          flexDirection: "column",
+          flexGrow: 1,
+          minWidth: 28,
+          marginTop: qrLines.length > 0 ? 2 : 0,
+          children: [
+            /* @__PURE__ */ jsxs8(Text8, { children: [
+              "Port: ",
+              /* @__PURE__ */ jsx8(Text8, { color: "cyan", children: port }),
+              " \xB7 LAN: ",
+              /* @__PURE__ */ jsx8(Text8, { color: "cyan", children: lanIp })
+            ] }),
+            /* @__PURE__ */ jsx8(Text8, { dimColor: true, wrap: "truncate-end", children: bundlePath }),
+            /* @__PURE__ */ jsxs8(Text8, { dimColor: true, wrap: "truncate-end", children: [
+              devUrl,
+              "/meta.json"
+            ] }),
+            /* @__PURE__ */ jsx8(Text8, { dimColor: true, wrap: "truncate-end", children: wsUrl }),
+            bonjour ? /* @__PURE__ */ jsx8(Text8, { dimColor: true, children: "mDNS: _tamer._tcp" }) : null,
+            /* @__PURE__ */ jsxs8(Box7, { marginTop: 1, flexDirection: "column", children: [
+              /* @__PURE__ */ jsx8(Text8, { bold: true, children: "Build" }),
+              buildPhase === "building" ? /* @__PURE__ */ jsx8(TuiSpinner, { label: "Building\u2026" }) : buildPhase === "error" ? /* @__PURE__ */ jsx8(Text8, { color: "red", children: buildError ?? "Build failed" }) : /* @__PURE__ */ jsx8(Text8, { color: "green", children: "Ready" })
+            ] }),
+            /* @__PURE__ */ jsxs8(Box7, { marginTop: 1, flexDirection: "column", children: [
+              /* @__PURE__ */ jsx8(Text8, { bold: true, children: "Connections" }),
+              /* @__PURE__ */ jsxs8(Text8, { dimColor: true, children: [
+                "WebSocket clients: ",
+                wsConnections
+              ] })
+            ] })
+          ]
+        }
+      )
+    ] }),
+    showLogs && logLines.length > 0 ? /* @__PURE__ */ jsxs8(Box7, { marginTop: 1, flexDirection: "column", borderStyle: "single", paddingX: 1, children: [
+      /* @__PURE__ */ jsxs8(Text8, { dimColor: true, children: [
+        "Build / output (last ",
+        logLines.length,
+        " lines)"
+      ] }),
+      logLines.slice(-12).map((line, i) => /* @__PURE__ */ jsx8(Text8, { dimColor: true, children: line }, i))
+    ] }) : null,
+    /* @__PURE__ */ jsx8(Box7, { marginTop: 1, children: /* @__PURE__ */ jsx8(Text8, { dimColor: true, children: "r rebuild \xB7 l toggle logs \xB7 q quit" }) })
+  ] });
+}
+
+// src/common/tui/hooks/useInputState.ts
+import { useState as useState2, useCallback } from "react";
+
+// src/common/tui/hooks/useValidation.ts
+function isValidAndroidPackage(name) {
+  const s = name.trim();
+  if (!s) return false;
+  return /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/.test(s);
+}
+function isValidIosBundleId(id) {
+  const s = id.trim();
+  if (!s) return false;
+  return /^[a-zA-Z][a-zA-Z0-9_-]*(\.[a-zA-Z0-9][a-zA-Z0-9_-]*)+$/.test(s);
+}
+
+// src/common/tui/hooks/useServerStatus.ts
+import { useState as useState3, useCallback as useCallback2 } from "react";
+
+// src/common/init.tsx
+import { jsx as jsx9, jsxs as jsxs9 } from "react/jsx-runtime";
+function resolveSdkInput(raw) {
+  let androidSdk = raw.trim();
   if (androidSdk.startsWith("$") && /^[A-Z0-9_]+$/.test(androidSdk.slice(1))) {
     const envVar = androidSdk.slice(1);
     const envValue = process.env[envVar];
     if (envValue) {
       androidSdk = envValue;
-      console.log(`Resolved ${androidSdk} from $${envVar}`);
-    } else {
-      console.warn(`Environment variable $${envVar} not found. SDK path will be left as-is.`);
+      return { resolved: androidSdk, message: `Using ${androidSdk} from $${envVar}` };
     }
+    return {
+      resolved: androidSdk,
+      message: `Environment variable $${envVar} not found \u2014 path saved as typed.`
+    };
   }
-  const useSame = await ask("Use same name and bundle ID for iOS as Android? (y/N): ");
-  let iosAppName;
-  let iosBundleId;
-  if (/^y(es)?$/i.test(useSame)) {
-    iosAppName = androidAppName;
-    iosBundleId = androidPackageName;
-  } else {
-    iosAppName = await ask("iOS app name: ");
-    iosBundleId = await ask("iOS bundle ID (e.g. com.example.app): ");
-  }
-  const lynxProject = await ask("Lynx project path (relative to project root, e.g. packages/example) [optional]: ");
-  const config = {
-    android: {
-      appName: androidAppName || void 0,
-      packageName: androidPackageName || void 0,
-      sdk: androidSdk || void 0
-    },
-    ios: {
-      appName: iosAppName || void 0,
-      bundleId: iosBundleId || void 0
-    },
-    paths: { androidDir: "android", iosDir: "ios" }
-  };
-  if (lynxProject) config.lynxProject = lynxProject;
-  const configPath = path18.join(process.cwd(), "tamer.config.json");
-  fs17.writeFileSync(configPath, JSON.stringify(config, null, 2));
-  console.log(`
-\u2705 Generated tamer.config.json at ${configPath}`);
-  const tamerTypesInclude = "node_modules/@tamer4lynx/tamer-*/src/**/*.d.ts";
-  const tsconfigCandidates = lynxProject ? [path18.join(process.cwd(), lynxProject, "tsconfig.json"), path18.join(process.cwd(), "tsconfig.json")] : [path18.join(process.cwd(), "tsconfig.json")];
-  function parseTsconfigJson(raw) {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      const noTrailingCommas = raw.replace(/,\s*([\]}])/g, "$1");
-      return JSON.parse(noTrailingCommas);
-    }
-  }
-  for (const tsconfigPath of tsconfigCandidates) {
-    if (!fs17.existsSync(tsconfigPath)) continue;
-    try {
-      const raw = fs17.readFileSync(tsconfigPath, "utf-8");
-      const tsconfig = parseTsconfigJson(raw);
-      const include = tsconfig.include ?? [];
-      const arr = Array.isArray(include) ? include : [include];
-      if (arr.some((p) => (typeof p === "string" ? p : "").includes("tamer-"))) continue;
-      arr.push(tamerTypesInclude);
-      tsconfig.include = arr;
-      fs17.writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2));
-      console.log(`\u2705 Updated ${path18.relative(process.cwd(), tsconfigPath)} to include tamer type declarations`);
-      break;
-    } catch (e) {
-      console.warn(`\u26A0 Could not update ${tsconfigPath}:`, e.message);
-    }
-  }
-  rl.close();
+  return { resolved: androidSdk };
 }
-var init_default = init;
+function InitWizard() {
+  const [step, setStep] = useState4("welcome");
+  const [androidAppName, setAndroidAppName] = useState4("");
+  const [androidPackageName, setAndroidPackageName] = useState4("");
+  const [androidSdk, setAndroidSdk] = useState4("");
+  const [sdkHint, setSdkHint] = useState4();
+  const [iosAppName, setIosAppName] = useState4("");
+  const [iosBundleId, setIosBundleId] = useState4("");
+  const [lynxProject, setLynxProject] = useState4("");
+  const [pkgError, setPkgError] = useState4();
+  const [bundleError, setBundleError] = useState4();
+  const [doneMessage, setDoneMessage] = useState4([]);
+  const writeConfigAndTsconfig = useCallback3(() => {
+    const config = {
+      android: {
+        appName: androidAppName || void 0,
+        packageName: androidPackageName || void 0,
+        sdk: androidSdk || void 0
+      },
+      ios: {
+        appName: iosAppName || void 0,
+        bundleId: iosBundleId || void 0
+      },
+      paths: { androidDir: "android", iosDir: "ios" }
+    };
+    if (lynxProject.trim()) config.lynxProject = lynxProject.trim();
+    const configPath = path18.join(process.cwd(), "tamer.config.json");
+    fs17.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    const lines = [`Generated tamer.config.json at ${configPath}`];
+    const tamerTypesInclude = "node_modules/@tamer4lynx/tamer-*/src/**/*.d.ts";
+    const tsconfigCandidates = lynxProject.trim() ? [
+      path18.join(process.cwd(), lynxProject.trim(), "tsconfig.json"),
+      path18.join(process.cwd(), "tsconfig.json")
+    ] : [path18.join(process.cwd(), "tsconfig.json")];
+    function parseTsconfigJson(raw) {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        const noTrailingCommas = raw.replace(/,\s*([\]}])/g, "$1");
+        return JSON.parse(noTrailingCommas);
+      }
+    }
+    for (const tsconfigPath of tsconfigCandidates) {
+      if (!fs17.existsSync(tsconfigPath)) continue;
+      try {
+        const raw = fs17.readFileSync(tsconfigPath, "utf-8");
+        const tsconfig = parseTsconfigJson(raw);
+        const include = tsconfig.include ?? [];
+        const arr = Array.isArray(include) ? include : [include];
+        if (arr.some((p) => (typeof p === "string" ? p : "").includes("tamer-"))) continue;
+        arr.push(tamerTypesInclude);
+        tsconfig.include = arr;
+        fs17.writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2));
+        lines.push(`Updated ${path18.relative(process.cwd(), tsconfigPath)} for tamer types`);
+        break;
+      } catch (e) {
+        lines.push(`Could not update ${tsconfigPath}: ${e.message}`);
+      }
+    }
+    setDoneMessage(lines);
+    setStep("done");
+    setTimeout(() => process.exit(0), 2e3);
+  }, [androidAppName, androidPackageName, androidSdk, iosAppName, iosBundleId, lynxProject]);
+  useEffect2(() => {
+    if (step !== "saving") return;
+    writeConfigAndTsconfig();
+  }, [step, writeConfigAndTsconfig]);
+  if (step === "welcome") {
+    return /* @__PURE__ */ jsxs9(Box8, { flexDirection: "column", children: [
+      /* @__PURE__ */ jsx9(Text9, { bold: true, children: "Tamer4Lynx init" }),
+      /* @__PURE__ */ jsx9(Text9, { dimColor: true, children: "Set up tamer.config.json for your project." }),
+      /* @__PURE__ */ jsx9(Box8, { marginTop: 1, children: /* @__PURE__ */ jsx9(
+        TuiSelectInput,
+        {
+          label: "Continue?",
+          items: [{ label: "Start", value: "start" }],
+          onSelect: () => setStep("android-app")
+        }
+      ) })
+    ] });
+  }
+  if (step === "android-app") {
+    return /* @__PURE__ */ jsx9(Wizard, { step: 1, total: 6, title: "Android app name", children: /* @__PURE__ */ jsx9(
+      TuiTextInput,
+      {
+        label: "Android app name:",
+        defaultValue: androidAppName,
+        onSubmitValue: (v) => setAndroidAppName(v),
+        onSubmit: () => setStep("android-pkg")
+      }
+    ) });
+  }
+  if (step === "android-pkg") {
+    return /* @__PURE__ */ jsx9(Wizard, { step: 2, total: 6, title: "Android package name", children: /* @__PURE__ */ jsx9(
+      TuiTextInput,
+      {
+        label: "Android package name (e.g. com.example.app):",
+        defaultValue: androidPackageName,
+        error: pkgError,
+        onChange: () => setPkgError(void 0),
+        onSubmitValue: (v) => {
+          const t = v.trim();
+          if (t && !isValidAndroidPackage(t)) {
+            setPkgError("Use reverse-DNS form: com.mycompany.app");
+            return false;
+          }
+          setAndroidPackageName(t);
+          setPkgError(void 0);
+        },
+        onSubmit: () => setStep("android-sdk")
+      }
+    ) });
+  }
+  if (step === "android-sdk") {
+    return /* @__PURE__ */ jsx9(Wizard, { step: 3, total: 6, title: "Android SDK", children: /* @__PURE__ */ jsx9(
+      TuiTextInput,
+      {
+        label: "Android SDK path (e.g. ~/Library/Android/sdk or $ANDROID_HOME):",
+        defaultValue: androidSdk,
+        onSubmitValue: (v) => {
+          const { resolved, message } = resolveSdkInput(v);
+          setAndroidSdk(resolved);
+          setSdkHint(message);
+        },
+        onSubmit: () => setStep("ios-reuse"),
+        hint: sdkHint
+      }
+    ) });
+  }
+  if (step === "ios-reuse") {
+    return /* @__PURE__ */ jsx9(Wizard, { step: 4, total: 6, title: "iOS", children: /* @__PURE__ */ jsx9(
+      TuiConfirmInput,
+      {
+        label: "Use the same app name and bundle ID for iOS as Android?",
+        defaultYes: false,
+        onConfirm: (yes) => {
+          if (yes) {
+            setIosAppName(androidAppName);
+            setIosBundleId(androidPackageName);
+            setStep("lynx-path");
+          } else {
+            setStep("ios-app");
+          }
+        },
+        hint: "No = enter iOS-specific values next"
+      }
+    ) });
+  }
+  if (step === "ios-app") {
+    return /* @__PURE__ */ jsx9(Wizard, { step: 4, total: 6, title: "iOS app name", children: /* @__PURE__ */ jsx9(
+      TuiTextInput,
+      {
+        label: "iOS app name:",
+        defaultValue: iosAppName,
+        onSubmitValue: (v) => setIosAppName(v),
+        onSubmit: () => setStep("ios-bundle")
+      }
+    ) });
+  }
+  if (step === "ios-bundle") {
+    return /* @__PURE__ */ jsx9(Wizard, { step: 5, total: 6, title: "iOS bundle ID", children: /* @__PURE__ */ jsx9(
+      TuiTextInput,
+      {
+        label: "iOS bundle ID (e.g. com.example.app):",
+        defaultValue: iosBundleId,
+        error: bundleError,
+        onChange: () => setBundleError(void 0),
+        onSubmitValue: (v) => {
+          const t = v.trim();
+          if (t && !isValidIosBundleId(t)) {
+            setBundleError("Use reverse-DNS form: com.mycompany.App");
+            return false;
+          }
+          setIosBundleId(t);
+          setBundleError(void 0);
+        },
+        onSubmit: () => setStep("lynx-path")
+      }
+    ) });
+  }
+  if (step === "lynx-path") {
+    return /* @__PURE__ */ jsx9(Wizard, { step: 6, total: 6, title: "Lynx project", children: /* @__PURE__ */ jsx9(
+      TuiTextInput,
+      {
+        label: "Lynx project path relative to project root (optional, e.g. packages/example):",
+        defaultValue: lynxProject,
+        onSubmitValue: (v) => setLynxProject(v),
+        onSubmit: () => setStep("saving"),
+        hint: "Press Enter with empty to skip"
+      }
+    ) });
+  }
+  if (step === "saving") {
+    return /* @__PURE__ */ jsx9(Box8, { children: /* @__PURE__ */ jsx9(TuiSpinner, { label: "Writing tamer.config.json and updating tsconfig\u2026" }) });
+  }
+  if (step === "done") {
+    return /* @__PURE__ */ jsx9(Box8, { flexDirection: "column", children: /* @__PURE__ */ jsx9(StatusBox, { variant: "success", title: "Done", children: doneMessage.map((line, i) => /* @__PURE__ */ jsx9(Text9, { color: "green", children: line }, i)) }) });
+  }
+  return null;
+}
+async function init() {
+  const { waitUntilExit } = render(/* @__PURE__ */ jsx9(InitWizard, {}));
+  await waitUntilExit();
+}
 
 // src/common/create.ts
 import fs18 from "fs";
 import path19 from "path";
-import readline2 from "readline";
-var rl2 = readline2.createInterface({ input: process.stdin, output: process.stdout, terminal: false });
-function ask2(question) {
-  return new Promise((resolve) => rl2.question(question, (answer) => resolve(answer.trim())));
+import readline from "readline";
+var rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: false });
+function ask(question) {
+  return new Promise((resolve) => rl.question(question, (answer) => resolve(answer.trim())));
 }
 async function create3(opts) {
   console.log("Tamer4Lynx: Create Lynx Extension\n");
@@ -4536,29 +4942,29 @@ async function create3(opts) {
     console.log("  [ ] Native Module");
     console.log("  [ ] Element");
     console.log("  [ ] Service\n");
-    includeModule = /^y(es)?$/i.test(await ask2("Include Native Module? (Y/n): ") || "y");
-    includeElement = /^y(es)?$/i.test(await ask2("Include Element? (y/N): ") || "n");
-    includeService = /^y(es)?$/i.test(await ask2("Include Service? (y/N): ") || "n");
+    includeModule = /^y(es)?$/i.test(await ask("Include Native Module? (Y/n): ") || "y");
+    includeElement = /^y(es)?$/i.test(await ask("Include Element? (y/N): ") || "n");
+    includeService = /^y(es)?$/i.test(await ask("Include Service? (y/N): ") || "n");
   }
   if (!includeModule && !includeElement && !includeService) {
     console.error("\u274C At least one extension type is required.");
-    rl2.close();
+    rl.close();
     process.exit(1);
   }
-  const extName = await ask2("Extension package name (e.g. my-lynx-module): ");
+  const extName = await ask("Extension package name (e.g. my-lynx-module): ");
   if (!extName || !/^[a-z0-9-_]+$/.test(extName)) {
     console.error("\u274C Invalid package name. Use lowercase letters, numbers, hyphens, underscores.");
-    rl2.close();
+    rl.close();
     process.exit(1);
   }
-  const packageName = await ask2("Android package name (e.g. com.example.mymodule): ") || `com.example.${extName.replace(/-/g, "")}`;
+  const packageName = await ask("Android package name (e.g. com.example.mymodule): ") || `com.example.${extName.replace(/-/g, "")}`;
   const simpleModuleName = extName.split("-").map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join("") + "Module";
   const fullModuleClassName = `${packageName}.${simpleModuleName}`;
   const cwd = process.cwd();
   const root = path19.join(cwd, extName);
   if (fs18.existsSync(root)) {
     console.error(`\u274C Directory ${extName} already exists.`);
-    rl2.close();
+    rl.close();
     process.exit(1);
   }
   fs18.mkdirSync(root, { recursive: true });
@@ -4712,7 +5118,7 @@ This package uses \`lynx.ext.json\` (RFC-compliant) for autolinking.
   console.log(`  cd ${extName}`);
   console.log("  npm install");
   if (includeModule) console.log("  npm run codegen");
-  rl2.close();
+  rl.close();
 }
 var create_default3 = create3;
 
@@ -4783,14 +5189,16 @@ function extractLynxModules(files) {
 }
 var codegen_default = codegen;
 
-// src/common/devServer.ts
+// src/common/devServer.tsx
+import { useState as useState5, useEffect as useEffect3, useRef, useCallback as useCallback4 } from "react";
 import { spawn } from "child_process";
 import fs20 from "fs";
 import http from "http";
 import os4 from "os";
 import path21 from "path";
-import readline3 from "readline";
+import { render as render2, useInput, useApp } from "ink";
 import { WebSocketServer } from "ws";
+import { jsx as jsx10 } from "react/jsx-runtime";
 var DEFAULT_PORT = 3e3;
 var STATIC_MIME = {
   ".png": "image/png",
@@ -4845,319 +5253,431 @@ function getLanIp() {
   }
   return "localhost";
 }
+function detectPackageManager(cwd) {
+  const dir = path21.resolve(cwd);
+  if (fs20.existsSync(path21.join(dir, "pnpm-lock.yaml"))) return { cmd: "pnpm", args: ["run", "build"] };
+  if (fs20.existsSync(path21.join(dir, "bun.lockb")) || fs20.existsSync(path21.join(dir, "bun.lock")))
+    return { cmd: "bun", args: ["run", "build"] };
+  return { cmd: "npm", args: ["run", "build"] };
+}
+var initialUi = () => ({
+  phase: "starting",
+  projectName: "",
+  port: 0,
+  lanIp: "localhost",
+  devUrl: "",
+  wsUrl: "",
+  lynxBundleFile: "main.lynx.bundle",
+  bonjour: false,
+  verbose: false,
+  buildPhase: "idle",
+  wsConnections: 0,
+  logLines: [],
+  showLogs: false,
+  qrLines: []
+});
+function DevServerApp({ verbose }) {
+  const { exit } = useApp();
+  const [ui, setUi] = useState5(() => {
+    const s = initialUi();
+    s.verbose = verbose;
+    return s;
+  });
+  const cleanupRef = useRef(null);
+  const rebuildRef = useRef(() => Promise.resolve());
+  const quitOnceRef = useRef(false);
+  const appendLog = useCallback4((chunk) => {
+    const lines = chunk.split(/\r?\n/).filter(Boolean);
+    setUi((prev) => ({
+      ...prev,
+      logLines: [...prev.logLines, ...lines].slice(-400)
+    }));
+  }, []);
+  const handleQuit = useCallback4(() => {
+    if (quitOnceRef.current) return;
+    quitOnceRef.current = true;
+    void cleanupRef.current?.();
+    exit();
+  }, [exit]);
+  useInput((input, key) => {
+    if (key.ctrl && key.name === "c") {
+      handleQuit();
+      return;
+    }
+    if (input === "q") {
+      handleQuit();
+      return;
+    }
+    if (input === "r") {
+      void rebuildRef.current();
+      return;
+    }
+    if (input === "l") {
+      setUi((s) => ({ ...s, showLogs: !s.showLogs }));
+    }
+  });
+  useEffect3(() => {
+    const onSig = () => {
+      handleQuit();
+    };
+    process.on("SIGINT", onSig);
+    process.on("SIGTERM", onSig);
+    return () => {
+      process.off("SIGINT", onSig);
+      process.off("SIGTERM", onSig);
+    };
+  }, [handleQuit]);
+  useEffect3(() => {
+    let alive = true;
+    let buildProcess = null;
+    let watcher = null;
+    let stopBonjour;
+    const run = async () => {
+      try {
+        const resolved = resolveHostPaths();
+        const { projectRoot, lynxProjectDir, lynxBundlePath, lynxBundleFile, config } = resolved;
+        const distDir = path21.dirname(lynxBundlePath);
+        const projectName = path21.basename(lynxProjectDir);
+        const basePath = `/${projectName}`;
+        setUi((s) => ({ ...s, projectName, lynxBundleFile }));
+        const preferredPort = config.devServer?.port ?? config.devServer?.httpPort ?? DEFAULT_PORT;
+        const port = await findAvailablePort(preferredPort);
+        if (port !== preferredPort) {
+          appendLog(`Port ${preferredPort} in use, using ${port}`);
+        }
+        const iconPaths = resolveIconPaths(projectRoot, config);
+        let iconFilePath = null;
+        if (iconPaths?.source && fs20.statSync(iconPaths.source).isFile()) {
+          iconFilePath = iconPaths.source;
+        } else if (iconPaths?.androidAdaptiveForeground && fs20.statSync(iconPaths.androidAdaptiveForeground).isFile()) {
+          iconFilePath = iconPaths.androidAdaptiveForeground;
+        } else if (iconPaths?.android) {
+          const androidIcon = path21.join(iconPaths.android, "mipmap-xxxhdpi", "ic_launcher.png");
+          if (fs20.existsSync(androidIcon)) iconFilePath = androidIcon;
+        } else if (iconPaths?.ios) {
+          const iosIcon = path21.join(iconPaths.ios, "Icon-1024.png");
+          if (fs20.existsSync(iosIcon)) iconFilePath = iosIcon;
+        }
+        const iconExt = iconFilePath ? path21.extname(iconFilePath) || ".png" : "";
+        const runBuild = () => {
+          return new Promise((resolve, reject) => {
+            const { cmd, args } = detectPackageManager(lynxProjectDir);
+            buildProcess = spawn(cmd, args, {
+              cwd: lynxProjectDir,
+              stdio: "pipe",
+              shell: process.platform === "win32"
+            });
+            let stderr = "";
+            buildProcess.stdout?.on("data", (d) => {
+              appendLog(d.toString());
+            });
+            buildProcess.stderr?.on("data", (d) => {
+              const t = d.toString();
+              stderr += t;
+              appendLog(t);
+            });
+            buildProcess.on("close", (code) => {
+              buildProcess = null;
+              if (code === 0) resolve();
+              else reject(new Error(stderr || `Build exited ${code}`));
+            });
+          });
+        };
+        const doBuild = async () => {
+          setUi((s) => ({ ...s, buildPhase: "building", buildError: void 0 }));
+          try {
+            await runBuild();
+            if (!alive) return;
+            setUi((s) => ({ ...s, buildPhase: "success" }));
+          } catch (e) {
+            if (!alive) return;
+            const msg = e.message;
+            setUi((s) => ({ ...s, buildPhase: "error", buildError: msg }));
+            throw e;
+          }
+        };
+        const httpSrv = http.createServer((req, res) => {
+          let reqPath = (req.url || "/").split("?")[0];
+          if (reqPath === `${basePath}/status`) {
+            res.setHeader("Content-Type", "text/plain");
+            res.setHeader("Access-Control-Allow-Origin", "*");
+            res.end("packager-status:running");
+            return;
+          }
+          if (reqPath === `${basePath}/meta.json`) {
+            const lanIp2 = getLanIp();
+            const nativeModules = discoverNativeExtensions(projectRoot);
+            const androidPackageName = config.android?.packageName?.trim();
+            const iosBundleId = config.ios?.bundleId?.trim();
+            const idParts = [androidPackageName?.toLowerCase(), iosBundleId?.toLowerCase()].filter(
+              (x) => Boolean(x)
+            );
+            const meta = {
+              name: projectName,
+              slug: projectName,
+              bundleUrl: `http://${lanIp2}:${port}${basePath}/${lynxBundleFile}`,
+              bundleFile: lynxBundleFile,
+              hostUri: `http://${lanIp2}:${port}${basePath}`,
+              debuggerHost: `${lanIp2}:${port}`,
+              developer: { tool: "tamer4lynx" },
+              packagerStatus: "running",
+              nativeModules: nativeModules.map((m) => ({
+                packageName: m.packageName,
+                moduleClassName: m.moduleClassName
+              }))
+            };
+            if (androidPackageName) meta.androidPackageName = androidPackageName;
+            if (iosBundleId) meta.iosBundleId = iosBundleId;
+            if (idParts.length > 0) meta.tamerAppKey = idParts.join("|");
+            const rawIcon = config.icon;
+            if (rawIcon && typeof rawIcon === "object" && "source" in rawIcon && typeof rawIcon.source === "string") {
+              meta.iconSource = rawIcon.source;
+            } else if (typeof rawIcon === "string") {
+              meta.iconSource = rawIcon;
+            }
+            if (iconFilePath) {
+              meta.icon = `http://${lanIp2}:${port}${basePath}/icon${iconExt}`;
+            }
+            res.setHeader("Content-Type", "application/json");
+            res.setHeader("Access-Control-Allow-Origin", "*");
+            res.end(JSON.stringify(meta, null, 2));
+            return;
+          }
+          if (iconFilePath && (reqPath === `${basePath}/icon` || reqPath === `${basePath}/icon${iconExt}`)) {
+            fs20.readFile(iconFilePath, (err, data) => {
+              if (err) {
+                res.writeHead(404);
+                res.end();
+                return;
+              }
+              res.setHeader("Content-Type", STATIC_MIME[iconExt] ?? "image/png");
+              res.setHeader("Access-Control-Allow-Origin", "*");
+              res.end(data);
+            });
+            return;
+          }
+          const lynxStaticMounts = [
+            { prefix: `${basePath}/src/assets/`, rootSub: "src/assets" },
+            { prefix: `${basePath}/assets/`, rootSub: "assets" }
+          ];
+          for (const { prefix, rootSub } of lynxStaticMounts) {
+            if (!reqPath.startsWith(prefix)) continue;
+            let rel = reqPath.slice(prefix.length);
+            try {
+              rel = decodeURIComponent(rel);
+            } catch {
+              res.writeHead(400);
+              res.end();
+              return;
+            }
+            const safe = path21.normalize(rel).replace(/^(\.\.(\/|\\|$))+/, "");
+            if (path21.isAbsolute(safe) || safe.startsWith("..")) {
+              res.writeHead(403);
+              res.end();
+              return;
+            }
+            const allowedRoot = path21.resolve(lynxProjectDir, rootSub);
+            const abs = path21.resolve(allowedRoot, safe);
+            if (!abs.startsWith(allowedRoot + path21.sep) && abs !== allowedRoot) {
+              res.writeHead(403);
+              res.end();
+              return;
+            }
+            if (!fs20.existsSync(abs) || !fs20.statSync(abs).isFile()) {
+              res.writeHead(404);
+              res.end("Not found");
+              return;
+            }
+            sendFileFromDisk(res, abs);
+            return;
+          }
+          if (reqPath === "/" || reqPath === basePath || reqPath === `${basePath}/`) {
+            reqPath = `${basePath}/${lynxBundleFile}`;
+          } else if (!reqPath.startsWith(basePath)) {
+            reqPath = basePath + (reqPath.startsWith("/") ? reqPath : "/" + reqPath);
+          }
+          const relPath = reqPath.replace(basePath, "").replace(/^\//, "") || lynxBundleFile;
+          const filePath = path21.resolve(distDir, relPath);
+          const distResolved = path21.resolve(distDir);
+          if (!filePath.startsWith(distResolved + path21.sep) && filePath !== distResolved) {
+            res.writeHead(403);
+            res.end();
+            return;
+          }
+          fs20.readFile(filePath, (err, data) => {
+            if (err) {
+              res.writeHead(404);
+              res.end("Not found");
+              return;
+            }
+            res.setHeader("Access-Control-Allow-Origin", "*");
+            res.setHeader("Content-Type", reqPath.endsWith(".bundle") ? "application/octet-stream" : "application/javascript");
+            res.end(data);
+          });
+        });
+        const wssInst = new WebSocketServer({ noServer: true });
+        rebuildRef.current = async () => {
+          try {
+            await doBuild();
+            if (!alive) return;
+            wssInst.clients.forEach((client) => {
+              if (client.readyState === 1) client.send(JSON.stringify({ type: "reload" }));
+            });
+            appendLog("Rebuilt, clients notified");
+          } catch {
+          }
+        };
+        httpSrv.on("upgrade", (request, socket, head) => {
+          const p = (request.url || "").split("?")[0];
+          if (p === `${basePath}/__hmr` || p === "/__hmr" || p.endsWith("/__hmr")) {
+            wssInst.handleUpgrade(request, socket, head, (ws) => wssInst.emit("connection", ws, request));
+          } else {
+            socket.destroy();
+          }
+        });
+        wssInst.on("connection", (ws, req) => {
+          const clientIp = req.socket.remoteAddress ?? "unknown";
+          setUi((s) => ({ ...s, wsConnections: s.wsConnections + 1 }));
+          appendLog(`[WS] connected: ${clientIp}`);
+          ws.send(JSON.stringify({ type: "connected" }));
+          ws.on("close", () => {
+            setUi((s) => ({ ...s, wsConnections: Math.max(0, s.wsConnections - 1) }));
+            appendLog(`[WS] disconnected: ${clientIp}`);
+          });
+          ws.on("message", (data) => {
+            try {
+              const msg = JSON.parse(data.toString());
+              if (msg?.type === "console_log" && Array.isArray(msg.message)) {
+                const skip = msg.message.includes("[rspeedy-dev-server]") || msg.message.includes("[HMR]");
+                if (skip) return;
+                const isJs = msg.tag === "lynx-console" || msg.tag == null;
+                if (!verbose && !isJs) return;
+                appendLog(`${isJs ? "[APP]" : "[NATIVE]"} ${msg.message.join(" ")}`);
+              }
+            } catch {
+            }
+          });
+        });
+        let chokidar = null;
+        try {
+          chokidar = await import("chokidar");
+        } catch {
+        }
+        if (chokidar) {
+          const watchPaths = [
+            path21.join(lynxProjectDir, "src"),
+            path21.join(lynxProjectDir, "lynx.config.ts"),
+            path21.join(lynxProjectDir, "lynx.config.js")
+          ].filter((p) => fs20.existsSync(p));
+          if (watchPaths.length > 0) {
+            const w = chokidar.watch(watchPaths, { ignoreInitial: true });
+            w.on("change", async () => {
+              try {
+                await rebuildRef.current();
+              } catch {
+              }
+            });
+            watcher = {
+              close: async () => {
+                await w.close();
+              }
+            };
+          }
+        }
+        await doBuild();
+        if (!alive) return;
+        await new Promise((listenResolve, listenReject) => {
+          httpSrv.listen(port, "0.0.0.0", () => {
+            listenResolve();
+          });
+          httpSrv.once("error", (err) => listenReject(err));
+        });
+        if (!alive) return;
+        void import("dnssd-advertise").then(({ advertise }) => {
+          stopBonjour = advertise({
+            name: projectName,
+            type: "tamer",
+            protocol: "tcp",
+            port,
+            txt: {
+              name: projectName.slice(0, 255),
+              path: basePath.slice(0, 255)
+            }
+          });
+          setUi((s) => ({ ...s, bonjour: true }));
+        }).catch(() => {
+        });
+        const lanIp = getLanIp();
+        const devUrl = `http://${lanIp}:${port}${basePath}`;
+        const wsUrl = `ws://${lanIp}:${port}${basePath}/__hmr`;
+        setUi((s) => ({
+          ...s,
+          phase: "running",
+          port,
+          lanIp,
+          devUrl,
+          wsUrl
+        }));
+        void import("qrcode-terminal").then((mod) => {
+          const qrcode = mod.default ?? mod;
+          qrcode.generate(devUrl, { small: true }, (qr) => {
+            if (!alive) return;
+            setUi((s) => ({ ...s, qrLines: qr.split("\n").filter(Boolean) }));
+          });
+        }).catch(() => {
+        });
+        cleanupRef.current = async () => {
+          buildProcess?.kill();
+          await watcher?.close().catch(() => {
+          });
+          await stopBonjour?.();
+          httpSrv.close();
+          wssInst.close();
+        };
+      } catch (e) {
+        if (!alive) return;
+        setUi((s) => ({
+          ...s,
+          phase: "failed",
+          startError: e.message
+        }));
+      }
+    };
+    void run();
+    return () => {
+      alive = false;
+      void cleanupRef.current?.();
+    };
+  }, [appendLog, verbose]);
+  return /* @__PURE__ */ jsx10(
+    ServerDashboard,
+    {
+      projectName: ui.projectName,
+      port: ui.port,
+      lanIp: ui.lanIp,
+      devUrl: ui.devUrl,
+      wsUrl: ui.wsUrl,
+      lynxBundleFile: ui.lynxBundleFile,
+      bonjour: ui.bonjour,
+      verbose: ui.verbose,
+      buildPhase: ui.buildPhase,
+      buildError: ui.buildError,
+      wsConnections: ui.wsConnections,
+      logLines: ui.logLines,
+      showLogs: ui.showLogs,
+      qrLines: ui.qrLines,
+      phase: ui.phase,
+      startError: ui.startError
+    }
+  );
+}
 async function startDevServer(opts) {
   const verbose = opts?.verbose ?? false;
-  const resolved = resolveHostPaths();
-  const { projectRoot, lynxProjectDir, lynxBundlePath, lynxBundleFile, config } = resolved;
-  const distDir = path21.dirname(lynxBundlePath);
-  let buildProcess = null;
-  function detectPackageManager2(cwd) {
-    const dir = path21.resolve(cwd);
-    if (fs20.existsSync(path21.join(dir, "pnpm-lock.yaml"))) return { cmd: "pnpm", args: ["run", "build"] };
-    if (fs20.existsSync(path21.join(dir, "bun.lockb")) || fs20.existsSync(path21.join(dir, "bun.lock"))) return { cmd: "bun", args: ["run", "build"] };
-    return { cmd: "npm", args: ["run", "build"] };
-  }
-  function runBuild() {
-    return new Promise((resolve, reject) => {
-      const { cmd, args } = detectPackageManager2(lynxProjectDir);
-      buildProcess = spawn(cmd, args, {
-        cwd: lynxProjectDir,
-        stdio: "pipe",
-        shell: process.platform === "win32"
-      });
-      let stderr = "";
-      buildProcess.stderr?.on("data", (d) => {
-        stderr += d.toString();
-      });
-      buildProcess.on("close", (code) => {
-        buildProcess = null;
-        if (code === 0) resolve();
-        else reject(new Error(stderr || `Build exited ${code}`));
-      });
-    });
-  }
-  const preferredPort = config.devServer?.port ?? config.devServer?.httpPort ?? DEFAULT_PORT;
-  const port = await findAvailablePort(preferredPort);
-  if (port !== preferredPort) {
-    console.log(`\x1B[33m\u26A0 Port ${preferredPort} in use, using ${port}\x1B[0m`);
-  }
-  const projectName = path21.basename(lynxProjectDir);
-  const basePath = `/${projectName}`;
-  const iconPaths = resolveIconPaths(projectRoot, config);
-  let iconFilePath = null;
-  if (iconPaths?.source && fs20.statSync(iconPaths.source).isFile()) {
-    iconFilePath = iconPaths.source;
-  } else if (iconPaths?.androidAdaptiveForeground && fs20.statSync(iconPaths.androidAdaptiveForeground).isFile()) {
-    iconFilePath = iconPaths.androidAdaptiveForeground;
-  } else if (iconPaths?.android) {
-    const androidIcon = path21.join(iconPaths.android, "mipmap-xxxhdpi", "ic_launcher.png");
-    if (fs20.existsSync(androidIcon)) iconFilePath = androidIcon;
-  } else if (iconPaths?.ios) {
-    const iosIcon = path21.join(iconPaths.ios, "Icon-1024.png");
-    if (fs20.existsSync(iosIcon)) iconFilePath = iosIcon;
-  }
-  const iconExt = iconFilePath ? path21.extname(iconFilePath) || ".png" : "";
-  const httpServer = http.createServer((req, res) => {
-    let reqPath = (req.url || "/").split("?")[0];
-    if (reqPath === `${basePath}/status`) {
-      res.setHeader("Content-Type", "text/plain");
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.end("packager-status:running");
-      return;
-    }
-    if (reqPath === `${basePath}/meta.json`) {
-      const lanIp = getLanIp();
-      const nativeModules = discoverNativeExtensions(projectRoot);
-      const androidPackageName = config.android?.packageName?.trim();
-      const iosBundleId = config.ios?.bundleId?.trim();
-      const idParts = [androidPackageName?.toLowerCase(), iosBundleId?.toLowerCase()].filter(
-        (x) => Boolean(x)
-      );
-      const meta = {
-        name: projectName,
-        slug: projectName,
-        bundleUrl: `http://${lanIp}:${port}${basePath}/${lynxBundleFile}`,
-        bundleFile: lynxBundleFile,
-        hostUri: `http://${lanIp}:${port}${basePath}`,
-        debuggerHost: `${lanIp}:${port}`,
-        developer: { tool: "tamer4lynx" },
-        packagerStatus: "running",
-        nativeModules: nativeModules.map((m) => ({ packageName: m.packageName, moduleClassName: m.moduleClassName }))
-      };
-      if (androidPackageName) meta.androidPackageName = androidPackageName;
-      if (iosBundleId) meta.iosBundleId = iosBundleId;
-      if (idParts.length > 0) meta.tamerAppKey = idParts.join("|");
-      const rawIcon = config.icon;
-      if (rawIcon && typeof rawIcon === "object" && "source" in rawIcon && typeof rawIcon.source === "string") {
-        meta.iconSource = rawIcon.source;
-      } else if (typeof rawIcon === "string") {
-        meta.iconSource = rawIcon;
-      }
-      if (iconFilePath) {
-        meta.icon = `http://${lanIp}:${port}${basePath}/icon${iconExt}`;
-      }
-      res.setHeader("Content-Type", "application/json");
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.end(JSON.stringify(meta, null, 2));
-      return;
-    }
-    if (iconFilePath && (reqPath === `${basePath}/icon` || reqPath === `${basePath}/icon${iconExt}`)) {
-      fs20.readFile(iconFilePath, (err, data) => {
-        if (err) {
-          res.writeHead(404);
-          res.end();
-          return;
-        }
-        res.setHeader("Content-Type", STATIC_MIME[iconExt] ?? "image/png");
-        res.setHeader("Access-Control-Allow-Origin", "*");
-        res.end(data);
-      });
-      return;
-    }
-    const lynxStaticMounts = [
-      { prefix: `${basePath}/src/assets/`, rootSub: "src/assets" },
-      { prefix: `${basePath}/assets/`, rootSub: "assets" }
-    ];
-    for (const { prefix, rootSub } of lynxStaticMounts) {
-      if (!reqPath.startsWith(prefix)) continue;
-      let rel = reqPath.slice(prefix.length);
-      try {
-        rel = decodeURIComponent(rel);
-      } catch {
-        res.writeHead(400);
-        res.end();
-        return;
-      }
-      const safe = path21.normalize(rel).replace(/^(\.\.(\/|\\|$))+/, "");
-      if (path21.isAbsolute(safe) || safe.startsWith("..")) {
-        res.writeHead(403);
-        res.end();
-        return;
-      }
-      const allowedRoot = path21.resolve(lynxProjectDir, rootSub);
-      const abs = path21.resolve(allowedRoot, safe);
-      if (!abs.startsWith(allowedRoot + path21.sep) && abs !== allowedRoot) {
-        res.writeHead(403);
-        res.end();
-        return;
-      }
-      if (!fs20.existsSync(abs) || !fs20.statSync(abs).isFile()) {
-        res.writeHead(404);
-        res.end("Not found");
-        return;
-      }
-      sendFileFromDisk(res, abs);
-      return;
-    }
-    if (reqPath === "/" || reqPath === basePath || reqPath === `${basePath}/`) {
-      reqPath = `${basePath}/${lynxBundleFile}`;
-    } else if (!reqPath.startsWith(basePath)) {
-      reqPath = basePath + (reqPath.startsWith("/") ? reqPath : "/" + reqPath);
-    }
-    const relPath = reqPath.replace(basePath, "").replace(/^\//, "") || lynxBundleFile;
-    const filePath = path21.resolve(distDir, relPath);
-    const distResolved = path21.resolve(distDir);
-    if (!filePath.startsWith(distResolved + path21.sep) && filePath !== distResolved) {
-      res.writeHead(403);
-      res.end();
-      return;
-    }
-    fs20.readFile(filePath, (err, data) => {
-      if (err) {
-        res.writeHead(404);
-        res.end("Not found");
-        return;
-      }
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.setHeader("Content-Type", reqPath.endsWith(".bundle") ? "application/octet-stream" : "application/javascript");
-      res.end(data);
-    });
+  const { waitUntilExit } = render2(/* @__PURE__ */ jsx10(DevServerApp, { verbose }), {
+    exitOnCtrlC: false,
+    patchConsole: false
   });
-  const wss = new WebSocketServer({ noServer: true });
-  httpServer.on("upgrade", (request, socket, head) => {
-    const reqPath = (request.url || "").split("?")[0];
-    if (reqPath === `${basePath}/__hmr` || reqPath === "/__hmr" || reqPath.endsWith("/__hmr")) {
-      wss.handleUpgrade(request, socket, head, (ws) => wss.emit("connection", ws, request));
-    } else {
-      socket.destroy();
-    }
-  });
-  wss.on("connection", (ws, req) => {
-    const clientIp = req.socket.remoteAddress ?? "unknown";
-    console.log(`\x1B[90m[WS] client connected: ${clientIp}\x1B[0m`);
-    ws.send(JSON.stringify({ type: "connected" }));
-    ws.on("close", () => {
-      console.log(`\x1B[90m[WS] client disconnected: ${clientIp}\x1B[0m`);
-    });
-    ws.on("message", (data) => {
-      try {
-        const msg = JSON.parse(data.toString());
-        if (msg?.type === "console_log" && Array.isArray(msg.message)) {
-          const skip = msg.message.includes("[rspeedy-dev-server]") || msg.message.includes("[HMR]");
-          if (skip) return;
-          const isJs = msg.tag === "lynx-console" || msg.tag == null;
-          if (!verbose && !isJs) return;
-          const prefix = isJs ? "\x1B[36m[APP]:\x1B[0m" : "\x1B[33m[NATIVE]:\x1B[0m";
-          console.log(prefix, ...msg.message);
-        }
-      } catch {
-      }
-    });
-  });
-  function broadcastReload() {
-    wss.clients.forEach((client) => {
-      if (client.readyState === 1) client.send(JSON.stringify({ type: "reload" }));
-    });
-  }
-  let chokidar = null;
-  try {
-    chokidar = await import("chokidar");
-  } catch {
-  }
-  if (chokidar) {
-    const watchPaths = [
-      path21.join(lynxProjectDir, "src"),
-      path21.join(lynxProjectDir, "lynx.config.ts"),
-      path21.join(lynxProjectDir, "lynx.config.js")
-    ].filter((p) => fs20.existsSync(p));
-    if (watchPaths.length > 0) {
-      const watcher = chokidar.watch(watchPaths, { ignoreInitial: true });
-      watcher.on("change", async () => {
-        try {
-          await runBuild();
-          broadcastReload();
-          console.log("\u{1F504} Rebuilt, clients notified");
-        } catch (e) {
-          console.error("Build failed:", e.message);
-        }
-      });
-    }
-  }
-  try {
-    await runBuild();
-  } catch (e) {
-    console.error("\u274C Initial build failed:", e.message);
-    process.exit(1);
-  }
-  let stopBonjour;
-  httpServer.listen(port, "0.0.0.0", () => {
-    void import("dnssd-advertise").then(({ advertise }) => {
-      stopBonjour = advertise({
-        name: projectName,
-        type: "tamer",
-        protocol: "tcp",
-        port,
-        txt: {
-          name: projectName.slice(0, 255),
-          path: basePath.slice(0, 255)
-        }
-      });
-    }).catch(() => {
-    });
-    const lanIp = getLanIp();
-    const devUrl = `http://${lanIp}:${port}${basePath}`;
-    const wsUrl = `ws://${lanIp}:${port}${basePath}/__hmr`;
-    console.log(`
-\u{1F680} Tamer4Lynx dev server (${projectName})`);
-    if (verbose) console.log(`   Logs: \x1B[33mverbose\x1B[0m (native + JS)`);
-    console.log(`   Bundle:  ${devUrl}/${lynxBundleFile}`);
-    console.log(`   Meta:    ${devUrl}/meta.json`);
-    console.log(`   HMR WS:  ${wsUrl}`);
-    if (stopBonjour) console.log(`   mDNS:    _tamer._tcp (discoverable on LAN)`);
-    console.log(`
-   Scan QR or enter in app: ${devUrl}
-`);
-    void import("qrcode-terminal").then((mod) => {
-      const qrcode = mod.default ?? mod;
-      qrcode.generate(devUrl, { small: true });
-    }).catch(() => {
-    });
-    if (process.stdin.isTTY) {
-      readline3.emitKeypressEvents(process.stdin);
-      process.stdin.setRawMode(true);
-      process.stdin.resume();
-      process.stdin.setEncoding("utf8");
-      const help = "\x1B[90m  r: refresh  c/Ctrl+L: clear  Ctrl+C: exit\x1B[0m";
-      console.log(help);
-      process.stdin.on("keypress", (str, key) => {
-        if (key.ctrl && key.name === "c") {
-          void cleanup();
-          return;
-        }
-        switch (key.name) {
-          case "r":
-            runBuild().then(() => {
-              broadcastReload();
-              console.log("\u{1F504} Refreshed, clients notified");
-            }).catch((e) => console.error("Build failed:", e.message));
-            break;
-          case "c":
-            process.stdout.write("\x1B[2J\x1B[H");
-            break;
-          case "l":
-            if (key.ctrl) process.stdout.write("\x1B[2J\x1B[H");
-            break;
-          default:
-            break;
-        }
-      });
-    }
-  });
-  const cleanup = async () => {
-    buildProcess?.kill();
-    await stopBonjour?.();
-    httpServer.close();
-    wss.close();
-    process.exit(0);
-  };
-  process.on("SIGINT", () => {
-    void cleanup();
-  });
-  process.on("SIGTERM", () => {
-    void cleanup();
-  });
-  await new Promise(() => {
-  });
+  await waitUntilExit();
 }
 var devServer_default = startDevServer;
 
@@ -5705,7 +6225,7 @@ async function normalizeTamerInstallSpec(pkg) {
   console.warn(`\u26A0\uFE0F  Could not resolve published versions for ${pkg}; using @prerelease`);
   return `${pkg}@prerelease`;
 }
-function detectPackageManager(cwd) {
+function detectPackageManager2(cwd) {
   const dir = path24.resolve(cwd);
   if (fs23.existsSync(path24.join(dir, "pnpm-lock.yaml"))) return "pnpm";
   if (fs23.existsSync(path24.join(dir, "bun.lockb"))) return "bun";
@@ -5718,7 +6238,7 @@ function runInstall(cwd, packages, pm) {
 }
 async function addCore() {
   const { lynxProjectDir } = resolveHostPaths();
-  const pm = detectPackageManager(lynxProjectDir);
+  const pm = detectPackageManager2(lynxProjectDir);
   console.log(`Resolving latest published versions (npm)\u2026`);
   const resolved = await Promise.all(CORE_PACKAGES.map(normalizeTamerInstallSpec));
   console.log(`Adding core packages to ${lynxProjectDir} (using ${pm})\u2026`);
@@ -5735,7 +6255,7 @@ async function add(packages = []) {
     return;
   }
   const { lynxProjectDir } = resolveHostPaths();
-  const pm = detectPackageManager(lynxProjectDir);
+  const pm = detectPackageManager2(lynxProjectDir);
   console.log(`Resolving latest published versions (npm)\u2026`);
   const normalized = await Promise.all(
     list.map(async (p) => {
@@ -5771,7 +6291,7 @@ function parsePlatform(value) {
 }
 program.version(version).description("Tamer4Lynx CLI - A tool for managing Lynx projects");
 program.command("init").description("Initialize tamer.config.json interactively").action(() => {
-  init_default();
+  init();
 });
 program.command("create <target>").description("Create a project or extension. Target: ios | android | module | element | service | combo").option("-d, --debug", "For android: create host project (default)").option("-r, --release", "For android: create dev-app project").action(async (target, opts) => {
   const t = target.toLowerCase();
@@ -5961,7 +6481,7 @@ program.command("autolink-toggle").alias("autolink").description("Toggle autolin
   console.log(`Updated ${configPath}`);
 });
 if (process.argv.length <= 2 || process.argv.length === 3 && process.argv[2] === "init") {
-  Promise.resolve(init_default()).then(() => process.exit(0));
+  Promise.resolve(init()).then(() => process.exit(0));
 } else {
   program.parseAsync().then(() => process.exit(0)).catch(() => process.exit(1));
 }

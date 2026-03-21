@@ -28,6 +28,7 @@
     "packages/tamer-auth",
     "packages/tamer-display-browser",
     "packages/tamer-linking",
+    "packages/tamer-local-storage",
     "packages/jiggle",
     "packages/tamer-transports",
     "packages/tamer-biometric",
