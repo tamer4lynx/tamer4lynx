@@ -7,8 +7,8 @@ process.on("warning", (w) => {
 });
 
 // index.ts
-import fs24 from "fs";
-import path25 from "path";
+import fs28 from "fs";
+import path29 from "path";
 import { fileURLToPath } from "url";
 import { program } from "commander";
 
@@ -2391,7 +2391,7 @@ var syncDevClient_default = syncDevClient;
 
 // src/android/bundle.ts
 async function bundleAndDeploy(opts = {}) {
-  const release = opts.release === true;
+  const release = opts.release === true || opts.production === true;
   let resolved;
   try {
     resolved = resolveHostPaths();
@@ -2468,10 +2468,11 @@ async function buildApk(opts = {}) {
   } catch (error) {
     throw error;
   }
-  await bundle_default({ release: opts.release });
+  const release = opts.release === true || opts.production === true;
+  await bundle_default({ release, production: opts.production });
   const androidDir = resolved.androidDir;
   const gradlew = path11.join(androidDir, process.platform === "win32" ? "gradlew.bat" : "gradlew");
-  const variant = opts.release ? "Release" : "Debug";
+  const variant = release ? "Release" : "Debug";
   const task = opts.install ? `install${variant}` : `assemble${variant}`;
   console.log(`
 \u{1F528} Building ${variant.toLowerCase()} APK${opts.install ? " and installing" : ""}...`);
@@ -4241,7 +4242,7 @@ import fs15 from "fs";
 import path16 from "path";
 import { execSync as execSync7 } from "child_process";
 function bundleAndDeploy2(opts = {}) {
-  const release = opts.release === true;
+  const release = opts.release === true || opts.production === true;
   let resolved;
   try {
     resolved = resolveHostPaths();
@@ -4351,8 +4352,9 @@ async function buildIpa(opts = {}) {
   const appName = resolved.config.ios.appName;
   const bundleId = resolved.config.ios.bundleId;
   const iosDir = resolved.iosDir;
-  const configuration = opts.release ? "Release" : "Debug";
-  bundle_default2({ release: opts.release });
+  const release = opts.release === true || opts.production === true;
+  const configuration = release ? "Release" : "Debug";
+  bundle_default2({ release, production: opts.production });
   const scheme = appName;
   const workspacePath = path17.join(iosDir, `${appName}.xcworkspace`);
   const projectPath = path17.join(iosDir, `${appName}.xcodeproj`);
@@ -6245,6 +6247,16 @@ async function addCore() {
   runInstall(lynxProjectDir, resolved, pm);
   console.log("\u2705 Core packages installed. Run `t4l link` to link native modules.");
 }
+async function addDev() {
+  const { lynxProjectDir } = resolveHostPaths();
+  const pm = detectPackageManager2(lynxProjectDir);
+  const DEV_PACKAGES = ["@tamer4lynx/tamer-dev-app", "@tamer4lynx/tamer-dev-client"];
+  console.log(`Resolving latest published versions (npm)\u2026`);
+  const resolved = await Promise.all(DEV_PACKAGES.map(normalizeTamerInstallSpec));
+  console.log(`Adding dev packages to ${lynxProjectDir} (using ${pm})\u2026`);
+  runInstall(lynxProjectDir, resolved, pm);
+  console.log("\u2705 Dev packages installed. Run `t4l link` to link native modules.");
+}
 async function add(packages = []) {
   const list = Array.isArray(packages) ? packages : [];
   if (list.length === 0) {
@@ -6268,18 +6280,682 @@ async function add(packages = []) {
   console.log("\u2705 Packages installed. Run `t4l link` to link native modules.");
 }
 
+// src/common/signing.tsx
+import { useState as useState6, useEffect as useEffect4, useRef as useRef2 } from "react";
+import { render as render3, Text as Text10, Box as Box9 } from "ink";
+import fs26 from "fs";
+import path27 from "path";
+
+// src/common/androidKeystore.ts
+import { execFileSync } from "child_process";
+import fs24 from "fs";
+import path25 from "path";
+function normalizeJavaHome(raw) {
+  if (!raw) return void 0;
+  const t = raw.trim().replace(/^["']|["']$/g, "");
+  return t || void 0;
+}
+function discoverJavaHomeMacOs() {
+  if (process.platform !== "darwin") return void 0;
+  try {
+    const out = execFileSync("/usr/libexec/java_home", [], {
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "pipe"]
+    }).trim().split("\n")[0]?.trim();
+    if (out && fs24.existsSync(path25.join(out, "bin", "keytool"))) return out;
+  } catch {
+  }
+  return void 0;
+}
+function resolveKeytoolPath() {
+  const jh = normalizeJavaHome(process.env.JAVA_HOME);
+  const win = process.platform === "win32";
+  const keytoolName = win ? "keytool.exe" : "keytool";
+  if (jh) {
+    const p = path25.join(jh, "bin", keytoolName);
+    if (fs24.existsSync(p)) return p;
+  }
+  const mac = discoverJavaHomeMacOs();
+  if (mac) {
+    const p = path25.join(mac, "bin", keytoolName);
+    if (fs24.existsSync(p)) return p;
+  }
+  return "keytool";
+}
+function keytoolAvailable() {
+  const tryRun = (cmd) => {
+    try {
+      execFileSync(cmd, ["-help"], { stdio: "pipe" });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (tryRun("keytool")) return true;
+  const fromJavaHome = resolveKeytoolPath();
+  if (fromJavaHome !== "keytool" && fs24.existsSync(fromJavaHome)) {
+    return tryRun(fromJavaHome);
+  }
+  return false;
+}
+function generateReleaseKeystore(opts) {
+  const keytool = resolveKeytoolPath();
+  const dir = path25.dirname(opts.keystoreAbsPath);
+  fs24.mkdirSync(dir, { recursive: true });
+  if (fs24.existsSync(opts.keystoreAbsPath)) {
+    throw new Error(`Keystore already exists: ${opts.keystoreAbsPath}`);
+  }
+  if (!opts.storePassword || !opts.keyPassword) {
+    throw new Error(
+      "JDK keytool requires a keystore and key password of at least 6 characters for -genkeypair. Enter a password or use an existing keystore."
+    );
+  }
+  const args = [
+    "-genkeypair",
+    "-v",
+    "-keystore",
+    opts.keystoreAbsPath,
+    "-alias",
+    opts.alias,
+    "-keyalg",
+    "RSA",
+    "-keysize",
+    "2048",
+    "-validity",
+    "10000",
+    "-storepass",
+    opts.storePassword,
+    "-keypass",
+    opts.keyPassword,
+    "-dname",
+    opts.dname
+  ];
+  try {
+    execFileSync(keytool, args, { stdio: ["pipe", "pipe", "pipe"] });
+  } catch (e) {
+    const err = e;
+    const fromKeytool = [err.stdout, err.stderr].filter(Boolean).map((b) => Buffer.from(b).toString("utf8")).join("\n").trim();
+    throw new Error(fromKeytool || err.message || "keytool failed");
+  }
+}
+
+// src/common/appendEnvFile.ts
+import fs25 from "fs";
+import path26 from "path";
+import { parse } from "dotenv";
+function keysDefinedInFile(filePath) {
+  if (!fs25.existsSync(filePath)) return /* @__PURE__ */ new Set();
+  try {
+    return new Set(Object.keys(parse(fs25.readFileSync(filePath, "utf8"))));
+  } catch {
+    return /* @__PURE__ */ new Set();
+  }
+}
+function formatEnvLine(key, value) {
+  if (/[\r\n]/.test(value) || /^\s|\s$/.test(value) || /[#"'\\=]/.test(value)) {
+    const escaped = value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return `${key}="${escaped}"`;
+  }
+  return `${key}=${value}`;
+}
+function appendEnvVarsIfMissing(projectRoot, vars) {
+  const entries = Object.entries(vars).filter(([, v]) => v !== void 0 && v !== "");
+  if (entries.length === 0) return null;
+  const envLocal = path26.join(projectRoot, ".env.local");
+  const envDefault = path26.join(projectRoot, ".env");
+  let target;
+  if (fs25.existsSync(envLocal)) target = envLocal;
+  else if (fs25.existsSync(envDefault)) target = envDefault;
+  else target = envLocal;
+  const existing = keysDefinedInFile(target);
+  const lines = [];
+  const appendedKeys = [];
+  for (const [k, v] of entries) {
+    if (existing.has(k)) continue;
+    lines.push(formatEnvLine(k, v));
+    appendedKeys.push(k);
+  }
+  if (lines.length === 0) {
+    return {
+      file: path26.basename(target),
+      keys: [],
+      skippedAll: entries.length > 0
+    };
+  }
+  let prefix = "";
+  if (fs25.existsSync(target)) {
+    const cur = fs25.readFileSync(target, "utf8");
+    prefix = cur.length === 0 ? "" : cur.endsWith("\n") ? cur : `${cur}
+`;
+  }
+  const block = lines.join("\n") + "\n";
+  fs25.writeFileSync(target, prefix + block, "utf8");
+  return { file: path26.basename(target), keys: appendedKeys };
+}
+
+// src/common/signing.tsx
+import { Fragment, jsx as jsx11, jsxs as jsxs10 } from "react/jsx-runtime";
+function AndroidKeystoreModeSelect({
+  onSelect
+}) {
+  const canGen = keytoolAvailable();
+  const items = canGen ? [
+    { label: "Generate a new release keystore (JDK keytool)", value: "generate" },
+    { label: "Use an existing keystore file", value: "existing" }
+  ] : [
+    {
+      label: "Use an existing keystore file (install a JDK for keytool to generate)",
+      value: "existing"
+    }
+  ];
+  return /* @__PURE__ */ jsxs10(Box9, { flexDirection: "column", children: [
+    /* @__PURE__ */ jsx11(
+      TuiSelectInput,
+      {
+        label: "Android release keystore:",
+        items,
+        onSelect
+      }
+    ),
+    !canGen && /* @__PURE__ */ jsx11(Text10, { dimColor: true, children: "keytool not found on PATH / JAVA_HOME. Install a JDK or set JAVA_HOME, then run signing again to generate." })
+  ] });
+}
+function firstStepForPlatform(p) {
+  if (p === "ios") return "ios-team";
+  if (p === "android" || p === "both") return "android-keystore-mode";
+  return "platform";
+}
+function SigningWizard({ platform: initialPlatform }) {
+  const [state, setState] = useState6({
+    platform: initialPlatform || null,
+    android: {
+      keystoreFile: "",
+      keyAlias: "release",
+      storePasswordEnv: "ANDROID_KEYSTORE_PASSWORD",
+      keyPasswordEnv: "ANDROID_KEY_PASSWORD",
+      keystoreMode: null,
+      genKeystorePath: "android/release.keystore",
+      genPassword: ""
+    },
+    ios: {
+      developmentTeam: "",
+      codeSignIdentity: "",
+      provisioningProfileSpecifier: ""
+    },
+    step: initialPlatform ? firstStepForPlatform(initialPlatform) : "platform",
+    generateError: null,
+    androidEnvAppend: null
+  });
+  const nextStep = () => {
+    setState((s) => {
+      if (s.step === "android-gen-path") {
+        return { ...s, step: "android-gen-alias" };
+      }
+      if (s.step === "android-gen-alias") {
+        return { ...s, step: "android-gen-password" };
+      }
+      if (s.step === "android-keystore") {
+        return { ...s, step: "android-alias" };
+      }
+      if (s.step === "android-alias") {
+        return { ...s, step: "android-password-env" };
+      }
+      if (s.step === "android-password-env") {
+        return { ...s, step: "android-key-password-env" };
+      }
+      if (s.step === "android-key-password-env") {
+        if (s.platform === "both") {
+          return { ...s, step: "ios-team" };
+        }
+        return { ...s, step: "saving" };
+      }
+      if (s.step === "ios-team") {
+        return { ...s, step: "ios-identity" };
+      }
+      if (s.step === "ios-identity") {
+        return { ...s, step: "ios-profile" };
+      }
+      if (s.step === "ios-profile") {
+        return { ...s, step: "saving" };
+      }
+      return s;
+    });
+  };
+  useEffect4(() => {
+    if (state.step === "saving") {
+      saveConfig();
+    }
+  }, [state.step]);
+  const generateRunId = useRef2(0);
+  useEffect4(() => {
+    if (state.step !== "android-generating") return;
+    const runId = ++generateRunId.current;
+    let cancelled = false;
+    const run = () => {
+      let abs = "";
+      try {
+        const resolved = resolveHostPaths();
+        const rel = state.android.genKeystorePath.trim() || "android/release.keystore";
+        abs = path27.isAbsolute(rel) ? rel : path27.join(resolved.projectRoot, rel);
+        const alias = state.android.keyAlias.trim() || "release";
+        const pw = state.android.genPassword;
+        const pkg = resolved.config.android?.packageName ?? "com.example.app";
+        const safeOU = pkg.replace(/[,=+]/g, "_");
+        const dname = `CN=Android Release, OU=${safeOU}, O=Android, C=US`;
+        generateReleaseKeystore({
+          keystoreAbsPath: abs,
+          alias,
+          storePassword: pw,
+          keyPassword: pw,
+          dname
+        });
+        if (cancelled || runId !== generateRunId.current) return;
+        setState((s) => ({
+          ...s,
+          android: {
+            ...s.android,
+            keystoreFile: rel,
+            keyAlias: alias,
+            keystoreMode: "generate"
+          },
+          step: "android-password-env",
+          generateError: null
+        }));
+      } catch (e) {
+        const msg = e.message;
+        if (abs && fs26.existsSync(abs) && (msg.includes("already exists") || msg.includes("Keystore already exists"))) {
+          if (cancelled || runId !== generateRunId.current) return;
+          const rel = state.android.genKeystorePath.trim() || "android/release.keystore";
+          const alias = state.android.keyAlias.trim() || "release";
+          setState((s) => ({
+            ...s,
+            android: {
+              ...s.android,
+              keystoreFile: rel,
+              keyAlias: alias,
+              keystoreMode: "generate"
+            },
+            step: "android-password-env",
+            generateError: null
+          }));
+          return;
+        }
+        if (cancelled || runId !== generateRunId.current) return;
+        setState((s) => ({
+          ...s,
+          step: "android-gen-password",
+          generateError: msg
+        }));
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [state.step, state.android.genKeystorePath, state.android.keyAlias, state.android.genPassword]);
+  useEffect4(() => {
+    if (state.step === "done") {
+      setTimeout(() => {
+        process.exit(0);
+      }, 3e3);
+    }
+  }, [state.step]);
+  const saveConfig = async () => {
+    try {
+      const resolved = resolveHostPaths();
+      const configPath = path27.join(resolved.projectRoot, "tamer.config.json");
+      let config = {};
+      let androidEnvAppend = null;
+      if (fs26.existsSync(configPath)) {
+        config = JSON.parse(fs26.readFileSync(configPath, "utf8"));
+      }
+      if (state.platform === "android" || state.platform === "both") {
+        config.android = config.android || {};
+        config.android.signing = {
+          keystoreFile: state.android.keystoreFile,
+          keyAlias: state.android.keyAlias,
+          storePasswordEnv: state.android.storePasswordEnv,
+          keyPasswordEnv: state.android.keyPasswordEnv
+        };
+        if (state.android.keystoreMode === "generate" && state.android.genPassword) {
+          const storeEnv = state.android.storePasswordEnv.trim() || "ANDROID_KEYSTORE_PASSWORD";
+          const keyEnv = state.android.keyPasswordEnv.trim() || "ANDROID_KEY_PASSWORD";
+          androidEnvAppend = appendEnvVarsIfMissing(resolved.projectRoot, {
+            [storeEnv]: state.android.genPassword,
+            [keyEnv]: state.android.genPassword
+          });
+        }
+      }
+      if (state.platform === "ios" || state.platform === "both") {
+        config.ios = config.ios || {};
+        config.ios.signing = {
+          developmentTeam: state.ios.developmentTeam,
+          ...state.ios.codeSignIdentity && { codeSignIdentity: state.ios.codeSignIdentity },
+          ...state.ios.provisioningProfileSpecifier && { provisioningProfileSpecifier: state.ios.provisioningProfileSpecifier }
+        };
+      }
+      fs26.writeFileSync(configPath, JSON.stringify(config, null, 2));
+      const gitignorePath = path27.join(resolved.projectRoot, ".gitignore");
+      if (fs26.existsSync(gitignorePath)) {
+        let gitignore = fs26.readFileSync(gitignorePath, "utf8");
+        const additions = [
+          ".env.local",
+          "*.jks",
+          "*.keystore"
+        ];
+        for (const addition of additions) {
+          if (!gitignore.includes(addition)) {
+            gitignore += `
+${addition}
+`;
+          }
+        }
+        fs26.writeFileSync(gitignorePath, gitignore);
+      }
+      setState((s) => ({
+        ...s,
+        step: "done",
+        androidEnvAppend: state.platform === "android" || state.platform === "both" ? androidEnvAppend : null
+      }));
+    } catch (error) {
+      console.error("Error saving config:", error);
+      process.exit(1);
+    }
+  };
+  if (state.step === "done") {
+    return /* @__PURE__ */ jsxs10(Box9, { flexDirection: "column", children: [
+      /* @__PURE__ */ jsx11(Text10, { color: "green", children: "\u2705 Signing configuration saved to tamer.config.json" }),
+      (state.platform === "android" || state.platform === "both") && /* @__PURE__ */ jsxs10(Box9, { flexDirection: "column", marginTop: 1, children: [
+        /* @__PURE__ */ jsx11(Text10, { children: "Android signing configured:" }),
+        /* @__PURE__ */ jsxs10(Text10, { dimColor: true, children: [
+          "  Keystore: ",
+          state.android.keystoreFile
+        ] }),
+        /* @__PURE__ */ jsxs10(Text10, { dimColor: true, children: [
+          "  Alias: ",
+          state.android.keyAlias
+        ] }),
+        state.androidEnvAppend?.keys.length ? /* @__PURE__ */ jsxs10(Text10, { children: [
+          "Appended ",
+          state.androidEnvAppend.keys.join(", "),
+          " to ",
+          state.androidEnvAppend.file,
+          " (existing keys left unchanged)."
+        ] }) : state.androidEnvAppend?.skippedAll ? /* @__PURE__ */ jsxs10(Text10, { dimColor: true, children: [
+          state.androidEnvAppend.file,
+          " already defines the signing env vars; left unchanged."
+        ] }) : /* @__PURE__ */ jsxs10(Fragment, { children: [
+          /* @__PURE__ */ jsx11(Text10, { children: "Set environment variables (or add them to .env / .env.local):" }),
+          /* @__PURE__ */ jsxs10(Text10, { dimColor: true, children: [
+            "  export ",
+            state.android.storePasswordEnv,
+            '="your-keystore-password"'
+          ] }),
+          /* @__PURE__ */ jsxs10(Text10, { dimColor: true, children: [
+            "  export ",
+            state.android.keyPasswordEnv,
+            '="your-key-password"'
+          ] })
+        ] })
+      ] }),
+      (state.platform === "ios" || state.platform === "both") && /* @__PURE__ */ jsxs10(Box9, { flexDirection: "column", marginTop: 1, children: [
+        /* @__PURE__ */ jsx11(Text10, { children: "iOS signing configured:" }),
+        /* @__PURE__ */ jsxs10(Text10, { dimColor: true, children: [
+          "  Team ID: ",
+          state.ios.developmentTeam
+        ] }),
+        state.ios.codeSignIdentity && /* @__PURE__ */ jsxs10(Text10, { dimColor: true, children: [
+          "  Identity: ",
+          state.ios.codeSignIdentity
+        ] })
+      ] }),
+      /* @__PURE__ */ jsxs10(Box9, { flexDirection: "column", marginTop: 1, children: [
+        state.platform === "android" && /* @__PURE__ */ jsxs10(Fragment, { children: [
+          /* @__PURE__ */ jsx11(Text10, { children: "Run `t4l build android -p` to build this platform with signing." }),
+          /* @__PURE__ */ jsx11(Text10, { dimColor: true, children: "`t4l build -p` (no platform) builds both Android and iOS." })
+        ] }),
+        state.platform === "ios" && /* @__PURE__ */ jsxs10(Fragment, { children: [
+          /* @__PURE__ */ jsx11(Text10, { children: "Run `t4l build ios -p` to build this platform with signing." }),
+          /* @__PURE__ */ jsx11(Text10, { dimColor: true, children: "`t4l build -p` (no platform) builds both Android and iOS." })
+        ] }),
+        state.platform === "both" && /* @__PURE__ */ jsxs10(Fragment, { children: [
+          /* @__PURE__ */ jsx11(Text10, { children: "Run `t4l build -p` to build both platforms with signing." }),
+          /* @__PURE__ */ jsx11(Text10, { dimColor: true, children: "Or: `t4l build android -p` / `t4l build ios -p` for one platform." })
+        ] })
+      ] })
+    ] });
+  }
+  if (state.step === "saving") {
+    return /* @__PURE__ */ jsx11(Box9, { children: /* @__PURE__ */ jsx11(TuiSpinner, { label: "Saving configuration..." }) });
+  }
+  if (state.step === "android-generating") {
+    return /* @__PURE__ */ jsx11(Box9, { flexDirection: "column", children: /* @__PURE__ */ jsx11(TuiSpinner, { label: "Running keytool to create release keystore..." }) });
+  }
+  return /* @__PURE__ */ jsxs10(Box9, { flexDirection: "column", children: [
+    state.step === "platform" && /* @__PURE__ */ jsx11(
+      TuiSelectInput,
+      {
+        label: "Select platform(s) to configure signing:",
+        items: [
+          { label: "Android", value: "android" },
+          { label: "iOS", value: "ios" },
+          { label: "Both", value: "both" }
+        ],
+        onSelect: (platform) => {
+          setState((s) => ({ ...s, platform, step: firstStepForPlatform(platform) }));
+        }
+      }
+    ),
+    state.step === "android-keystore-mode" && /* @__PURE__ */ jsx11(
+      AndroidKeystoreModeSelect,
+      {
+        onSelect: (mode) => {
+          setState((s) => ({
+            ...s,
+            android: { ...s.android, keystoreMode: mode },
+            step: mode === "generate" ? "android-gen-path" : "android-keystore",
+            generateError: null
+          }));
+        }
+      }
+    ),
+    state.step === "android-gen-path" && /* @__PURE__ */ jsx11(
+      TuiTextInput,
+      {
+        label: "Keystore output path (relative to project root):",
+        defaultValue: state.android.genKeystorePath,
+        onSubmitValue: (v) => {
+          const p = v.trim() || "android/release.keystore";
+          setState((s) => ({ ...s, android: { ...s.android, genKeystorePath: p } }));
+        },
+        onSubmit: nextStep,
+        hint: "Default: android/release.keystore (gitignored pattern *.keystore)"
+      }
+    ),
+    state.step === "android-gen-alias" && /* @__PURE__ */ jsx11(
+      TuiTextInput,
+      {
+        label: "Android key alias:",
+        defaultValue: state.android.keyAlias,
+        onSubmitValue: (v) => {
+          setState((s) => ({ ...s, android: { ...s.android, keyAlias: v } }));
+        },
+        onSubmit: nextStep
+      }
+    ),
+    state.step === "android-gen-password" && /* @__PURE__ */ jsxs10(Box9, { flexDirection: "column", children: [
+      state.generateError ? /* @__PURE__ */ jsx11(Text10, { color: "red", children: state.generateError }) : null,
+      /* @__PURE__ */ jsx11(
+        TuiTextInput,
+        {
+          label: "Keystore and key password (same for both; shown as you type):",
+          value: state.android.genPassword,
+          onChange: (v) => setState((s) => ({ ...s, android: { ...s.android, genPassword: v } })),
+          onSubmitValue: (pw) => {
+            setState((s) => ({
+              ...s,
+              android: { ...s.android, genPassword: pw.trim() },
+              step: "android-generating",
+              generateError: null
+            }));
+          },
+          onSubmit: () => {
+          },
+          hint: "At least 6 characters (JDK keytool). Same value used for -storepass and -keypass."
+        }
+      )
+    ] }),
+    state.step === "android-keystore" && /* @__PURE__ */ jsx11(
+      TuiTextInput,
+      {
+        label: "Android keystore file path (relative to project root or android/):",
+        defaultValue: state.android.keystoreFile,
+        onSubmitValue: (v) => {
+          setState((s) => ({ ...s, android: { ...s.android, keystoreFile: v } }));
+        },
+        onSubmit: nextStep,
+        hint: "Example: android/app/my-release-key.keystore or ./my-release-key.keystore"
+      }
+    ),
+    state.step === "android-alias" && /* @__PURE__ */ jsx11(
+      TuiTextInput,
+      {
+        label: "Android key alias:",
+        defaultValue: state.android.keyAlias,
+        onSubmitValue: (v) => {
+          setState((s) => ({ ...s, android: { ...s.android, keyAlias: v } }));
+        },
+        onSubmit: nextStep
+      }
+    ),
+    state.step === "android-password-env" && /* @__PURE__ */ jsx11(
+      TuiTextInput,
+      {
+        label: "Keystore password environment variable name:",
+        defaultValue: state.android.storePasswordEnv || "ANDROID_KEYSTORE_PASSWORD",
+        onSubmitValue: (v) => {
+          setState((s) => ({ ...s, android: { ...s.android, storePasswordEnv: v } }));
+        },
+        onSubmit: () => {
+          setState((s) => ({ ...s, step: "android-key-password-env" }));
+        },
+        hint: "Default: ANDROID_KEYSTORE_PASSWORD (will be written to .env / .env.local)"
+      }
+    ),
+    state.step === "android-key-password-env" && /* @__PURE__ */ jsx11(
+      TuiTextInput,
+      {
+        label: "Key password environment variable name:",
+        defaultValue: state.android.keyPasswordEnv || "ANDROID_KEY_PASSWORD",
+        onSubmitValue: (v) => {
+          setState((s) => ({ ...s, android: { ...s.android, keyPasswordEnv: v } }));
+        },
+        onSubmit: () => {
+          if (state.platform === "both") {
+            setState((s) => ({ ...s, step: "ios-team" }));
+          } else {
+            setState((s) => ({ ...s, step: "saving" }));
+          }
+        },
+        hint: "Default: ANDROID_KEY_PASSWORD (will be written to .env / .env.local)"
+      }
+    ),
+    state.step === "ios-team" && /* @__PURE__ */ jsx11(
+      TuiTextInput,
+      {
+        label: "iOS Development Team ID:",
+        defaultValue: state.ios.developmentTeam,
+        onSubmitValue: (v) => {
+          setState((s) => ({ ...s, ios: { ...s.ios, developmentTeam: v } }));
+        },
+        onSubmit: nextStep,
+        hint: "Example: ABC123DEF4 (found in Apple Developer account)"
+      }
+    ),
+    state.step === "ios-identity" && /* @__PURE__ */ jsx11(
+      TuiTextInput,
+      {
+        label: "iOS Code Sign Identity (optional, press Enter to skip):",
+        defaultValue: state.ios.codeSignIdentity,
+        onSubmitValue: (v) => {
+          setState((s) => ({ ...s, ios: { ...s.ios, codeSignIdentity: v } }));
+        },
+        onSubmit: () => {
+          setState((s) => ({ ...s, step: "ios-profile" }));
+        },
+        hint: 'Example: "iPhone Developer" or "Apple Development"'
+      }
+    ),
+    state.step === "ios-profile" && /* @__PURE__ */ jsx11(
+      TuiTextInput,
+      {
+        label: "iOS Provisioning Profile Specifier (optional, press Enter to skip):",
+        defaultValue: state.ios.provisioningProfileSpecifier,
+        onSubmitValue: (v) => {
+          setState((s) => ({ ...s, ios: { ...s.ios, provisioningProfileSpecifier: v } }));
+        },
+        onSubmit: () => {
+          setState((s) => ({ ...s, step: "saving" }));
+        },
+        hint: "UUID of the provisioning profile"
+      }
+    )
+  ] });
+}
+async function signing(platform) {
+  const { waitUntilExit } = render3(/* @__PURE__ */ jsx11(SigningWizard, { platform }));
+  await waitUntilExit();
+}
+
+// src/common/productionSigning.ts
+import fs27 from "fs";
+import path28 from "path";
+function isAndroidSigningConfigured(resolved) {
+  const signing2 = resolved.config.android?.signing;
+  const hasConfig = Boolean(signing2?.keystoreFile?.trim() && signing2?.keyAlias?.trim());
+  const signingProps = path28.join(resolved.androidDir, "signing.properties");
+  const hasProps = fs27.existsSync(signingProps);
+  return hasConfig || hasProps;
+}
+function isIosSigningConfigured(resolved) {
+  const team = resolved.config.ios?.signing?.developmentTeam?.trim();
+  return Boolean(team);
+}
+function assertProductionSigningReady(filter) {
+  const resolved = resolveHostPaths();
+  const needAndroid = filter === "android" || filter === "all";
+  const needIos = filter === "ios" || filter === "all";
+  const missing = [];
+  if (needAndroid && !isAndroidSigningConfigured(resolved)) {
+    missing.push("Android: run `t4l signing android`, then `t4l build android -p`.");
+  }
+  if (needIos && !isIosSigningConfigured(resolved)) {
+    missing.push("iOS: run `t4l signing ios`, then `t4l build ios -p`.");
+  }
+  if (missing.length === 0) return;
+  console.error("\n\u274C Production build (`-p`) needs signing configured for the platform(s) you are building.");
+  for (const line of missing) {
+    console.error(`   ${line}`);
+  }
+  console.error(
+    "\n   `t4l build -p` (no platform) builds both Android and iOS; use `t4l build android -p` or `t4l build ios -p` for one platform only.\n"
+  );
+  process.exit(1);
+}
+
 // index.ts
 function readCliVersion() {
-  const root = path25.dirname(fileURLToPath(import.meta.url));
-  const here = path25.join(root, "package.json");
-  const parent = path25.join(root, "..", "package.json");
-  const pkgPath = fs24.existsSync(here) ? here : parent;
-  return JSON.parse(fs24.readFileSync(pkgPath, "utf8")).version;
+  const root = path29.dirname(fileURLToPath(import.meta.url));
+  const here = path29.join(root, "package.json");
+  const parent = path29.join(root, "..", "package.json");
+  const pkgPath = fs28.existsSync(here) ? here : parent;
+  return JSON.parse(fs28.readFileSync(pkgPath, "utf8")).version;
 }
 var version = readCliVersion();
-function validateDebugRelease(debug, release) {
-  if (debug && release) {
-    console.error("Cannot use --debug and --release together.");
+function validateBuildMode(debug, release, production) {
+  const modes = [debug, release, production].filter(Boolean).length;
+  if (modes > 1) {
+    console.error("Cannot use --debug, --release, and --production together. Use only one.");
     process.exit(1);
   }
 }
@@ -6314,19 +6990,23 @@ program.command("create <target>").description("Create a project or extension. T
   console.error(`Invalid create target: ${target}. Use ios | android | module | element | service | combo`);
   process.exit(1);
 });
-program.command("build [platform]").description("Build app. Platform: ios | android (default: both)").option("-e, --embeddable", "Output embeddable bundle + code for existing apps. Use with --release.").option("-d, --debug", "Debug build with dev client embedded (default)").option("-r, --release", "Release build without dev client").option("-i, --install", "Install after building").action(async (platform, opts) => {
-  validateDebugRelease(opts.debug, opts.release);
-  const release = opts.release === true;
+program.command("build [platform]").description("Build app. Platform: ios | android (default: both)").option("-e, --embeddable", "Output embeddable bundle + code for existing apps. Use with --release.").option("-d, --debug", "Debug build with dev client embedded (default)").option("-r, --release", "Release build without dev client (unsigned)").option("-p, --production", "Production build for app store (signed)").option("-i, --install", "Install after building").action(async (platform, opts) => {
+  validateBuildMode(opts.debug, opts.release, opts.production);
+  const release = opts.release === true || opts.production === true;
+  const production = opts.production === true;
   if (opts.embeddable) {
     await buildEmbeddable({ release: true });
     return;
   }
   const p = parsePlatform(platform ?? "all") ?? "all";
+  if (production) {
+    assertProductionSigningReady(p);
+  }
   if (p === "android" || p === "all") {
-    await build_default({ install: opts.install, release });
+    await build_default({ install: opts.install, release, production });
   }
   if (p === "ios" || p === "all") {
-    await build_default2({ install: opts.install, release });
+    await build_default2({ install: opts.install, release, production });
   }
 });
 program.command("link [platform]").description("Link native modules. Platform: ios | android | both (default: both)").option("-s, --silent", "Run in silent mode (e.g. for postinstall)").action((platform, opts) => {
@@ -6350,12 +7030,13 @@ program.command("link [platform]").description("Link native modules. Platform: i
   autolink_default2();
   autolink_default();
 });
-program.command("bundle [platform]").description("Build Lynx bundle and copy to native project. Platform: ios | android (default: both)").option("-d, --debug", "Debug bundle with dev client embedded (default)").option("-r, --release", "Release bundle without dev client").action(async (platform, opts) => {
-  validateDebugRelease(opts.debug, opts.release);
-  const release = opts.release === true;
+program.command("bundle [platform]").description("Build Lynx bundle and copy to native project. Platform: ios | android (default: both)").option("-d, --debug", "Debug bundle with dev client embedded (default)").option("-r, --release", "Release bundle without dev client (unsigned)").option("-p, --production", "Production bundle for app store (signed)").action(async (platform, opts) => {
+  validateBuildMode(opts.debug, opts.release, opts.production);
+  const release = opts.release === true || opts.production === true;
+  const production = opts.production === true;
   const p = parsePlatform(platform ?? "both") ?? "both";
-  if (p === "android" || p === "all") await bundle_default({ release });
-  if (p === "ios" || p === "all") bundle_default2({ release });
+  if (p === "android" || p === "all") await bundle_default({ release, production });
+  if (p === "ios" || p === "all") bundle_default2({ release, production });
 });
 program.command("inject <platform>").description("Inject tamer-host templates into an existing project. Platform: ios | android").option("-f, --force", "Overwrite existing files").action(async (platform, opts) => {
   const p = platform?.toLowerCase();
@@ -6397,10 +7078,21 @@ program.command("add [packages...]").description("Add @tamer4lynx packages to th
 program.command("add-core").description("Add core packages (app-shell, screen, router, insets, transports, system-ui, icons)").action(async () => {
   await addCore();
 });
+program.command("add-dev").description("Add dev packages (dev-app, dev-client, and all their dependencies)").action(async () => {
+  await addDev();
+});
+program.command("signing [platform]").description("Configure Android and iOS signing interactively").action(async (platform) => {
+  const p = platform?.toLowerCase();
+  if (p === "android" || p === "ios") {
+    await signing(p);
+  } else {
+    await signing();
+  }
+});
 program.command("codegen").description("Generate code from @lynxmodule declarations").action(() => {
   codegen_default();
 });
-program.command("android <subcommand>").description("(Legacy) Use: t4l <command> android. e.g. t4l create android").option("-d, --debug", "Create: host project. Bundle/build: debug with dev client.").option("-r, --release", "Create: dev-app project. Bundle/build: release without dev client.").option("-i, --install", "Install after build").option("-e, --embeddable", "Build embeddable").option("-f, --force", "Force (inject)").action(async (subcommand, opts) => {
+program.command("android <subcommand>").description("(Legacy) Use: t4l <command> android. e.g. t4l create android").option("-d, --debug", "Create: host project. Bundle/build: debug with dev client.").option("-r, --release", "Create: dev-app project. Bundle/build: release without dev client.").option("-p, --production", "Bundle/build: production for app store (signed)").option("-i, --install", "Install after build").option("-e, --embeddable", "Build embeddable").option("-f, --force", "Force (inject)").action(async (subcommand, opts) => {
   const sub = subcommand?.toLowerCase();
   if (sub === "create") {
     if (opts.debug && opts.release) {
@@ -6415,14 +7107,19 @@ program.command("android <subcommand>").description("(Legacy) Use: t4l <command>
     return;
   }
   if (sub === "bundle") {
-    validateDebugRelease(opts.debug, opts.release);
-    await bundle_default({ release: opts.release === true });
+    validateBuildMode(opts.debug, opts.release, opts.production);
+    const release = opts.release === true || opts.production === true;
+    await bundle_default({ release, production: opts.production === true });
     return;
   }
   if (sub === "build") {
-    validateDebugRelease(opts.debug, opts.release);
+    validateBuildMode(opts.debug, opts.release, opts.production);
+    const release = opts.release === true || opts.production === true;
     if (opts.embeddable) await buildEmbeddable({ release: true });
-    else await build_default({ install: opts.install, release: opts.release === true });
+    else {
+      if (opts.production === true) assertProductionSigningReady("android");
+      await build_default({ install: opts.install, release, production: opts.production === true });
+    }
     return;
   }
   if (sub === "sync") {
@@ -6436,7 +7133,7 @@ program.command("android <subcommand>").description("(Legacy) Use: t4l <command>
   console.error(`Unknown android subcommand: ${subcommand}. Use: create | link | bundle | build | sync | inject`);
   process.exit(1);
 });
-program.command("ios <subcommand>").description("(Legacy) Use: t4l <command> ios. e.g. t4l create ios").option("-d, --debug", "Debug (bundle/build)").option("-r, --release", "Release (bundle/build)").option("-i, --install", "Install after build").option("-e, --embeddable", "Build embeddable").option("-f, --force", "Force (inject)").action(async (subcommand, opts) => {
+program.command("ios <subcommand>").description("(Legacy) Use: t4l <command> ios. e.g. t4l create ios").option("-d, --debug", "Debug (bundle/build)").option("-r, --release", "Release (bundle/build)").option("-p, --production", "Production for app store (signed)").option("-i, --install", "Install after build").option("-e, --embeddable", "Build embeddable").option("-f, --force", "Force (inject)").action(async (subcommand, opts) => {
   const sub = subcommand?.toLowerCase();
   if (sub === "create") {
     create_default2();
@@ -6447,14 +7144,19 @@ program.command("ios <subcommand>").description("(Legacy) Use: t4l <command> ios
     return;
   }
   if (sub === "bundle") {
-    validateDebugRelease(opts.debug, opts.release);
-    bundle_default2({ release: opts.release === true });
+    validateBuildMode(opts.debug, opts.release, opts.production);
+    const release = opts.release === true || opts.production === true;
+    bundle_default2({ release, production: opts.production === true });
     return;
   }
   if (sub === "build") {
-    validateDebugRelease(opts.debug, opts.release);
+    validateBuildMode(opts.debug, opts.release, opts.production);
+    const release = opts.release === true || opts.production === true;
     if (opts.embeddable) await buildEmbeddable({ release: true });
-    else await build_default2({ install: opts.install, release: opts.release === true });
+    else {
+      if (opts.production === true) assertProductionSigningReady("ios");
+      await build_default2({ install: opts.install, release, production: opts.production === true });
+    }
     return;
   }
   if (sub === "inject") {
@@ -6465,10 +7167,10 @@ program.command("ios <subcommand>").description("(Legacy) Use: t4l <command> ios
   process.exit(1);
 });
 program.command("autolink-toggle").alias("autolink").description("Toggle autolink on/off in tamer.config.json (controls postinstall linking)").action(async () => {
-  const configPath = path25.join(process.cwd(), "tamer.config.json");
+  const configPath = path29.join(process.cwd(), "tamer.config.json");
   let config = {};
-  if (fs24.existsSync(configPath)) {
-    config = JSON.parse(fs24.readFileSync(configPath, "utf8"));
+  if (fs28.existsSync(configPath)) {
+    config = JSON.parse(fs28.readFileSync(configPath, "utf8"));
   }
   if (config.autolink) {
     delete config.autolink;
@@ -6477,7 +7179,7 @@ program.command("autolink-toggle").alias("autolink").description("Toggle autolin
     config.autolink = true;
     console.log("Autolink enabled in tamer.config.json");
   }
-  fs24.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  fs28.writeFileSync(configPath, JSON.stringify(config, null, 2));
   console.log(`Updated ${configPath}`);
 });
 if (process.argv.length <= 2 || process.argv.length === 3 && process.argv[2] === "init") {

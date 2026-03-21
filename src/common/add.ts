@@ -17,6 +17,25 @@ const CORE_PACKAGES = [
   '@tamer4lynx/tamer-icons',
 ];
 
+/** Union of `dependencies` from published @tamer4lynx/tamer-dev-app and @tamer4lynx/tamer-dev-client (all @tamer4lynx/*). Update when those packages change. */
+const DEV_STACK_PACKAGES = [
+  '@tamer4lynx/jiggle',
+  '@tamer4lynx/tamer-app-shell',
+  '@tamer4lynx/tamer-biometric',
+  '@tamer4lynx/tamer-dev-app',
+  '@tamer4lynx/tamer-dev-client',
+  '@tamer4lynx/tamer-display-browser',
+  '@tamer4lynx/tamer-icons',
+  '@tamer4lynx/tamer-insets',
+  '@tamer4lynx/tamer-linking',
+  '@tamer4lynx/tamer-plugin',
+  '@tamer4lynx/tamer-router',
+  '@tamer4lynx/tamer-screen',
+  '@tamer4lynx/tamer-secure-store',
+  '@tamer4lynx/tamer-system-ui',
+  '@tamer4lynx/tamer-transports',
+] as const
+
 const PACKAGE_ALIASES: Record<string, string> = {};
 
 async function getHighestPublishedVersion(fullName: string): Promise<string | null> {
@@ -67,6 +86,16 @@ export async function addCore() {
   console.log(`Adding core packages to ${lynxProjectDir} (using ${pm})…`);
   runInstall(lynxProjectDir, resolved, pm);
   console.log('✅ Core packages installed. Run `t4l link` to link native modules.');
+}
+
+export async function addDev() {
+  const { lynxProjectDir } = resolveHostPaths();
+  const pm = detectPackageManager(lynxProjectDir);
+  console.log(`Resolving latest published versions (npm)…`);
+  const resolved = await Promise.all([...DEV_STACK_PACKAGES].map(normalizeTamerInstallSpec));
+  console.log(`Adding dev stack (${DEV_STACK_PACKAGES.length} @tamer4lynx packages) to ${lynxProjectDir} (using ${pm})…`);
+  runInstall(lynxProjectDir, resolved, pm);
+  console.log('✅ Dev stack installed. Run `t4l link` to link native modules.');
 }
 
 export async function add(packages: string[] = []) {

@@ -7,8 +7,8 @@ import { copyDistAssets } from '../common/copyDistAssets';
 import ios_autolink from './autolink';
 import syncHostIos, { addResourceToXcodeProject } from './syncHost';
 
-function bundleAndDeploy(opts: { release?: boolean } = {}) {
-    const release = opts.release === true;
+function bundleAndDeploy(opts: { release?: boolean; production?: boolean } = {}) {
+    const release = opts.release === true || opts.production === true;
     let resolved: ReturnType<typeof resolveHostPaths>;
     try {
         resolved = resolveHostPaths();

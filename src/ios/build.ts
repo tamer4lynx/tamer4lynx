@@ -22,7 +22,7 @@ function findBootedSimulator(): string | null {
     return null;
 }
 
-async function buildIpa(opts: { install?: boolean; release?: boolean } = {}) {
+async function buildIpa(opts: { install?: boolean; release?: boolean; production?: boolean } = {}) {
     const resolved = resolveHostPaths();
     if (!resolved.config.ios?.appName) {
         throw new Error('"ios.appName" must be defined in tamer.config.json');
@@ -31,9 +31,10 @@ async function buildIpa(opts: { install?: boolean; release?: boolean } = {}) {
     const appName = resolved.config.ios.appName;
     const bundleId = resolved.config.ios.bundleId;
     const iosDir = resolved.iosDir;
-    const configuration = opts.release ? 'Release' : 'Debug';
+    const release = opts.release === true || opts.production === true;
+    const configuration = release ? 'Release' : 'Debug';
 
-    ios_bundle({ release: opts.release });
+    ios_bundle({ release, production: opts.production });
 
     const scheme = appName;
     const workspacePath = path.join(iosDir, `${appName}.xcworkspace`);

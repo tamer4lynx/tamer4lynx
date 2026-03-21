@@ -3,9 +3,9 @@ import { useTamerRouter } from '@tamer4lynx/tamer-router'
 import { Icon } from '@tamer4lynx/tamer-icons'
 
 import '../App.css'
-import lynxLogo from '../assets/lynx-logo.png?inline'
-import reactLynxLogo from '../assets/react-logo.png?inline'
-import tamerLogo from '../assets/tamer-logo.png?inline'
+import lynxLogo from '../assets/lynx-logo.png'
+import reactLynxLogo from '../assets/react-logo.png'
+import tamerLogo from '../assets/tamer-logo.png'
 
 export default function Home() {
   const [alterLogo, setAlterLogo] = useState(0)

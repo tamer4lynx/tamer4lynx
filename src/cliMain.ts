@@ -122,7 +122,7 @@ program
 program
     .command('link [platform]')
     .description('Link native modules. Platform: ios | android | both (default: both)')
-    .option('-s, --silent', 'Run in silent mode (e.g. for postinstall)')
+    .option('-s, --silent', 'Run without output')
     .action((platform: string | undefined, opts: { silent?: boolean }) => {
         if (opts.silent) {
             console.log = () => {};
@@ -159,7 +159,7 @@ program
 
 program
     .command('inject <platform>')
-    .description('Inject tamer-host templates into an existing project. Platform: ios | android')
+    .description('Inject host templates into an existing project. Platform: ios | android')
     .option('-f, --force', 'Overwrite existing files')
     .action(async (platform: string, opts: { force?: boolean }) => {
         const p = platform?.toLowerCase();
@@ -177,7 +177,7 @@ program
 
 program
     .command('sync [platform]')
-    .description('Sync dev client files from tamer.config.json. Platform: android (default)')
+    .description('Sync dev client. Platform: android (default)')
     .action(async (platform: string | undefined) => {
         const p = (platform ?? 'android').toLowerCase();
         if (p !== 'android') {
@@ -212,21 +212,21 @@ program
 
 program
     .command('add [packages...]')
-    .description('Add @tamer4lynx packages to the Lynx project. Future: will track versions for compatibility (Expo-style).')
+    .description('Add @tamer4lynx packages to the Lynx project')
     .action(async (packages: string[]) => {
         await add(packages);
     });
 
 program
     .command('add-core')
-    .description('Add core packages (app-shell, screen, router, insets, transports, system-ui, icons)')
+    .description('Add core packages')
     .action(async () => {
         await addCore();
     });
 
 program
     .command('add-dev')
-    .description('Add dev packages (dev-app, dev-client, and all their dependencies)')
+    .description('Add dev-app, dev-client, and their dependencies')
     .action(async () => {
         await addDev();
     });

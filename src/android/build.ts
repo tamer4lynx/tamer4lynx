@@ -4,7 +4,7 @@ import { execSync } from 'child_process';
 import { resolveHostPaths } from '../common/hostConfig';
 import android_bundle from './bundle';
 
-async function buildApk(opts: { install?: boolean; release?: boolean } = {}) {
+async function buildApk(opts: { install?: boolean; release?: boolean; production?: boolean } = {}) {
     let resolved: ReturnType<typeof resolveHostPaths>;
     try {
         resolved = resolveHostPaths();
@@ -12,11 +12,12 @@ async function buildApk(opts: { install?: boolean; release?: boolean } = {}) {
         throw error;
     }
 
-    await android_bundle({ release: opts.release });
+    const release = opts.release === true || opts.production === true;
+    await android_bundle({ release, production: opts.production });
 
     const androidDir = resolved.androidDir;
     const gradlew = path.join(androidDir, process.platform === 'win32' ? 'gradlew.bat' : 'gradlew');
-    const variant = opts.release ? 'Release' : 'Debug';
+    const variant = release ? 'Release' : 'Debug';
     const task = opts.install ? `install${variant}` : `assemble${variant}`;
     console.log(`\n🔨 Building ${variant.toLowerCase()} APK${opts.install ? ' and installing' : ''}...`);
     execSync(`"${gradlew}" ${task}`, { stdio: 'inherit', cwd: androidDir });

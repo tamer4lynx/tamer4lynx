@@ -17,11 +17,16 @@ function readCliVersion(): string {
 
 const version = readCliVersion();
 
-function validateDebugRelease(debug: boolean, release: boolean) {
-    if (debug && release) {
-        console.error('Cannot use --debug and --release together.');
+function validateBuildMode(debug: boolean, release: boolean, production: boolean) {
+    const modes = [debug, release, production].filter(Boolean).length;
+    if (modes > 1) {
+        console.error('Cannot use --debug, --release, and --production together. Use only one.');
         process.exit(1);
     }
+}
+
+function validateDebugRelease(debug: boolean, release: boolean) {
+    validateBuildMode(debug, release, false);
 }
 
 function parsePlatform(value: string): 'ios' | 'android' | 'all' | null {
@@ -46,7 +51,9 @@ import codegen from './src/common/codegen';
 import start from './src/common/start';
 import { injectHostAndroid, injectHostIos } from './src/common/injectHost';
 import buildEmbeddable from './src/common/buildEmbeddable';
-import { add, addCore } from './src/common/add';
+import { add, addCore, addDev } from './src/common/add';
+import signing from './src/common/signing';
+import { assertProductionSigningReady } from './src/common/productionSigning';
 
 program
     .version(version)
@@ -91,28 +98,33 @@ program
     .description('Build app. Platform: ios | android (default: both)')
     .option('-e, --embeddable', 'Output embeddable bundle + code for existing apps. Use with --release.')
     .option('-d, --debug', 'Debug build with dev client embedded (default)')
-    .option('-r, --release', 'Release build without dev client')
+    .option('-r, --release', 'Release build without dev client (unsigned)')
+    .option('-p, --production', 'Production build for app store (signed)')
     .option('-i, --install', 'Install after building')
     .action(async (platform: string | undefined, opts) => {
-        validateDebugRelease(opts.debug, opts.release);
-        const release = opts.release === true;
+        validateBuildMode(opts.debug, opts.release, opts.production);
+        const release = opts.release === true || opts.production === true;
+        const production = opts.production === true;
         if (opts.embeddable) {
             await buildEmbeddable({ release: true });
             return;
         }
         const p = parsePlatform(platform ?? 'all') ?? 'all';
+        if (production) {
+            assertProductionSigningReady(p);
+        }
         if (p === 'android' || p === 'all') {
-            await android_build({ install: opts.install, release });
+            await android_build({ install: opts.install, release, production });
         }
         if (p === 'ios' || p === 'all') {
-            await ios_build({ install: opts.install, release });
+            await ios_build({ install: opts.install, release, production });
         }
     });
 
 program
     .command('link [platform]')
     .description('Link native modules. Platform: ios | android | both (default: both)')
-    .option('-s, --silent', 'Run in silent mode (e.g. for postinstall)')
+    .option('-s, --silent', 'Run without output')
     .action((platform: string | undefined, opts: { silent?: boolean }) => {
         if (opts.silent) {
             console.log = () => {};
@@ -136,18 +148,20 @@ program
     .command('bundle [platform]')
     .description('Build Lynx bundle and copy to native project. Platform: ios | android (default: both)')
     .option('-d, --debug', 'Debug bundle with dev client embedded (default)')
-    .option('-r, --release', 'Release bundle without dev client')
+    .option('-r, --release', 'Release bundle without dev client (unsigned)')
+    .option('-p, --production', 'Production bundle for app store (signed)')
     .action(async (platform: string | undefined, opts) => {
-        validateDebugRelease(opts.debug, opts.release);
-        const release = opts.release === true;
+        validateBuildMode(opts.debug, opts.release, opts.production);
+        const release = opts.release === true || opts.production === true;
+        const production = opts.production === true;
         const p = parsePlatform(platform ?? 'both') ?? 'both';
-        if (p === 'android' || p === 'all') await android_bundle({ release });
-        if (p === 'ios' || p === 'all') ios_bundle({ release });
+        if (p === 'android' || p === 'all') await android_bundle({ release, production });
+        if (p === 'ios' || p === 'all') ios_bundle({ release, production });
     });
 
 program
     .command('inject <platform>')
-    .description('Inject tamer-host templates into an existing project. Platform: ios | android')
+    .description('Inject host templates into an existing project. Platform: ios | android')
     .option('-f, --force', 'Overwrite existing files')
     .action(async (platform: string, opts: { force?: boolean }) => {
         const p = platform?.toLowerCase();
@@ -165,7 +179,7 @@ program
 
 program
     .command('sync [platform]')
-    .description('Sync dev client files from tamer.config.json. Platform: android (default)')
+    .description('Sync dev client. Platform: android (default)')
     .action(async (platform: string | undefined) => {
         const p = (platform ?? 'android').toLowerCase();
         if (p !== 'android') {
@@ -201,16 +215,35 @@ program
 
 program
     .command('add [packages...]')
-    .description('Add @tamer4lynx packages to the Lynx project. Future: will track versions for compatibility (Expo-style).')
+    .description('Add @tamer4lynx packages to the Lynx project')
     .action(async (packages: string[]) => {
         await add(packages);
     });
 
 program
     .command('add-core')
-    .description('Add core packages (app-shell, screen, router, insets, transports, system-ui, icons)')
+    .description('Add core packages')
     .action(async () => {
         await addCore();
+    });
+
+program
+    .command('add-dev')
+    .description('Add dev-app, dev-client, and their dependencies')
+    .action(async () => {
+        await addDev();
+    });
+
+program
+    .command('signing [platform]')
+    .description('Configure Android and iOS signing interactively')
+    .action(async (platform?: string) => {
+        const p = platform?.toLowerCase();
+        if (p === 'android' || p === 'ios') {
+            await signing(p as 'android' | 'ios');
+        } else {
+            await signing();
+        }
     });
 
 program
@@ -225,6 +258,7 @@ program
     .description('(Legacy) Use: t4l <command> android. e.g. t4l create android')
     .option('-d, --debug', 'Create: host project. Bundle/build: debug with dev client.')
     .option('-r, --release', 'Create: dev-app project. Bundle/build: release without dev client.')
+    .option('-p, --production', 'Bundle/build: production for app store (signed)')
     .option('-i, --install', 'Install after build')
     .option('-e, --embeddable', 'Build embeddable')
     .option('-f, --force', 'Force (inject)')
@@ -243,14 +277,19 @@ program
             return;
         }
         if (sub === 'bundle') {
-            validateDebugRelease(opts.debug, opts.release);
-            await android_bundle({ release: opts.release === true });
+            validateBuildMode(opts.debug, opts.release, opts.production);
+            const release = opts.release === true || opts.production === true;
+            await android_bundle({ release, production: opts.production === true });
             return;
         }
         if (sub === 'build') {
-            validateDebugRelease(opts.debug, opts.release);
+            validateBuildMode(opts.debug, opts.release, opts.production);
+            const release = opts.release === true || opts.production === true;
             if (opts.embeddable) await buildEmbeddable({ release: true });
-            else await android_build({ install: opts.install, release: opts.release === true });
+            else {
+                if (opts.production === true) assertProductionSigningReady('android');
+                await android_build({ install: opts.install, release, production: opts.production === true });
+            }
             return;
         }
         if (sub === 'sync') {
@@ -270,6 +309,7 @@ program
     .description('(Legacy) Use: t4l <command> ios. e.g. t4l create ios')
     .option('-d, --debug', 'Debug (bundle/build)')
     .option('-r, --release', 'Release (bundle/build)')
+    .option('-p, --production', 'Production for app store (signed)')
     .option('-i, --install', 'Install after build')
     .option('-e, --embeddable', 'Build embeddable')
     .option('-f, --force', 'Force (inject)')
@@ -284,14 +324,19 @@ program
             return;
         }
         if (sub === 'bundle') {
-            validateDebugRelease(opts.debug, opts.release);
-            ios_bundle({ release: opts.release === true });
+            validateBuildMode(opts.debug, opts.release, opts.production);
+            const release = opts.release === true || opts.production === true;
+            ios_bundle({ release, production: opts.production === true });
             return;
         }
         if (sub === 'build') {
-            validateDebugRelease(opts.debug, opts.release);
+            validateBuildMode(opts.debug, opts.release, opts.production);
+            const release = opts.release === true || opts.production === true;
             if (opts.embeddable) await buildEmbeddable({ release: true });
-            else await ios_build({ install: opts.install, release: opts.release === true });
+            else {
+                if (opts.production === true) assertProductionSigningReady('ios');
+                await ios_build({ install: opts.install, release, production: opts.production === true });
+            }
             return;
         }
         if (sub === 'inject') {

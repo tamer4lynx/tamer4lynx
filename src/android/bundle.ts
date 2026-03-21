@@ -7,8 +7,8 @@ import { applyAndroidLauncherIcons, ensureAndroidManifestLauncherIcon } from '..
 import android_autolink from './autolink';
 import android_syncDevClient from './syncDevClient';
 
-async function bundleAndDeploy(opts: { release?: boolean } = {}) {
-    const release = opts.release === true;
+async function bundleAndDeploy(opts: { release?: boolean; production?: boolean } = {}) {
+    const release = opts.release === true || opts.production === true;
     let resolved: ReturnType<typeof resolveHostPaths>;
     try {
         resolved = resolveHostPaths();
