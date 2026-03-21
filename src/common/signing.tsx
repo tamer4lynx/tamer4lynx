@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { render, Text, Box } from 'ink';
 import fs from 'fs';
 import path from 'path';
-import { resolveHostPaths, HostConfig } from './hostConfig';
+import { resolveHostPaths, type HostConfig } from './hostConfig';
 import { generateReleaseKeystore, keytoolAvailable } from './androidKeystore';
 import { appendEnvVarsIfMissing, type AppendEnvResult } from './appendEnvFile';
 import {

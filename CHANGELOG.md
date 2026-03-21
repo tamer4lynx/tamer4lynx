@@ -4,6 +4,19 @@ All notable changes to Tamer4Lynx are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- **`@tamer4lynx/tamer-dev-client`** — include `scripts/rspeedy-build.mjs` in the published package (`files` listed `dist` but not `scripts`), so `npm run build` works when the package is installed under `node_modules` (e.g. `t4l build ios -d`).
+
+- **CLI dependencies** — Declared `ink`, `react`, `ink-text-input`, `ink-select-input`, and `ink-spinner` so `node dist/index.js` works after `npm install` (they were missing from `package.json`).
+- **`npm run cli`** — `tsx index.ts` for developing without a build; documented in README (Node cannot run `index.ts` directly because ESM requires extensioned paths).
+
+- **`t4l init`** — wizard text fields no longer keep the previous step’s text when moving on (each step’s `TuiTextInput` is keyed so React remounts cleanly).
+
+- **TS6310** — Rspeedy/`pnpm create rspeedy` scaffolds a tsconfig with project references whose referenced configs use `noEmit: true`. TypeScript rejects this with "Referenced project may not disable emit". `t4l init` and `t4l build` now flatten such tsconfigs into a single config before the Lynx bundle build, so new projects build successfully out of the box.
+
 ## [0.0.13] - 2026-03-20
 
 ### Changed

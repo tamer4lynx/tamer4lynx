@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 import { resolveHostPaths, findDevClientPackage, resolveIconPaths } from '../common/hostConfig';
+import { fixTsconfigReferencesForBuild } from '../common/tsconfigUtils';
 import { applyIosAppIconAssets } from '../common/syncAppIcons';
 import { copyDistAssets } from '../common/copyDistAssets';
 import ios_autolink from './autolink';
@@ -40,6 +41,10 @@ function bundleAndDeploy(opts: { release?: boolean; production?: boolean } = {})
     }
 
     try {
+        const lynxTsconfig = path.join(resolved.lynxProjectDir, 'tsconfig.json');
+        if (fs.existsSync(lynxTsconfig)) {
+            fixTsconfigReferencesForBuild(lynxTsconfig);
+        }
         console.log('📦 Building Lynx bundle...');
         execSync('npm run build', { stdio: 'inherit', cwd: resolved.lynxProjectDir });
         console.log('✅ Build completed successfully.');

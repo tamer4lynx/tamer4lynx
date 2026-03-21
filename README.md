@@ -6,6 +6,24 @@ Inspired by [Expo](https://expo.dev) and [Expo Go](https://expo.dev/go).
 
 **Standalone app generation** follows patterns from [Lynx Explorer](https://github.com/lynx-family/lynx/tree/develop/explorer), patched for Maven-based standalone builds (no monorepo required). See [lynx#695](https://github.com/lynx-family/lynx/issues/695) for context.
 
+## Running the CLI from this repo
+
+Node cannot execute `index.ts` directly (`import './src/android/create'` has no file extension). Use one of:
+
+```bash
+npm install
+npm run build
+node dist/index.js init
+```
+
+Or run the TypeScript entry with **tsx** (no build):
+
+```bash
+npm install
+npm run cli -- init
+# same as: npx tsx index.ts init
+```
+
 ## Installation
 
 All Tamer packages are published under the `@tamer4lynx` scope on npm. Install the CLI globally (use `@prerelease` for latest):

@@ -3,6 +3,7 @@ import path from 'path';
 import { execSync } from 'child_process';
 import { copyDistAssets } from '../common/copyDistAssets';
 import { resolveHostPaths, findDevClientPackage, resolveIconPaths } from '../common/hostConfig';
+import { fixTsconfigReferencesForBuild } from '../common/tsconfigUtils';
 import { applyAndroidLauncherIcons, ensureAndroidManifestLauncherIcon } from '../common/syncAppIcons';
 import android_autolink from './autolink';
 import android_syncDevClient from './syncDevClient';
@@ -35,6 +36,10 @@ async function bundleAndDeploy(opts: { release?: boolean; production?: boolean }
     }
 
     try {
+        const lynxTsconfig = path.join(lynxProjectDir, 'tsconfig.json');
+        if (fs.existsSync(lynxTsconfig)) {
+            fixTsconfigReferencesForBuild(lynxTsconfig);
+        }
         console.log('📦 Building Lynx bundle...');
         execSync('npm run build', { stdio: 'inherit', cwd: lynxProjectDir });
         console.log('✅ Build completed successfully.');

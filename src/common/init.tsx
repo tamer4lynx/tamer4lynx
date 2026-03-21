@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import React, { useState, useEffect, useCallback } from 'react';
+import { fixTsconfigReferencesForBuild, addTamerTypesInclude } from './tsconfigUtils';
 import { render, Text, Box } from 'ink';
 import {
   Wizard,
@@ -82,27 +83,15 @@ function InitWizard() {
         ]
       : [path.join(process.cwd(), 'tsconfig.json')];
 
-    function parseTsconfigJson(raw: string): { include?: string | string[] } {
-      try {
-        return JSON.parse(raw) as { include?: string | string[] };
-      } catch {
-        const noTrailingCommas = raw.replace(/,\s*([\]}])/g, '$1');
-        return JSON.parse(noTrailingCommas) as { include?: string | string[] };
-      }
-    }
-
     for (const tsconfigPath of tsconfigCandidates) {
       if (!fs.existsSync(tsconfigPath)) continue;
       try {
-        const raw = fs.readFileSync(tsconfigPath, 'utf-8');
-        const tsconfig = parseTsconfigJson(raw);
-        const include = tsconfig.include ?? [];
-        const arr = Array.isArray(include) ? include : [include];
-        if (arr.some((p) => (typeof p === 'string' ? p : '').includes('tamer-'))) continue;
-        arr.push(tamerTypesInclude);
-        tsconfig.include = arr;
-        fs.writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2));
-        lines.push(`Updated ${path.relative(process.cwd(), tsconfigPath)} for tamer types`);
+        if (fixTsconfigReferencesForBuild(tsconfigPath)) {
+          lines.push(`Flattened ${path.relative(process.cwd(), tsconfigPath)} (fixed TS6310)`);
+        }
+        if (addTamerTypesInclude(tsconfigPath, tamerTypesInclude)) {
+          lines.push(`Updated ${path.relative(process.cwd(), tsconfigPath)} for tamer types`);
+        }
         break;
       } catch (e) {
         lines.push(`Could not update ${tsconfigPath}: ${(e as Error).message}`);
@@ -139,6 +128,7 @@ function InitWizard() {
     return (
       <Wizard step={1} total={6} title="Android app name">
         <TuiTextInput
+          key={step}
           label="Android app name:"
           defaultValue={androidAppName}
           onSubmitValue={(v) => setAndroidAppName(v)}
@@ -152,6 +142,7 @@ function InitWizard() {
     return (
       <Wizard step={2} total={6} title="Android package name">
         <TuiTextInput
+          key={step}
           label="Android package name (e.g. com.example.app):"
           defaultValue={androidPackageName}
           error={pkgError}
@@ -175,6 +166,7 @@ function InitWizard() {
     return (
       <Wizard step={3} total={6} title="Android SDK">
         <TuiTextInput
+          key={step}
           label="Android SDK path (e.g. ~/Library/Android/sdk or $ANDROID_HOME):"
           defaultValue={androidSdk}
           onSubmitValue={(v) => {
@@ -214,6 +206,7 @@ function InitWizard() {
     return (
       <Wizard step={4} total={6} title="iOS app name">
         <TuiTextInput
+          key={step}
           label="iOS app name:"
           defaultValue={iosAppName}
           onSubmitValue={(v) => setIosAppName(v)}
@@ -227,6 +220,7 @@ function InitWizard() {
     return (
       <Wizard step={5} total={6} title="iOS bundle ID">
         <TuiTextInput
+          key={step}
           label="iOS bundle ID (e.g. com.example.app):"
           defaultValue={iosBundleId}
           error={bundleError}
@@ -250,6 +244,7 @@ function InitWizard() {
     return (
       <Wizard step={6} total={6} title="Lynx project">
         <TuiTextInput
+          key={step}
           label="Lynx project path relative to project root (optional, e.g. packages/example):"
           defaultValue={lynxProject}
           onSubmitValue={(v) => setLynxProject(v)}
