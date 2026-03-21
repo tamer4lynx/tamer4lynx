@@ -55,3 +55,6 @@
 [submodule "packages/tamer-local-storage"]
 	path = packages/tamer-local-storage
 	url = https://github.com/tamer4lynx/tamer-local-storage.git
+[submodule "packages/tamer-webview"]
+	path = packages/tamer-webview
+	url = https://github.com/tamer4lynx/tamer-webview.git
