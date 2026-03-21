@@ -229,7 +229,9 @@ class ViewController: UIViewController {
 	additionalSafeAreaInsets = .zero
 	view.insetsLayoutMarginsFromSafeArea = false
 	view.preservesSuperviewLayoutMargins = false
-	viewRespectsSystemMinimumLayoutMargins = false
+	if #available(iOS 15.0, *) {
+		viewRespectsSystemMinimumLayoutMargins = false
+	}
   }
 
   override func viewDidLayoutSubviews() {

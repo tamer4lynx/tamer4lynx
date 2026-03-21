@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **iOS host `ViewController.swift` (dev)** — use `SystemUIModule.statusBarStyleForHost` (not a non-existent `TamerPreferredStatusBar`), add `import tamersystemui`, and gate `viewRespectsSystemMinimumLayoutMargins` with `if #available(iOS 15.0, *)`. Same availability guard in `t4l ios create` template, dev-app VCs, `syncDevClient` embedded Swift, and `tamer-dev-client` iOS templates.
+
 - **`@tamer4lynx/tamer-dev-client`** — include `scripts/rspeedy-build.mjs` in the published package (`files` listed `dist` but not `scripts`), so `npm run build` works when the package is installed under `node_modules` (e.g. `t4l build ios -d`).
 
 - **CLI dependencies** — Declared `ink`, `react`, `ink-text-input`, `ink-select-input`, and `ink-spinner` so `node dist/index.js` works after `npm install` (they were missing from `package.json`).

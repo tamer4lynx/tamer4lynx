@@ -72,6 +72,7 @@ function getDevLauncherViewControllerSwift(): string {
 import Lynx
 import tamerdevclient
 import tamerinsets
+import tamersystemui
 
 class DevLauncherViewController: UIViewController {
     private var lynxView: LynxView?
@@ -84,7 +85,9 @@ class DevLauncherViewController: UIViewController {
         additionalSafeAreaInsets = .zero
         view.insetsLayoutMarginsFromSafeArea = false
         view.preservesSuperviewLayoutMargins = false
-        viewRespectsSystemMinimumLayoutMargins = false
+        if #available(iOS 15.0, *) {
+            viewRespectsSystemMinimumLayoutMargins = false
+        }
         setupLynxView()
         setupDevClientModule()
     }
@@ -101,7 +104,7 @@ class DevLauncherViewController: UIViewController {
         TamerInsetsModule.reRequestInsets()
     }
 
-    override var preferredStatusBarStyle: UIStatusBarStyle { TamerPreferredStatusBar.style }
+    override var preferredStatusBarStyle: UIStatusBarStyle { SystemUIModule.statusBarStyleForHost }
 
     private func setupLynxView() {
         let size = fullscreenBounds().size
@@ -179,6 +182,7 @@ function getProjectViewControllerSwift(): string {
 import Lynx
 import tamerdevclient
 import tamerinsets
+import tamersystemui
 
 class ProjectViewController: UIViewController {
     private var lynxView: LynxView?
@@ -192,7 +196,9 @@ class ProjectViewController: UIViewController {
         additionalSafeAreaInsets = .zero
         view.insetsLayoutMarginsFromSafeArea = false
         view.preservesSuperviewLayoutMargins = false
-        viewRespectsSystemMinimumLayoutMargins = false
+        if #available(iOS 15.0, *) {
+            viewRespectsSystemMinimumLayoutMargins = false
+        }
         setupLynxView()
         TamerRelogLogService.connect()
         devClientManager = DevClientManager(onReload: { [weak self] in
@@ -213,7 +219,7 @@ class ProjectViewController: UIViewController {
         TamerInsetsModule.reRequestInsets()
     }
 
-    override var preferredStatusBarStyle: UIStatusBarStyle { TamerPreferredStatusBar.style }
+    override var preferredStatusBarStyle: UIStatusBarStyle { SystemUIModule.statusBarStyleForHost }
 
     private func buildLynxView() -> LynxView {
         let size = fullscreenBounds().size

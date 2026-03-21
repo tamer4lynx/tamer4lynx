@@ -2860,7 +2860,9 @@ class ViewController: UIViewController {
 	additionalSafeAreaInsets = .zero
 	view.insetsLayoutMarginsFromSafeArea = false
 	view.preservesSuperviewLayoutMargins = false
-	viewRespectsSystemMinimumLayoutMargins = false
+	if #available(iOS 15.0, *) {
+		viewRespectsSystemMinimumLayoutMargins = false
+	}
   }
 
   override func viewDidLayoutSubviews() {
@@ -3562,7 +3564,9 @@ class ViewController: UIViewController {
         additionalSafeAreaInsets = .zero
         view.insetsLayoutMarginsFromSafeArea = false
         view.preservesSuperviewLayoutMargins = false
-        viewRespectsSystemMinimumLayoutMargins = false
+        if #available(iOS 15.0, *) {
+            viewRespectsSystemMinimumLayoutMargins = false
+        }
     }
 
     override func viewDidLayoutSubviews() {
@@ -3623,6 +3627,7 @@ function getDevViewControllerSwift() {
 import Lynx
 import tamerdevclient
 import tamerinsets
+import tamersystemui
 
 class ViewController: UIViewController {
     private var lynxView: LynxView?
@@ -3635,7 +3640,9 @@ class ViewController: UIViewController {
         additionalSafeAreaInsets = .zero
         view.insetsLayoutMarginsFromSafeArea = false
         view.preservesSuperviewLayoutMargins = false
-        viewRespectsSystemMinimumLayoutMargins = false
+        if #available(iOS 15.0, *) {
+            viewRespectsSystemMinimumLayoutMargins = false
+        }
         setupLynxView()
         setupDevClientModule()
     }
@@ -3652,7 +3659,7 @@ class ViewController: UIViewController {
         TamerInsetsModule.reRequestInsets()
     }
 
-    override var preferredStatusBarStyle: UIStatusBarStyle { TamerPreferredStatusBar.style }
+    override var preferredStatusBarStyle: UIStatusBarStyle { SystemUIModule.statusBarStyleForHost }
 
     private func setupLynxView() {
         let size = fullscreenBounds().size
