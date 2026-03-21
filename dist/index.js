@@ -7,8 +7,8 @@ process.on("warning", (w) => {
 });
 
 // index.ts
-import fs30 from "fs";
-import path31 from "path";
+import fs32 from "fs";
+import path33 from "path";
 import { program } from "commander";
 
 // src/common/cliVersion.ts
@@ -35,36 +35,69 @@ function getCliVersion() {
   return "0.0.0";
 }
 
+// src/common/loadProjectEnv.ts
+import fs2 from "fs";
+import path2 from "path";
+import { parse } from "dotenv";
+var TAMER_CONFIG = "tamer.config.json";
+function findTamerProjectRoot(start2) {
+  let dir = path2.resolve(start2);
+  const root = path2.parse(dir).root;
+  while (dir !== root) {
+    const p = path2.join(dir, TAMER_CONFIG);
+    if (fs2.existsSync(p)) return dir;
+    dir = path2.dirname(dir);
+  }
+  return start2;
+}
+function loadProjectEnv(cwd = process.cwd()) {
+  const root = findTamerProjectRoot(cwd);
+  const merged = {};
+  for (const name of [".env", ".env.local"]) {
+    const full = path2.join(root, name);
+    if (!fs2.existsSync(full)) continue;
+    try {
+      Object.assign(merged, parse(fs2.readFileSync(full)));
+    } catch {
+    }
+  }
+  for (const [k, v] of Object.entries(merged)) {
+    if (process.env[k] === void 0) {
+      process.env[k] = v;
+    }
+  }
+}
+
 // src/android/create.ts
-import fs5 from "fs";
-import path5 from "path";
+import fs6 from "fs";
+import path6 from "path";
 import os2 from "os";
 
 // src/android/getGradle.ts
-import fs2 from "fs";
-import path2 from "path";
+import fs3 from "fs";
+import path3 from "path";
 import os from "os";
 import { execSync } from "child_process";
 import fetch2 from "node-fetch";
 import AdmZip from "adm-zip";
 async function downloadGradle(gradleVersion) {
   const gradleBaseUrl = `https://services.gradle.org/distributions/gradle-${gradleVersion}-bin.zip`;
-  const downloadDir = path2.join(process.cwd(), "gradle");
-  const zipPath = path2.join(downloadDir, `gradle-${gradleVersion}.zip`);
-  const extractedPath = path2.join(downloadDir, `gradle-${gradleVersion}`);
-  if (fs2.existsSync(extractedPath)) {
+  const downloadDir = path3.join(process.cwd(), "gradle");
+  const zipPath = path3.join(downloadDir, `gradle-${gradleVersion}.zip`);
+  const extractedPath = path3.join(downloadDir, `gradle-${gradleVersion}`);
+  if (fs3.existsSync(extractedPath)) {
     console.log(`\u2705 Gradle ${gradleVersion} already exists at ${extractedPath}. Skipping download.`);
     return;
   }
-  if (!fs2.existsSync(downloadDir)) {
-    fs2.mkdirSync(downloadDir, { recursive: true });
+  if (!fs3.existsSync(downloadDir)) {
+    fs3.mkdirSync(downloadDir, { recursive: true });
   }
   console.log(`\u{1F4E5} Downloading Gradle ${gradleVersion} from ${gradleBaseUrl}...`);
   const response = await fetch2(gradleBaseUrl);
   if (!response.ok || !response.body) {
     throw new Error(`Failed to download: ${response.statusText}`);
   }
-  const fileStream = fs2.createWriteStream(zipPath);
+  const fileStream = fs3.createWriteStream(zipPath);
   await new Promise((resolve, reject) => {
     response.body?.pipe(fileStream);
     response.body?.on("error", reject);
@@ -78,26 +111,26 @@ async function downloadGradle(gradleVersion) {
     console.error(`\u274C Failed to extract Gradle zip: ${err}`);
     throw err;
   }
-  fs2.unlinkSync(zipPath);
+  fs3.unlinkSync(zipPath);
   console.log(`\u2705 Gradle ${gradleVersion} extracted to ${extractedPath}`);
 }
 async function setupGradleWrapper(rootDir, gradleVersion) {
   try {
     console.log("\u{1F4E6} Setting up Gradle wrapper...");
     await downloadGradle(gradleVersion);
-    const gradleBinDir = path2.join(
+    const gradleBinDir = path3.join(
       process.cwd(),
       "gradle",
       `gradle-${gradleVersion}`,
       "bin"
     );
     const gradleExecutable = os.platform() === "win32" ? "gradle.bat" : "gradle";
-    const gradleExecutablePath = path2.join(gradleBinDir, gradleExecutable);
-    if (!fs2.existsSync(gradleExecutablePath)) {
+    const gradleExecutablePath = path3.join(gradleBinDir, gradleExecutable);
+    if (!fs3.existsSync(gradleExecutablePath)) {
       throw new Error(`Gradle executable not found at ${gradleExecutablePath}`);
     }
     if (os.platform() !== "win32") {
-      fs2.chmodSync(gradleExecutablePath, "755");
+      fs3.chmodSync(gradleExecutablePath, "755");
     }
     console.log(`\u{1F680} Executing Gradle wrapper in: ${rootDir}`);
     execSync(`"${gradleExecutablePath}" wrapper`, {
@@ -112,37 +145,37 @@ async function setupGradleWrapper(rootDir, gradleVersion) {
 }
 
 // src/common/hostConfig.ts
-import fs3 from "fs";
-import path3 from "path";
+import fs4 from "fs";
+import path4 from "path";
 var DEFAULT_ABI_FILTERS = ["armeabi-v7a", "arm64-v8a"];
-var TAMER_CONFIG = "tamer.config.json";
+var TAMER_CONFIG2 = "tamer.config.json";
 var LYNX_CONFIG_FILES = ["lynx.config.ts", "lynx.config.js", "lynx.config.mjs"];
 var DEFAULT_ANDROID_DIR = "android";
 var DEFAULT_IOS_DIR = "ios";
 var DEFAULT_BUNDLE_FILE = "main.lynx.bundle";
 var DEFAULT_BUNDLE_ROOT = "dist";
 function findProjectRoot(start2) {
-  let dir = path3.resolve(start2);
-  const root = path3.parse(dir).root;
+  let dir = path4.resolve(start2);
+  const root = path4.parse(dir).root;
   while (dir !== root) {
-    const p = path3.join(dir, TAMER_CONFIG);
-    if (fs3.existsSync(p)) return dir;
-    dir = path3.dirname(dir);
+    const p = path4.join(dir, TAMER_CONFIG2);
+    if (fs4.existsSync(p)) return dir;
+    dir = path4.dirname(dir);
   }
   return start2;
 }
 function loadTamerConfig(cwd) {
-  const p = path3.join(cwd, TAMER_CONFIG);
-  if (!fs3.existsSync(p)) return null;
+  const p = path4.join(cwd, TAMER_CONFIG2);
+  if (!fs4.existsSync(p)) return null;
   try {
-    return JSON.parse(fs3.readFileSync(p, "utf8"));
+    return JSON.parse(fs4.readFileSync(p, "utf8"));
   } catch {
     return null;
   }
 }
 function extractDistPathRoot(configPath) {
   try {
-    const content = fs3.readFileSync(configPath, "utf8");
+    const content = fs4.readFileSync(configPath, "utf8");
     const rootMatch = content.match(/distPath\s*:\s*\{\s*root\s*:\s*['"]([^'"]+)['"]/);
     if (rootMatch?.[1]) return rootMatch[1];
     const rootMatch2 = content.match(/root\s*:\s*['"]([^'"]+)['"]/);
@@ -153,16 +186,16 @@ function extractDistPathRoot(configPath) {
 }
 function findLynxConfigInDir(dir) {
   for (const name of LYNX_CONFIG_FILES) {
-    const p = path3.join(dir, name);
-    if (fs3.existsSync(p)) return p;
+    const p = path4.join(dir, name);
+    if (fs4.existsSync(p)) return p;
   }
   return null;
 }
 function hasRspeedy(pkgDir) {
-  const pkgJsonPath = path3.join(pkgDir, "package.json");
-  if (!fs3.existsSync(pkgJsonPath)) return false;
+  const pkgJsonPath = path4.join(pkgDir, "package.json");
+  if (!fs4.existsSync(pkgJsonPath)) return false;
   try {
-    const pkg = JSON.parse(fs3.readFileSync(pkgJsonPath, "utf8"));
+    const pkg = JSON.parse(fs4.readFileSync(pkgJsonPath, "utf8"));
     const deps = { ...pkg.dependencies, ...pkg.devDependencies };
     return Object.keys(deps).some((k) => k === "@lynx-js/rspeedy");
   } catch {
@@ -171,17 +204,17 @@ function hasRspeedy(pkgDir) {
 }
 function discoverLynxProject(cwd, explicitPath) {
   if (explicitPath) {
-    const resolved = path3.isAbsolute(explicitPath) ? explicitPath : path3.join(cwd, explicitPath);
-    if (fs3.existsSync(resolved)) {
+    const resolved = path4.isAbsolute(explicitPath) ? explicitPath : path4.join(cwd, explicitPath);
+    if (fs4.existsSync(resolved)) {
       const lynxConfig2 = findLynxConfigInDir(resolved);
       const bundleRoot = lynxConfig2 ? extractDistPathRoot(lynxConfig2) ?? DEFAULT_BUNDLE_ROOT : DEFAULT_BUNDLE_ROOT;
       return { dir: resolved, bundleRoot };
     }
   }
-  const rootPkgPath = path3.join(cwd, "package.json");
-  if (fs3.existsSync(rootPkgPath)) {
+  const rootPkgPath = path4.join(cwd, "package.json");
+  if (fs4.existsSync(rootPkgPath)) {
     try {
-      const rootPkg = JSON.parse(fs3.readFileSync(rootPkgPath, "utf8"));
+      const rootPkg = JSON.parse(fs4.readFileSync(rootPkgPath, "utf8"));
       const lynxConfig2 = findLynxConfigInDir(cwd);
       if (lynxConfig2 || (rootPkg.dependencies?.["@lynx-js/rspeedy"] || rootPkg.devDependencies?.["@lynx-js/rspeedy"])) {
         const bundleRoot = lynxConfig2 ? extractDistPathRoot(lynxConfig2) ?? DEFAULT_BUNDLE_ROOT : DEFAULT_BUNDLE_ROOT;
@@ -192,12 +225,12 @@ function discoverLynxProject(cwd, explicitPath) {
         for (const ws of workspaces) {
           const isGlob = typeof ws === "string" && ws.includes("*");
           const dirsToCheck = isGlob ? (() => {
-            const parentDir = path3.join(cwd, ws.replace(/\/\*$/, ""));
-            if (!fs3.existsSync(parentDir)) return [];
-            return fs3.readdirSync(parentDir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => path3.join(parentDir, e.name));
-          })() : [path3.join(cwd, ws)];
+            const parentDir = path4.join(cwd, ws.replace(/\/\*$/, ""));
+            if (!fs4.existsSync(parentDir)) return [];
+            return fs4.readdirSync(parentDir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => path4.join(parentDir, e.name));
+          })() : [path4.join(cwd, ws)];
           for (const pkgDir of dirsToCheck) {
-            if (!fs3.existsSync(pkgDir)) continue;
+            if (!fs4.existsSync(pkgDir)) continue;
             const lynxConfig3 = findLynxConfigInDir(pkgDir);
             if (lynxConfig3 || hasRspeedy(pkgDir)) {
               const bundleRoot = lynxConfig3 ? extractDistPathRoot(lynxConfig3) ?? DEFAULT_BUNDLE_ROOT : DEFAULT_BUNDLE_ROOT;
@@ -217,30 +250,30 @@ function discoverLynxProject(cwd, explicitPath) {
   return null;
 }
 function findRepoRoot(start2) {
-  let dir = path3.resolve(start2);
-  const root = path3.parse(dir).root;
+  let dir = path4.resolve(start2);
+  const root = path4.parse(dir).root;
   while (dir !== root) {
-    const pkgPath = path3.join(dir, "package.json");
-    if (fs3.existsSync(pkgPath)) {
+    const pkgPath = path4.join(dir, "package.json");
+    if (fs4.existsSync(pkgPath)) {
       try {
-        const pkg = JSON.parse(fs3.readFileSync(pkgPath, "utf8"));
+        const pkg = JSON.parse(fs4.readFileSync(pkgPath, "utf8"));
         if (pkg.workspaces) return dir;
       } catch {
       }
     }
-    dir = path3.dirname(dir);
+    dir = path4.dirname(dir);
   }
   return start2;
 }
 function findDevAppPackage(projectRoot) {
   const candidates = [
-    path3.join(projectRoot, "node_modules", "@tamer4lynx", "tamer-dev-app"),
-    path3.join(projectRoot, "node_modules", "tamer-dev-app"),
-    path3.join(projectRoot, "packages", "tamer-dev-app"),
-    path3.join(path3.dirname(projectRoot), "tamer-dev-app")
+    path4.join(projectRoot, "node_modules", "@tamer4lynx", "tamer-dev-app"),
+    path4.join(projectRoot, "node_modules", "tamer-dev-app"),
+    path4.join(projectRoot, "packages", "tamer-dev-app"),
+    path4.join(path4.dirname(projectRoot), "tamer-dev-app")
   ];
   for (const pkg of candidates) {
-    if (fs3.existsSync(pkg) && fs3.existsSync(path3.join(pkg, "package.json"))) {
+    if (fs4.existsSync(pkg) && fs4.existsSync(path4.join(pkg, "package.json"))) {
       return pkg;
     }
   }
@@ -248,13 +281,13 @@ function findDevAppPackage(projectRoot) {
 }
 function findDevClientPackage(projectRoot) {
   const candidates = [
-    path3.join(projectRoot, "node_modules", "@tamer4lynx", "tamer-dev-client"),
-    path3.join(projectRoot, "node_modules", "tamer-dev-client"),
-    path3.join(projectRoot, "packages", "tamer-dev-client"),
-    path3.join(path3.dirname(projectRoot), "tamer-dev-client")
+    path4.join(projectRoot, "node_modules", "@tamer4lynx", "tamer-dev-client"),
+    path4.join(projectRoot, "node_modules", "tamer-dev-client"),
+    path4.join(projectRoot, "packages", "tamer-dev-client"),
+    path4.join(path4.dirname(projectRoot), "tamer-dev-client")
   ];
   for (const pkg of candidates) {
-    if (fs3.existsSync(pkg) && fs3.existsSync(path3.join(pkg, "package.json"))) {
+    if (fs4.existsSync(pkg) && fs4.existsSync(path4.join(pkg, "package.json"))) {
       return pkg;
     }
   }
@@ -262,11 +295,11 @@ function findDevClientPackage(projectRoot) {
 }
 function findTamerHostPackage(projectRoot) {
   const candidates = [
-    path3.join(projectRoot, "node_modules", "tamer-host"),
-    path3.join(projectRoot, "packages", "tamer-host")
+    path4.join(projectRoot, "node_modules", "tamer-host"),
+    path4.join(projectRoot, "packages", "tamer-host")
   ];
   for (const pkg of candidates) {
-    if (fs3.existsSync(pkg) && fs3.existsSync(path3.join(pkg, "package.json"))) {
+    if (fs4.existsSync(pkg) && fs4.existsSync(path4.join(pkg, "package.json"))) {
       return pkg;
     }
   }
@@ -284,18 +317,18 @@ function resolveHostPaths(cwd = process.cwd()) {
   const lynxProjectDir = discovered?.dir ?? cwd;
   const bundleRoot = paths.lynxBundleRoot ?? discovered?.bundleRoot ?? DEFAULT_BUNDLE_ROOT;
   const bundleFile = paths.lynxBundleFile ?? DEFAULT_BUNDLE_FILE;
-  const lynxBundlePath = path3.join(lynxProjectDir, bundleRoot, bundleFile);
-  const androidDir = path3.join(projectRoot, androidDirRel);
+  const lynxBundlePath = path4.join(lynxProjectDir, bundleRoot, bundleFile);
+  const androidDir = path4.join(projectRoot, androidDirRel);
   const devMode = resolveDevMode(config);
   const devClientPkg = findDevClientPackage(projectRoot);
-  const devClientBundlePath = devClientPkg ? path3.join(devClientPkg, DEFAULT_BUNDLE_ROOT, "dev-client.lynx.bundle") : void 0;
+  const devClientBundlePath = devClientPkg ? path4.join(devClientPkg, DEFAULT_BUNDLE_ROOT, "dev-client.lynx.bundle") : void 0;
   return {
     projectRoot,
     androidDir,
-    iosDir: path3.join(projectRoot, iosDirRel),
-    androidAppDir: path3.join(projectRoot, androidDirRel, "app"),
-    androidAssetsDir: path3.join(projectRoot, androidDirRel, "app", "src", "main", "assets"),
-    androidKotlinDir: path3.join(projectRoot, androidDirRel, "app", "src", "main", "kotlin", packageName.replace(/\./g, "/")),
+    iosDir: path4.join(projectRoot, iosDirRel),
+    androidAppDir: path4.join(projectRoot, androidDirRel, "app"),
+    androidAssetsDir: path4.join(projectRoot, androidDirRel, "app", "src", "main", "assets"),
+    androidKotlinDir: path4.join(projectRoot, androidDirRel, "app", "src", "main", "kotlin", packageName.replace(/\./g, "/")),
     lynxProjectDir,
     lynxBundlePath,
     lynxBundleFile: bundleFile,
@@ -370,32 +403,32 @@ function normalizeAndroidAdaptiveColor(input) {
 function resolveIconPaths(projectRoot, config) {
   const raw = config.icon;
   if (!raw) return null;
-  const join = (p) => path3.isAbsolute(p) ? p : path3.join(projectRoot, p);
+  const join = (p) => path4.isAbsolute(p) ? p : path4.join(projectRoot, p);
   if (typeof raw === "string") {
     const p = join(raw);
-    return fs3.existsSync(p) ? { source: p } : null;
+    return fs4.existsSync(p) ? { source: p } : null;
   }
   const out = {};
   if (raw.source) {
     const p = join(raw.source);
-    if (fs3.existsSync(p)) out.source = p;
+    if (fs4.existsSync(p)) out.source = p;
   }
   if (raw.android) {
     const p = join(raw.android);
-    if (fs3.existsSync(p)) out.android = p;
+    if (fs4.existsSync(p)) out.android = p;
   }
   if (raw.ios) {
     const p = join(raw.ios);
-    if (fs3.existsSync(p)) out.ios = p;
+    if (fs4.existsSync(p)) out.ios = p;
   }
   const ad = raw.androidAdaptive;
   if (ad?.foreground) {
     const fg = join(ad.foreground);
-    if (fs3.existsSync(fg)) {
+    if (fs4.existsSync(fg)) {
       let usedAdaptive = false;
       if (ad.background) {
         const bg = join(ad.background);
-        if (fs3.existsSync(bg)) {
+        if (fs4.existsSync(bg)) {
           out.androidAdaptiveForeground = fg;
           out.androidAdaptiveBackground = bg;
           usedAdaptive = true;
@@ -418,19 +451,19 @@ function resolveIconPaths(projectRoot, config) {
 }
 
 // src/common/syncAppIcons.ts
-import fs4 from "fs";
-import path4 from "path";
+import fs5 from "fs";
+import path5 from "path";
 function purgeAdaptiveForegroundArtifacts(drawableDir) {
   for (const base of ["ic_launcher_fg_src", "ic_launcher_fg_bm", "ic_launcher_fg_sc"]) {
     for (const ext of [".png", ".webp", ".jpg", ".jpeg", ".xml"]) {
       try {
-        fs4.unlinkSync(path4.join(drawableDir, base + ext));
+        fs5.unlinkSync(path5.join(drawableDir, base + ext));
       } catch {
       }
     }
   }
   try {
-    fs4.unlinkSync(path4.join(drawableDir, "ic_launcher_foreground.xml"));
+    fs5.unlinkSync(path5.join(drawableDir, "ic_launcher_foreground.xml"));
   } catch {
   }
 }
@@ -443,15 +476,15 @@ function writeAdaptiveForegroundLayer(drawableDir, fgSourcePath, fgExt, layout) 
   purgeAdaptiveForegroundArtifacts(drawableDir);
   for (const ext of [".png", ".webp", ".jpg", ".jpeg"]) {
     try {
-      fs4.unlinkSync(path4.join(drawableDir, `ic_launcher_foreground${ext}`));
+      fs5.unlinkSync(path5.join(drawableDir, `ic_launcher_foreground${ext}`));
     } catch {
     }
   }
   if (!layout) {
-    fs4.copyFileSync(fgSourcePath, path4.join(drawableDir, `ic_launcher_foreground${fgExt}`));
+    fs5.copyFileSync(fgSourcePath, path5.join(drawableDir, `ic_launcher_foreground${fgExt}`));
     return;
   }
-  fs4.copyFileSync(fgSourcePath, path4.join(drawableDir, `ic_launcher_fg_src${fgExt}`));
+  fs5.copyFileSync(fgSourcePath, path5.join(drawableDir, `ic_launcher_fg_src${fgExt}`));
   const CANVAS_DP = 108;
   const scale = layout.scale ?? 1;
   const shrinkDp = (1 - scale) / 2 * CANVAS_DP;
@@ -475,11 +508,11 @@ function writeAdaptiveForegroundLayer(drawableDir, fgSourcePath, fgExt, layout) 
         android:bottom="${insetBottom}dp"
         android:drawable="@drawable/ic_launcher_fg_src" />
 </layer-list>`;
-  fs4.writeFileSync(path4.join(drawableDir, "ic_launcher_foreground.xml"), layerXml);
+  fs5.writeFileSync(path5.join(drawableDir, "ic_launcher_foreground.xml"), layerXml);
 }
 function ensureAndroidManifestLauncherIcon(manifestPath) {
-  if (!fs4.existsSync(manifestPath)) return;
-  let content = fs4.readFileSync(manifestPath, "utf8");
+  if (!fs5.existsSync(manifestPath)) return;
+  let content = fs5.readFileSync(manifestPath, "utf8");
   if (content.includes("android:icon=")) return;
   const next = content.replace(/<application(\s[^>]*)>/, (full, attrs) => {
     if (String(attrs).includes("android:icon")) return full;
@@ -488,30 +521,30 @@ function ensureAndroidManifestLauncherIcon(manifestPath) {
         android:roundIcon="@mipmap/ic_launcher">`;
   });
   if (next !== content) {
-    fs4.writeFileSync(manifestPath, next, "utf8");
+    fs5.writeFileSync(manifestPath, next, "utf8");
     console.log("\u2705 Added android:icon / roundIcon to AndroidManifest.xml");
   }
 }
 function applyAndroidLauncherIcons(resDir, iconPaths) {
   if (!iconPaths) return false;
-  fs4.mkdirSync(resDir, { recursive: true });
+  fs5.mkdirSync(resDir, { recursive: true });
   const fgAd = iconPaths.androidAdaptiveForeground;
   const bgAd = iconPaths.androidAdaptiveBackground;
   const bgColor = iconPaths.androidAdaptiveBackgroundColor;
   if (fgAd && (bgAd || bgColor)) {
-    const drawableDir = path4.join(resDir, "drawable");
-    fs4.mkdirSync(drawableDir, { recursive: true });
-    const fgExt = path4.extname(fgAd) || ".png";
+    const drawableDir = path5.join(resDir, "drawable");
+    fs5.mkdirSync(drawableDir, { recursive: true });
+    const fgExt = path5.extname(fgAd) || ".png";
     writeAdaptiveForegroundLayer(drawableDir, fgAd, fgExt, iconPaths.androidAdaptiveForegroundLayout);
     if (bgColor) {
       for (const ext of [".png", ".webp", ".jpg", ".jpeg"]) {
         try {
-          fs4.unlinkSync(path4.join(drawableDir, `ic_launcher_background${ext}`));
+          fs5.unlinkSync(path5.join(drawableDir, `ic_launcher_background${ext}`));
         } catch {
         }
       }
       try {
-        fs4.unlinkSync(path4.join(drawableDir, "ic_launcher_background.xml"));
+        fs5.unlinkSync(path5.join(drawableDir, "ic_launcher_background.xml"));
       } catch {
       }
       const shapeXml = `<?xml version="1.0" encoding="utf-8"?>
@@ -519,44 +552,44 @@ function applyAndroidLauncherIcons(resDir, iconPaths) {
     <solid android:color="${bgColor}" />
 </shape>
 `;
-      fs4.writeFileSync(path4.join(drawableDir, "ic_launcher_background.xml"), shapeXml);
+      fs5.writeFileSync(path5.join(drawableDir, "ic_launcher_background.xml"), shapeXml);
     } else {
       try {
-        fs4.unlinkSync(path4.join(drawableDir, "ic_launcher_background.xml"));
+        fs5.unlinkSync(path5.join(drawableDir, "ic_launcher_background.xml"));
       } catch {
       }
-      const bgExt = path4.extname(bgAd) || ".png";
-      fs4.copyFileSync(bgAd, path4.join(drawableDir, `ic_launcher_background${bgExt}`));
+      const bgExt = path5.extname(bgAd) || ".png";
+      fs5.copyFileSync(bgAd, path5.join(drawableDir, `ic_launcher_background${bgExt}`));
     }
-    const anyDpi = path4.join(resDir, "mipmap-anydpi-v26");
-    fs4.mkdirSync(anyDpi, { recursive: true });
+    const anyDpi = path5.join(resDir, "mipmap-anydpi-v26");
+    fs5.mkdirSync(anyDpi, { recursive: true });
     const adaptiveXml = `<?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@drawable/ic_launcher_background" />
     <foreground android:drawable="@drawable/ic_launcher_foreground" />
 </adaptive-icon>
 `;
-    fs4.writeFileSync(path4.join(anyDpi, "ic_launcher.xml"), adaptiveXml);
-    fs4.writeFileSync(path4.join(anyDpi, "ic_launcher_round.xml"), adaptiveXml);
+    fs5.writeFileSync(path5.join(anyDpi, "ic_launcher.xml"), adaptiveXml);
+    fs5.writeFileSync(path5.join(anyDpi, "ic_launcher_round.xml"), adaptiveXml);
     const legacySrc = iconPaths.source ?? fgAd;
-    const legacyExt = path4.extname(legacySrc) || ".png";
+    const legacyExt = path5.extname(legacySrc) || ".png";
     const mipmapDensities = ["mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"];
     for (const d of mipmapDensities) {
-      const dir = path4.join(resDir, `mipmap-${d}`);
-      fs4.mkdirSync(dir, { recursive: true });
-      fs4.copyFileSync(legacySrc, path4.join(dir, `ic_launcher${legacyExt}`));
+      const dir = path5.join(resDir, `mipmap-${d}`);
+      fs5.mkdirSync(dir, { recursive: true });
+      fs5.copyFileSync(legacySrc, path5.join(dir, `ic_launcher${legacyExt}`));
     }
     return true;
   }
   if (iconPaths.android) {
     const src = iconPaths.android;
-    const entries = fs4.readdirSync(src, { withFileTypes: true });
+    const entries = fs5.readdirSync(src, { withFileTypes: true });
     for (const e of entries) {
-      const dest = path4.join(resDir, e.name);
+      const dest = path5.join(resDir, e.name);
       if (e.isDirectory()) {
-        fs4.cpSync(path4.join(src, e.name), dest, { recursive: true });
+        fs5.cpSync(path5.join(src, e.name), dest, { recursive: true });
       } else {
-        fs4.copyFileSync(path4.join(src, e.name), dest);
+        fs5.copyFileSync(path5.join(src, e.name), dest);
       }
     }
     return true;
@@ -564,9 +597,9 @@ function applyAndroidLauncherIcons(resDir, iconPaths) {
   if (iconPaths.source) {
     const mipmapDensities = ["mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi"];
     for (const d of mipmapDensities) {
-      const dir = path4.join(resDir, `mipmap-${d}`);
-      fs4.mkdirSync(dir, { recursive: true });
-      fs4.copyFileSync(iconPaths.source, path4.join(dir, "ic_launcher.png"));
+      const dir = path5.join(resDir, `mipmap-${d}`);
+      fs5.mkdirSync(dir, { recursive: true });
+      fs5.copyFileSync(iconPaths.source, path5.join(dir, "ic_launcher.png"));
     }
     return true;
   }
@@ -574,25 +607,25 @@ function applyAndroidLauncherIcons(resDir, iconPaths) {
 }
 function applyIosAppIconAssets(appIconDir, iconPaths) {
   if (!iconPaths) return false;
-  fs4.mkdirSync(appIconDir, { recursive: true });
+  fs5.mkdirSync(appIconDir, { recursive: true });
   if (iconPaths.ios) {
-    const entries = fs4.readdirSync(iconPaths.ios, { withFileTypes: true });
+    const entries = fs5.readdirSync(iconPaths.ios, { withFileTypes: true });
     for (const e of entries) {
-      const dest = path4.join(appIconDir, e.name);
+      const dest = path5.join(appIconDir, e.name);
       if (e.isDirectory()) {
-        fs4.cpSync(path4.join(iconPaths.ios, e.name), dest, { recursive: true });
+        fs5.cpSync(path5.join(iconPaths.ios, e.name), dest, { recursive: true });
       } else {
-        fs4.copyFileSync(path4.join(iconPaths.ios, e.name), dest);
+        fs5.copyFileSync(path5.join(iconPaths.ios, e.name), dest);
       }
     }
     return true;
   }
   if (iconPaths.source) {
-    const ext = path4.extname(iconPaths.source) || ".png";
+    const ext = path5.extname(iconPaths.source) || ".png";
     const icon1024 = `Icon-1024${ext}`;
-    fs4.copyFileSync(iconPaths.source, path4.join(appIconDir, icon1024));
-    fs4.writeFileSync(
-      path4.join(appIconDir, "Contents.json"),
+    fs5.copyFileSync(iconPaths.source, path5.join(appIconDir, icon1024));
+    fs5.writeFileSync(
+      path5.join(appIconDir, "Contents.json"),
       JSON.stringify(
         {
           images: [{ filename: icon1024, idiom: "universal", platform: "ios", size: "1024x1024" }],
@@ -1144,7 +1177,7 @@ object DevServerPrefs {
 
 // src/android/create.ts
 function readAndSubstituteTemplate(templatePath, vars) {
-  const raw = fs5.readFileSync(templatePath, "utf-8");
+  const raw = fs6.readFileSync(templatePath, "utf-8");
   return Object.entries(vars).reduce(
     (s, [k, v]) => s.replace(new RegExp(`\\{\\{${k}\\}\\}`, "g"), v),
     raw
@@ -1155,7 +1188,7 @@ var create = async (opts = {}) => {
   const origCwd = process.cwd();
   if (target === "dev-app") {
     const devAppDir = findDevAppPackage(origCwd) ?? findDevAppPackage(findRepoRoot(origCwd));
-    if (!devAppDir || !fs5.existsSync(path5.join(devAppDir, "tamer.config.json"))) {
+    if (!devAppDir || !fs6.existsSync(path6.join(devAppDir, "tamer.config.json"))) {
       console.error("\u274C tamer-dev-app not found. Add @tamer4lynx/tamer-dev-app to dependencies.");
       process.exit(1);
     }
@@ -1185,30 +1218,30 @@ var create = async (opts = {}) => {
   const packagePath = packageName.replace(/\./g, "/");
   const gradleVersion = "8.14.2";
   const androidDir = config.paths?.androidDir ?? "android";
-  const rootDir = path5.join(process.cwd(), androidDir);
-  const appDir = path5.join(rootDir, "app");
-  const mainDir = path5.join(appDir, "src", "main");
-  const javaDir = path5.join(mainDir, "java", packagePath);
-  const kotlinDir = path5.join(mainDir, "kotlin", packagePath);
-  const kotlinGeneratedDir = path5.join(kotlinDir, "generated");
-  const assetsDir = path5.join(mainDir, "assets");
-  const themesDir = path5.join(mainDir, "res", "values");
-  const gradleDir = path5.join(rootDir, "gradle");
+  const rootDir = path6.join(process.cwd(), androidDir);
+  const appDir = path6.join(rootDir, "app");
+  const mainDir = path6.join(appDir, "src", "main");
+  const javaDir = path6.join(mainDir, "java", packagePath);
+  const kotlinDir = path6.join(mainDir, "kotlin", packagePath);
+  const kotlinGeneratedDir = path6.join(kotlinDir, "generated");
+  const assetsDir = path6.join(mainDir, "assets");
+  const themesDir = path6.join(mainDir, "res", "values");
+  const gradleDir = path6.join(rootDir, "gradle");
   function writeFile2(filePath, content, options) {
-    fs5.mkdirSync(path5.dirname(filePath), { recursive: true });
-    fs5.writeFileSync(
+    fs6.mkdirSync(path6.dirname(filePath), { recursive: true });
+    fs6.writeFileSync(
       filePath,
       content.trimStart(),
       options?.encoding ?? "utf8"
     );
   }
-  if (fs5.existsSync(rootDir)) {
+  if (fs6.existsSync(rootDir)) {
     console.log(`\u{1F9F9} Removing existing directory: ${rootDir}`);
-    fs5.rmSync(rootDir, { recursive: true, force: true });
+    fs6.rmSync(rootDir, { recursive: true, force: true });
   }
   console.log(`\u{1F680} Creating a new Tamer4Lynx project in: ${rootDir}`);
   writeFile2(
-    path5.join(gradleDir, "libs.versions.toml"),
+    path6.join(gradleDir, "libs.versions.toml"),
     `
 [versions]
 agp = "8.9.1"
@@ -1269,7 +1302,7 @@ kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version.ref = "kotlin" }
 `
   );
   writeFile2(
-    path5.join(rootDir, "settings.gradle.kts"),
+    path6.join(rootDir, "settings.gradle.kts"),
     `
 pluginManagement {
     repositories {
@@ -1303,7 +1336,7 @@ println("If you have native modules please run tamer android link")
 `
   );
   writeFile2(
-    path5.join(rootDir, "build.gradle.kts"),
+    path6.join(rootDir, "build.gradle.kts"),
     `
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 plugins {
@@ -1315,7 +1348,7 @@ plugins {
 `
   );
   writeFile2(
-    path5.join(rootDir, "gradle.properties"),
+    path6.join(rootDir, "gradle.properties"),
     `
 org.gradle.jvmargs=-Xmx2048m
 android.useAndroidX=true
@@ -1324,7 +1357,7 @@ android.enableJetifier=true
 `
   );
   writeFile2(
-    path5.join(appDir, "build.gradle.kts"),
+    path6.join(appDir, "build.gradle.kts"),
     `
 plugins {
     alias(libs.plugins.android.application)
@@ -1416,7 +1449,7 @@ dependencies {
 `
   );
   writeFile2(
-    path5.join(themesDir, "themes.xml"),
+    path6.join(themesDir, "themes.xml"),
     `
 <resources>
     <style name="Theme.MyApp" parent="Theme.AppCompat.Light.NoActionBar">
@@ -1450,7 +1483,7 @@ dependencies {
   const iconPaths = resolveIconPaths(process.cwd(), config);
   const manifestIconAttrs = iconPaths ? '        android:icon="@mipmap/ic_launcher"\n        android:roundIcon="@mipmap/ic_launcher"\n' : "";
   writeFile2(
-    path5.join(mainDir, "AndroidManifest.xml"),
+    path6.join(mainDir, "AndroidManifest.xml"),
     `
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 ${manifestPermissions}
@@ -1464,7 +1497,7 @@ ${manifestIconAttrs}        android:usesCleartextTraffic="true"
 `
   );
   writeFile2(
-    path5.join(kotlinGeneratedDir, "GeneratedLynxExtensions.kt"),
+    path6.join(kotlinGeneratedDir, "GeneratedLynxExtensions.kt"),
     `
 package ${packageName}.generated
 
@@ -1492,14 +1525,14 @@ object GeneratedLynxExtensions {
   const hostPkg = findTamerHostPackage(process.cwd());
   const devClientPkg = findDevClientPackage(process.cwd());
   if (!hasDevLauncher && hostPkg) {
-    const templateDir = path5.join(hostPkg, "android", "templates");
+    const templateDir = path6.join(hostPkg, "android", "templates");
     for (const [src, dst] of [
-      ["App.java", path5.join(javaDir, "App.java")],
-      ["TemplateProvider.java", path5.join(javaDir, "TemplateProvider.java")],
-      ["MainActivity.kt", path5.join(kotlinDir, "MainActivity.kt")]
+      ["App.java", path6.join(javaDir, "App.java")],
+      ["TemplateProvider.java", path6.join(javaDir, "TemplateProvider.java")],
+      ["MainActivity.kt", path6.join(kotlinDir, "MainActivity.kt")]
     ]) {
-      const srcPath = path5.join(templateDir, src);
-      if (fs5.existsSync(srcPath)) {
+      const srcPath = path6.join(templateDir, src);
+      if (fs6.existsSync(srcPath)) {
         writeFile2(dst, readAndSubstituteTemplate(srcPath, templateVars));
       }
     }
@@ -1508,34 +1541,34 @@ object GeneratedLynxExtensions {
       fetchAndPatchApplication(vars),
       fetchAndPatchTemplateProvider(vars)
     ]);
-    writeFile2(path5.join(javaDir, "App.java"), applicationSource);
-    writeFile2(path5.join(javaDir, "TemplateProvider.java"), templateProviderSource);
-    writeFile2(path5.join(kotlinDir, "MainActivity.kt"), getStandaloneMainActivity(vars));
+    writeFile2(path6.join(javaDir, "App.java"), applicationSource);
+    writeFile2(path6.join(javaDir, "TemplateProvider.java"), templateProviderSource);
+    writeFile2(path6.join(kotlinDir, "MainActivity.kt"), getStandaloneMainActivity(vars));
     if (hasDevLauncher) {
       if (devClientPkg) {
-        const templateDir = path5.join(devClientPkg, "android", "templates");
+        const templateDir = path6.join(devClientPkg, "android", "templates");
         for (const [src, dst] of [
-          ["ProjectActivity.kt", path5.join(kotlinDir, "ProjectActivity.kt")],
-          ["DevClientManager.kt", path5.join(kotlinDir, "DevClientManager.kt")],
-          ["DevServerPrefs.kt", path5.join(kotlinDir, "DevServerPrefs.kt")]
+          ["ProjectActivity.kt", path6.join(kotlinDir, "ProjectActivity.kt")],
+          ["DevClientManager.kt", path6.join(kotlinDir, "DevClientManager.kt")],
+          ["DevServerPrefs.kt", path6.join(kotlinDir, "DevServerPrefs.kt")]
         ]) {
-          const srcPath = path5.join(templateDir, src);
-          if (fs5.existsSync(srcPath)) {
+          const srcPath = path6.join(templateDir, src);
+          if (fs6.existsSync(srcPath)) {
             writeFile2(dst, readAndSubstituteTemplate(srcPath, templateVars));
           }
         }
       } else {
-        writeFile2(path5.join(kotlinDir, "ProjectActivity.kt"), getProjectActivity(vars));
+        writeFile2(path6.join(kotlinDir, "ProjectActivity.kt"), getProjectActivity(vars));
         const devClientManagerSource = getDevClientManager(vars);
         if (devClientManagerSource) {
-          writeFile2(path5.join(kotlinDir, "DevClientManager.kt"), devClientManagerSource);
-          writeFile2(path5.join(kotlinDir, "DevServerPrefs.kt"), getDevServerPrefs(vars));
+          writeFile2(path6.join(kotlinDir, "DevClientManager.kt"), devClientManagerSource);
+          writeFile2(path6.join(kotlinDir, "DevServerPrefs.kt"), getDevServerPrefs(vars));
         }
       }
     }
   }
   if (iconPaths) {
-    const resDir = path5.join(mainDir, "res");
+    const resDir = path6.join(mainDir, "res");
     if (applyAndroidLauncherIcons(resDir, iconPaths)) {
       if (iconPaths.androidAdaptiveForeground && (iconPaths.androidAdaptiveBackground || iconPaths.androidAdaptiveBackgroundColor)) {
         console.log("\u2705 Android adaptive launcher from tamer.config.json icon.androidAdaptive");
@@ -1546,23 +1579,23 @@ object GeneratedLynxExtensions {
       }
     }
   }
-  fs5.mkdirSync(assetsDir, { recursive: true });
-  fs5.writeFileSync(path5.join(assetsDir, ".gitkeep"), "");
+  fs6.mkdirSync(assetsDir, { recursive: true });
+  fs6.writeFileSync(path6.join(assetsDir, ".gitkeep"), "");
   console.log(`\u2705 Android Kotlin project created at ${rootDir}`);
   async function finalizeProjectSetup() {
     if (androidSdk) {
       try {
         const sdkDirContent = `sdk.dir=${androidSdk.replace(/\\/g, "/")}`;
-        writeFile2(path5.join(rootDir, "local.properties"), sdkDirContent);
+        writeFile2(path6.join(rootDir, "local.properties"), sdkDirContent);
         console.log("\u{1F4E6} Created local.properties from tamer.config.json.");
       } catch (err) {
         console.error(`\u274C Failed to create local.properties: ${err.message}`);
       }
     } else {
-      const localPropsPath = path5.join(process.cwd(), "local.properties");
-      if (fs5.existsSync(localPropsPath)) {
+      const localPropsPath = path6.join(process.cwd(), "local.properties");
+      if (fs6.existsSync(localPropsPath)) {
         try {
-          fs5.copyFileSync(localPropsPath, path5.join(rootDir, "local.properties"));
+          fs6.copyFileSync(localPropsPath, path6.join(rootDir, "local.properties"));
           console.log("\u{1F4E6} Copied existing local.properties to the android project.");
         } catch (err) {
           console.error("\u274C Failed to copy local.properties:", err);
@@ -1581,33 +1614,33 @@ object GeneratedLynxExtensions {
 var create_default = create;
 
 // src/android/autolink.ts
-import fs8 from "fs";
-import path8 from "path";
+import fs10 from "fs";
+import path10 from "path";
 import { execSync as execSync2 } from "child_process";
 
 // src/common/discoverModules.ts
-import fs7 from "fs";
-import path7 from "path";
+import fs8 from "fs";
+import path8 from "path";
 
 // src/common/config.ts
-import fs6 from "fs";
-import path6 from "path";
+import fs7 from "fs";
+import path7 from "path";
 var LYNX_EXT_JSON = "lynx.ext.json";
 var TAMER_JSON = "tamer.json";
 function loadLynxExtJson(packagePath) {
-  const p = path6.join(packagePath, LYNX_EXT_JSON);
-  if (!fs6.existsSync(p)) return null;
+  const p = path7.join(packagePath, LYNX_EXT_JSON);
+  if (!fs7.existsSync(p)) return null;
   try {
-    return JSON.parse(fs6.readFileSync(p, "utf8"));
+    return JSON.parse(fs7.readFileSync(p, "utf8"));
   } catch {
     return null;
   }
 }
 function loadTamerJson(packagePath) {
-  const p = path6.join(packagePath, TAMER_JSON);
-  if (!fs6.existsSync(p)) return null;
+  const p = path7.join(packagePath, TAMER_JSON);
+  if (!fs7.existsSync(p)) return null;
   try {
-    return JSON.parse(fs6.readFileSync(p, "utf8"));
+    return JSON.parse(fs7.readFileSync(p, "utf8"));
   } catch {
     return null;
   }
@@ -1660,7 +1693,7 @@ function loadExtensionConfig(packagePath) {
   return normalized;
 }
 function hasExtensionConfig(packagePath) {
-  return fs6.existsSync(path6.join(packagePath, LYNX_EXT_JSON)) || fs6.existsSync(path6.join(packagePath, TAMER_JSON));
+  return fs7.existsSync(path7.join(packagePath, LYNX_EXT_JSON)) || fs7.existsSync(path7.join(packagePath, TAMER_JSON));
 }
 function getAndroidModuleClassNames(config) {
   if (!config) return [];
@@ -1678,51 +1711,6 @@ function getIosElements(config) {
   return config?.elements ?? {};
 }
 function getNodeModulesPath(projectRoot) {
-  let nodeModulesPath = path6.join(projectRoot, "node_modules");
-  const workspaceRoot = path6.join(projectRoot, "..", "..");
-  const rootNodeModules = path6.join(workspaceRoot, "node_modules");
-  if (fs6.existsSync(path6.join(workspaceRoot, "package.json")) && fs6.existsSync(rootNodeModules) && path6.basename(path6.dirname(projectRoot)) === "packages") {
-    nodeModulesPath = rootNodeModules;
-  } else if (!fs6.existsSync(nodeModulesPath)) {
-    const altRoot = path6.join(projectRoot, "..", "..");
-    const altNodeModules = path6.join(altRoot, "node_modules");
-    if (fs6.existsSync(path6.join(altRoot, "package.json")) && fs6.existsSync(altNodeModules)) {
-      nodeModulesPath = altNodeModules;
-    }
-  }
-  return nodeModulesPath;
-}
-function discoverNativeExtensions(projectRoot) {
-  const nodeModulesPath = getNodeModulesPath(projectRoot);
-  const result = [];
-  if (!fs6.existsSync(nodeModulesPath)) return result;
-  const packageDirs = fs6.readdirSync(nodeModulesPath);
-  const check = (name, packagePath) => {
-    if (!hasExtensionConfig(packagePath)) return;
-    const config = loadExtensionConfig(packagePath);
-    const classes = getAndroidModuleClassNames(config?.android);
-    for (const className of classes) {
-      result.push({ packageName: name, moduleClassName: className, attachHostView: config?.android?.attachHostView });
-    }
-  };
-  for (const dirName of packageDirs) {
-    const fullPath = path6.join(nodeModulesPath, dirName);
-    if (dirName.startsWith("@")) {
-      try {
-        for (const scopedDirName of fs6.readdirSync(fullPath)) {
-          check(`${dirName}/${scopedDirName}`, path6.join(fullPath, scopedDirName));
-        }
-      } catch {
-      }
-    } else {
-      check(dirName, fullPath);
-    }
-  }
-  return result;
-}
-
-// src/common/discoverModules.ts
-function resolveNodeModulesPath(projectRoot) {
   let nodeModulesPath = path7.join(projectRoot, "node_modules");
   const workspaceRoot = path7.join(projectRoot, "..", "..");
   const rootNodeModules = path7.join(workspaceRoot, "node_modules");
@@ -1737,15 +1725,60 @@ function resolveNodeModulesPath(projectRoot) {
   }
   return nodeModulesPath;
 }
+function discoverNativeExtensions(projectRoot) {
+  const nodeModulesPath = getNodeModulesPath(projectRoot);
+  const result = [];
+  if (!fs7.existsSync(nodeModulesPath)) return result;
+  const packageDirs = fs7.readdirSync(nodeModulesPath);
+  const check = (name, packagePath) => {
+    if (!hasExtensionConfig(packagePath)) return;
+    const config = loadExtensionConfig(packagePath);
+    const classes = getAndroidModuleClassNames(config?.android);
+    for (const className of classes) {
+      result.push({ packageName: name, moduleClassName: className, attachHostView: config?.android?.attachHostView });
+    }
+  };
+  for (const dirName of packageDirs) {
+    const fullPath = path7.join(nodeModulesPath, dirName);
+    if (dirName.startsWith("@")) {
+      try {
+        for (const scopedDirName of fs7.readdirSync(fullPath)) {
+          check(`${dirName}/${scopedDirName}`, path7.join(fullPath, scopedDirName));
+        }
+      } catch {
+      }
+    } else {
+      check(dirName, fullPath);
+    }
+  }
+  return result;
+}
+
+// src/common/discoverModules.ts
+function resolveNodeModulesPath(projectRoot) {
+  let nodeModulesPath = path8.join(projectRoot, "node_modules");
+  const workspaceRoot = path8.join(projectRoot, "..", "..");
+  const rootNodeModules = path8.join(workspaceRoot, "node_modules");
+  if (fs8.existsSync(path8.join(workspaceRoot, "package.json")) && fs8.existsSync(rootNodeModules) && path8.basename(path8.dirname(projectRoot)) === "packages") {
+    nodeModulesPath = rootNodeModules;
+  } else if (!fs8.existsSync(nodeModulesPath)) {
+    const altRoot = path8.join(projectRoot, "..", "..");
+    const altNodeModules = path8.join(altRoot, "node_modules");
+    if (fs8.existsSync(path8.join(altRoot, "package.json")) && fs8.existsSync(altNodeModules)) {
+      nodeModulesPath = altNodeModules;
+    }
+  }
+  return nodeModulesPath;
+}
 function resolvePackageRoot(projectRoot, packageName) {
   const nodeModulesPath = resolveNodeModulesPath(projectRoot);
-  const hasPkg = (dir) => fs7.existsSync(path7.join(dir, "package.json"));
+  const hasPkg = (dir) => fs8.existsSync(path8.join(dir, "package.json"));
   if (packageName.startsWith("@")) {
     const parts = packageName.split("/");
     if (parts.length !== 2 || !parts[0].startsWith("@")) return null;
-    const direct2 = path7.join(nodeModulesPath, parts[0], parts[1]);
+    const direct2 = path8.join(nodeModulesPath, parts[0], parts[1]);
     if (hasPkg(direct2)) return direct2;
-    const underDevClient = path7.join(
+    const underDevClient = path8.join(
       nodeModulesPath,
       "@tamer4lynx",
       "tamer-dev-client",
@@ -1756,13 +1789,13 @@ function resolvePackageRoot(projectRoot, packageName) {
     if (hasPkg(underDevClient)) return underDevClient;
     return null;
   }
-  const direct = path7.join(nodeModulesPath, packageName);
+  const direct = path8.join(nodeModulesPath, packageName);
   return hasPkg(direct) ? direct : null;
 }
 function collectTransitiveTamer4LynxPackageNames(projectRoot) {
-  const hostPjPath = path7.join(projectRoot, "package.json");
-  if (!fs7.existsSync(hostPjPath)) return null;
-  const hostPj = JSON.parse(fs7.readFileSync(hostPjPath, "utf8"));
+  const hostPjPath = path8.join(projectRoot, "package.json");
+  if (!fs8.existsSync(hostPjPath)) return null;
+  const hostPj = JSON.parse(fs8.readFileSync(hostPjPath, "utf8"));
   if (hostPj.name !== "@tamer4lynx/tamer-dev-app") return null;
   const visited = /* @__PURE__ */ new Set();
   const queue = [];
@@ -1779,8 +1812,8 @@ function collectTransitiveTamer4LynxPackageNames(projectRoot) {
     if (visited.has(name)) continue;
     visited.add(name);
     const pkgRoot = resolvePackageRoot(projectRoot, name);
-    if (!pkgRoot || !fs7.existsSync(path7.join(pkgRoot, "package.json"))) continue;
-    const sub = JSON.parse(fs7.readFileSync(path7.join(pkgRoot, "package.json"), "utf8"));
+    if (!pkgRoot || !fs8.existsSync(path8.join(pkgRoot, "package.json"))) continue;
+    const sub = JSON.parse(fs8.readFileSync(path8.join(pkgRoot, "package.json"), "utf8"));
     const merged = { ...sub.dependencies, ...sub.optionalDependencies };
     for (const dep of Object.keys(merged)) {
       if (dep.startsWith("@tamer4lynx/") && !visited.has(dep)) queue.push(dep);
@@ -1791,12 +1824,12 @@ function collectTransitiveTamer4LynxPackageNames(projectRoot) {
 function discoverModules(projectRoot) {
   const nodeModulesPath = resolveNodeModulesPath(projectRoot);
   const packages = [];
-  if (!fs7.existsSync(nodeModulesPath)) {
+  if (!fs8.existsSync(nodeModulesPath)) {
     return [];
   }
-  const packageDirs = fs7.readdirSync(nodeModulesPath);
+  const packageDirs = fs8.readdirSync(nodeModulesPath);
   for (const dirName of packageDirs) {
-    const fullPath = path7.join(nodeModulesPath, dirName);
+    const fullPath = path8.join(nodeModulesPath, dirName);
     const checkPackage = (name, packagePath) => {
       if (!hasExtensionConfig(packagePath)) return;
       const config = loadExtensionConfig(packagePath);
@@ -1805,9 +1838,9 @@ function discoverModules(projectRoot) {
     };
     if (dirName.startsWith("@")) {
       try {
-        const scopedDirs = fs7.readdirSync(fullPath);
+        const scopedDirs = fs8.readdirSync(fullPath);
         for (const scopedDirName of scopedDirs) {
-          const scopedPackagePath = path7.join(fullPath, scopedDirName);
+          const scopedPackagePath = path8.join(fullPath, scopedDirName);
           checkPackage(`${dirName}/${scopedDirName}`, scopedPackagePath);
         }
       } catch (e) {
@@ -1974,6 +2007,69 @@ ${createDelayedBody}
 `;
 }
 
+// src/android/cleanTamerAndroidCaches.ts
+import fs9 from "fs";
+import path9 from "path";
+var MARKER_REL = path9.join(".tamer", "android-lib-versions.json");
+function readTamerPackageVersions(projectRoot) {
+  const out = {};
+  const nm = path9.join(projectRoot, "node_modules", "@tamer4lynx");
+  if (!fs9.existsSync(nm)) return out;
+  for (const name of fs9.readdirSync(nm, { withFileTypes: true })) {
+    if (!name.isDirectory()) continue;
+    const pj = path9.join(nm, name.name, "package.json");
+    if (!fs9.existsSync(pj)) continue;
+    try {
+      const v = JSON.parse(fs9.readFileSync(pj, "utf-8")).version;
+      if (typeof v === "string") out[name.name] = v;
+    } catch {
+    }
+  }
+  return out;
+}
+function versionsEqual(a, b) {
+  const keys = /* @__PURE__ */ new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const k of keys) {
+    if (a[k] !== b[k]) return false;
+  }
+  return true;
+}
+function cleanTamerAndroidLibBuildsIfVersionsChanged(projectRoot) {
+  const markerPath = path9.join(projectRoot, MARKER_REL);
+  let previous = {};
+  if (fs9.existsSync(markerPath)) {
+    try {
+      previous = JSON.parse(fs9.readFileSync(markerPath, "utf-8"));
+    } catch {
+      previous = {};
+    }
+  }
+  const current = readTamerPackageVersions(projectRoot);
+  if (versionsEqual(previous, current)) return;
+  const nm = path9.join(projectRoot, "node_modules", "@tamer4lynx");
+  if (fs9.existsSync(nm)) {
+    for (const name of fs9.readdirSync(nm, { withFileTypes: true })) {
+      if (!name.isDirectory()) continue;
+      const buildDir = path9.join(nm, name.name, "android", "build");
+      if (fs9.existsSync(buildDir)) {
+        fs9.rmSync(buildDir, { recursive: true, force: true });
+      }
+    }
+  }
+  fs9.mkdirSync(path9.dirname(markerPath), { recursive: true });
+  fs9.writeFileSync(markerPath, JSON.stringify(current, null, 0), "utf-8");
+  console.log(
+    "\u2139\uFE0F  Cleared @tamer4lynx Android library build dirs (linked package versions changed)."
+  );
+}
+function invalidateTamerAndroidLibVersionMarker(projectRoot) {
+  const markerPath = path9.join(projectRoot, MARKER_REL);
+  try {
+    if (fs9.existsSync(markerPath)) fs9.unlinkSync(markerPath);
+  } catch {
+  }
+}
+
 // src/android/autolink.ts
 var TAMER_DEV_CLIENT_FALLBACK = {
   name: "@tamer4lynx/tamer-dev-client",
@@ -2019,11 +2115,11 @@ var autolink = (opts) => {
   const packageName = config.android.packageName;
   const projectRoot = resolved.projectRoot;
   function updateGeneratedSection(filePath, newContent, startMarker, endMarker) {
-    if (!fs8.existsSync(filePath)) {
+    if (!fs10.existsSync(filePath)) {
       console.warn(`\u26A0\uFE0F File not found, skipping update: ${filePath}`);
       return;
     }
-    let fileContent = fs8.readFileSync(filePath, "utf8");
+    let fileContent = fs10.readFileSync(filePath, "utf8");
     const escapedStartMarker = startMarker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const escapedEndMarker = endMarker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const regex = new RegExp(`${escapedStartMarker}[\\s\\S]*?${escapedEndMarker}`, "g");
@@ -2033,16 +2129,16 @@ ${endMarker}`;
     if (regex.test(fileContent)) {
       fileContent = fileContent.replace(regex, replacementBlock);
     } else {
-      console.warn(`\u26A0\uFE0F Could not find autolink markers in ${path8.basename(filePath)}. Appending to the end of the file.`);
+      console.warn(`\u26A0\uFE0F Could not find autolink markers in ${path10.basename(filePath)}. Appending to the end of the file.`);
       fileContent += `
 ${replacementBlock}
 `;
     }
-    fs8.writeFileSync(filePath, fileContent);
-    console.log(`\u2705 Updated autolinked section in ${path8.basename(filePath)}`);
+    fs10.writeFileSync(filePath, fileContent);
+    console.log(`\u2705 Updated autolinked section in ${path10.basename(filePath)}`);
   }
   function updateSettingsGradle(packages) {
-    const settingsFilePath = path8.join(appAndroidPath, "settings.gradle.kts");
+    const settingsFilePath = path10.join(appAndroidPath, "settings.gradle.kts");
     let scriptContent = `// This section is automatically generated by Tamer4Lynx.
 // Manual edits will be overwritten.`;
     const androidPackages = packages.filter((p) => p.config.android);
@@ -2050,7 +2146,7 @@ ${replacementBlock}
       androidPackages.forEach((pkg) => {
         const gradleProjectName = pkg.name.replace(/^@/, "").replace(/\//g, "_");
         const sourceDir = pkg.config.android?.sourceDir || "android";
-        const projectPath = path8.resolve(pkg.packagePath, sourceDir).replace(/\\/g, "/");
+        const projectPath = path10.resolve(pkg.packagePath, sourceDir).replace(/\\/g, "/");
         scriptContent += `
 include(":${gradleProjectName}")`;
         scriptContent += `
@@ -2063,7 +2159,7 @@ println("No native modules found by Tamer4Lynx autolinker.")`;
     updateGeneratedSection(settingsFilePath, scriptContent.trim(), "// GENERATED AUTOLINK START", "// GENERATED AUTOLINK END");
   }
   function updateAppBuildGradle(packages) {
-    const appBuildGradlePath = path8.join(appAndroidPath, "app", "build.gradle.kts");
+    const appBuildGradlePath = path10.join(appAndroidPath, "app", "build.gradle.kts");
     const androidPackages = packages.filter((p) => p.config.android);
     const implementationLines = androidPackages.map((p) => {
       const gradleProjectName = p.name.replace(/^@/, "").replace(/\//g, "_");
@@ -2081,35 +2177,35 @@ ${implementationLines || "    // No native dependencies found to link."}`;
   }
   function generateKotlinExtensionsFile(packages, projectPackage) {
     const packagePath = projectPackage.replace(/\./g, "/");
-    const generatedDir = path8.join(appAndroidPath, "app", "src", "main", "kotlin", packagePath, "generated");
-    const kotlinExtensionsPath = path8.join(generatedDir, "GeneratedLynxExtensions.kt");
+    const generatedDir = path10.join(appAndroidPath, "app", "src", "main", "kotlin", packagePath, "generated");
+    const kotlinExtensionsPath = path10.join(generatedDir, "GeneratedLynxExtensions.kt");
     const content = `/**
  * This file is generated by the Tamer4Lynx autolinker.
  * Do not edit this file manually.
  */
 ${generateLynxExtensionsKotlin(packages, projectPackage)}`;
-    fs8.mkdirSync(generatedDir, { recursive: true });
-    fs8.writeFileSync(kotlinExtensionsPath, content.trimStart());
+    fs10.mkdirSync(generatedDir, { recursive: true });
+    fs10.writeFileSync(kotlinExtensionsPath, content.trimStart());
     console.log(`\u2705 Generated Kotlin extensions at ${kotlinExtensionsPath}`);
   }
   function generateActivityLifecycleFile(packages, projectPackage) {
     const packageKotlinPath = projectPackage.replace(/\./g, "/");
-    const generatedDir = path8.join(appAndroidPath, "app", "src", "main", "kotlin", packageKotlinPath, "generated");
-    const outputPath = path8.join(generatedDir, "GeneratedActivityLifecycle.kt");
+    const generatedDir = path10.join(appAndroidPath, "app", "src", "main", "kotlin", packageKotlinPath, "generated");
+    const outputPath = path10.join(generatedDir, "GeneratedActivityLifecycle.kt");
     const content = `/**
  * This file is generated by the Tamer4Lynx autolinker.
  * Do not edit this file manually.
  */
 ${generateActivityLifecycleKotlin(packages, projectPackage)}`;
-    fs8.mkdirSync(generatedDir, { recursive: true });
-    fs8.writeFileSync(outputPath, content);
+    fs10.mkdirSync(generatedDir, { recursive: true });
+    fs10.writeFileSync(outputPath, content);
     console.log(`\u2705 Generated activity lifecycle patches at ${outputPath}`);
   }
   function syncDeepLinkIntentFilters() {
     const deepLinks = config.android?.deepLinks;
     if (!deepLinks || deepLinks.length === 0) return;
-    const manifestPath = path8.join(appAndroidPath, "app", "src", "main", "AndroidManifest.xml");
-    if (!fs8.existsSync(manifestPath)) return;
+    const manifestPath = path10.join(appAndroidPath, "app", "src", "main", "AndroidManifest.xml");
+    if (!fs10.existsSync(manifestPath)) return;
     const intentFilters = deepLinks.map((link) => {
       const dataAttrs = [
         `android:scheme="${link.scheme}"`,
@@ -2134,9 +2230,9 @@ ${generateActivityLifecycleKotlin(packages, projectPackage)}`;
     console.log("\u{1F50E} Finding Lynx extension packages (lynx.ext.json / tamer.json)...");
     let packages = discoverModules(projectRoot).filter((p) => p.config.android);
     const includeDevClient = opts?.includeDevClient === true;
-    const devClientScoped = path8.join(projectRoot, "node_modules", "@tamer4lynx", "tamer-dev-client");
-    const devClientFlat = path8.join(projectRoot, "node_modules", "tamer-dev-client");
-    const devClientPath = fs8.existsSync(path8.join(devClientScoped, "android")) ? devClientScoped : fs8.existsSync(path8.join(devClientFlat, "android")) ? devClientFlat : null;
+    const devClientScoped = path10.join(projectRoot, "node_modules", "@tamer4lynx", "tamer-dev-client");
+    const devClientFlat = path10.join(projectRoot, "node_modules", "tamer-dev-client");
+    const devClientPath = fs10.existsSync(path10.join(devClientScoped, "android")) ? devClientScoped : fs10.existsSync(path10.join(devClientFlat, "android")) ? devClientFlat : null;
     const hasDevClient = packages.some((p) => p.name === "@tamer4lynx/tamer-dev-client" || p.name === "tamer-dev-client");
     if (includeDevClient && devClientPath && !hasDevClient) {
       packages = [{
@@ -2160,11 +2256,12 @@ ${generateActivityLifecycleKotlin(packages, projectPackage)}`;
     ensureXElementDeps();
     ensureReleaseSigning();
     runGradleSync();
+    invalidateTamerAndroidLibVersionMarker(projectRoot);
     console.log("\u2728 Autolinking complete.");
   }
   function runGradleSync() {
-    const gradlew = path8.join(appAndroidPath, process.platform === "win32" ? "gradlew.bat" : "gradlew");
-    if (!fs8.existsSync(gradlew)) return;
+    const gradlew = path10.join(appAndroidPath, process.platform === "win32" ? "gradlew.bat" : "gradlew");
+    if (!fs10.existsSync(gradlew)) return;
     try {
       console.log("\u2139\uFE0F Running Gradle sync in android directory...");
       execSync2(process.platform === "win32" ? "gradlew.bat projects" : "./gradlew projects", {
@@ -2178,14 +2275,14 @@ ${generateActivityLifecycleKotlin(packages, projectPackage)}`;
     }
   }
   function syncVersionCatalog(packages) {
-    const libsTomlPath = path8.join(appAndroidPath, "gradle", "libs.versions.toml");
-    if (!fs8.existsSync(libsTomlPath)) return;
+    const libsTomlPath = path10.join(appAndroidPath, "gradle", "libs.versions.toml");
+    if (!fs10.existsSync(libsTomlPath)) return;
     const requiredAliases = /* @__PURE__ */ new Set();
     const requiredPluginAliases = /* @__PURE__ */ new Set();
     for (const pkg of packages) {
-      const buildPath = path8.join(pkg.packagePath, pkg.config.android?.sourceDir || "android", "build.gradle.kts");
-      if (!fs8.existsSync(buildPath)) continue;
-      const content = fs8.readFileSync(buildPath, "utf8");
+      const buildPath = path10.join(pkg.packagePath, pkg.config.android?.sourceDir || "android", "build.gradle.kts");
+      if (!fs10.existsSync(buildPath)) continue;
+      const content = fs10.readFileSync(buildPath, "utf8");
       for (const m of content.matchAll(/libs\.([\w.]+)/g)) {
         const alias = m[1];
         if (alias && alias in REQUIRED_CATALOG_ENTRIES) requiredAliases.add(alias);
@@ -2196,7 +2293,7 @@ ${generateActivityLifecycleKotlin(packages, projectPackage)}`;
       }
     }
     if (requiredAliases.size === 0 && requiredPluginAliases.size === 0) return;
-    let toml = fs8.readFileSync(libsTomlPath, "utf8");
+    let toml = fs10.readFileSync(libsTomlPath, "utf8");
     let updated = false;
     for (const alias of requiredAliases) {
       const entry = REQUIRED_CATALOG_ENTRIES[alias];
@@ -2220,14 +2317,14 @@ ${generateActivityLifecycleKotlin(packages, projectPackage)}`;
       updated = true;
     }
     if (updated) {
-      fs8.writeFileSync(libsTomlPath, toml);
+      fs10.writeFileSync(libsTomlPath, toml);
       console.log("\u2705 Synced version catalog (libs.versions.toml) for linked modules.");
     }
   }
   function ensureXElementDeps() {
-    const libsTomlPath = path8.join(appAndroidPath, "gradle", "libs.versions.toml");
-    if (fs8.existsSync(libsTomlPath)) {
-      let toml = fs8.readFileSync(libsTomlPath, "utf8");
+    const libsTomlPath = path10.join(appAndroidPath, "gradle", "libs.versions.toml");
+    if (fs10.existsSync(libsTomlPath)) {
+      let toml = fs10.readFileSync(libsTomlPath, "utf8");
       let updated = false;
       if (!toml.includes("lynx-xelement =")) {
         toml = toml.replace(
@@ -2239,13 +2336,13 @@ lynx-xelement-input = { module = "org.lynxsdk.lynx:xelement-input", version.ref 
         updated = true;
       }
       if (updated) {
-        fs8.writeFileSync(libsTomlPath, toml);
+        fs10.writeFileSync(libsTomlPath, toml);
         console.log("\u2705 Added XElement entries to version catalog.");
       }
     }
-    const appBuildPath = path8.join(appAndroidPath, "app", "build.gradle.kts");
-    if (fs8.existsSync(appBuildPath)) {
-      let content = fs8.readFileSync(appBuildPath, "utf8");
+    const appBuildPath = path10.join(appAndroidPath, "app", "build.gradle.kts");
+    if (fs10.existsSync(appBuildPath)) {
+      let content = fs10.readFileSync(appBuildPath, "utf8");
       if (!content.includes("lynx.xelement")) {
         content = content.replace(
           /(implementation\(libs\.lynx\.service\.http\))/,
@@ -2253,15 +2350,15 @@ lynx-xelement-input = { module = "org.lynxsdk.lynx:xelement-input", version.ref 
     implementation(libs.lynx.xelement)
     implementation(libs.lynx.xelement.input)`
         );
-        fs8.writeFileSync(appBuildPath, content);
+        fs10.writeFileSync(appBuildPath, content);
         console.log("\u2705 Added XElement dependencies to app build.gradle.kts.");
       }
     }
   }
   function ensureReleaseSigning() {
-    const appBuildPath = path8.join(appAndroidPath, "app", "build.gradle.kts");
-    if (!fs8.existsSync(appBuildPath)) return;
-    let content = fs8.readFileSync(appBuildPath, "utf8");
+    const appBuildPath = path10.join(appAndroidPath, "app", "build.gradle.kts");
+    if (!fs10.existsSync(appBuildPath)) return;
+    let content = fs10.readFileSync(appBuildPath, "utf8");
     if (content.includes('signingConfig = signingConfigs.getByName("debug")')) return;
     const releaseBlock = /(release\s*\{)([\s\S]*?)(\n        \}\s*\n(\s*\}|\s*compileOptions))/;
     const match = content.match(releaseBlock);
@@ -2272,13 +2369,13 @@ lynx-xelement-input = { module = "org.lynxsdk.lynx:xelement-input", version.ref 
             signingConfig = signingConfigs.getByName("debug")
         $3`
       );
-      fs8.writeFileSync(appBuildPath, content);
+      fs10.writeFileSync(appBuildPath, content);
       console.log("\u2705 Set release signing to debug so installRelease works without a keystore.");
     }
   }
   function syncManifestPermissions(packages) {
-    const manifestPath = path8.join(appAndroidPath, "app", "src", "main", "AndroidManifest.xml");
-    if (!fs8.existsSync(manifestPath)) return;
+    const manifestPath = path10.join(appAndroidPath, "app", "src", "main", "AndroidManifest.xml");
+    if (!fs10.existsSync(manifestPath)) return;
     const allPermissions = /* @__PURE__ */ new Set();
     for (const pkg of packages) {
       const perms = pkg.config.android?.permissions;
@@ -2290,7 +2387,7 @@ lynx-xelement-input = { module = "org.lynxsdk.lynx:xelement-input", version.ref 
       }
     }
     if (allPermissions.size === 0) return;
-    let manifest = fs8.readFileSync(manifestPath, "utf8");
+    let manifest = fs10.readFileSync(manifestPath, "utf8");
     const existingMatch = [...manifest.matchAll(/<uses-permission android:name="(android\.permission\.\w+)"\s*\/>/g)];
     const existing = new Set(existingMatch.map((m) => m[1]));
     const toAdd = [...allPermissions].filter((p) => !existing.has(p));
@@ -2301,7 +2398,7 @@ lynx-xelement-input = { module = "org.lynxsdk.lynx:xelement-input", version.ref 
       `${newLines}
 $1$2`
     );
-    fs8.writeFileSync(manifestPath, manifest);
+    fs10.writeFileSync(manifestPath, manifest);
     console.log(`\u2705 Synced manifest permissions: ${toAdd.map((p) => p.split(".").pop()).join(", ")}`);
   }
   run();
@@ -2309,26 +2406,26 @@ $1$2`
 var autolink_default = autolink;
 
 // src/android/bundle.ts
-import fs12 from "fs";
-import path12 from "path";
+import fs14 from "fs";
+import path14 from "path";
 import { execSync as execSync3 } from "child_process";
 
 // src/common/copyDistAssets.ts
-import fs9 from "fs";
-import path9 from "path";
+import fs11 from "fs";
+import path11 from "path";
 var SKIP = /* @__PURE__ */ new Set([".rspeedy", "stats.json"]);
 function copyDistAssets(distDir, destDir, bundleFile) {
-  if (!fs9.existsSync(distDir)) return;
-  for (const entry of fs9.readdirSync(distDir)) {
+  if (!fs11.existsSync(distDir)) return;
+  for (const entry of fs11.readdirSync(distDir)) {
     if (SKIP.has(entry)) continue;
-    const src = path9.join(distDir, entry);
-    const dest = path9.join(destDir, entry);
-    const stat = fs9.statSync(src);
+    const src = path11.join(distDir, entry);
+    const dest = path11.join(destDir, entry);
+    const stat = fs11.statSync(src);
     if (stat.isDirectory()) {
-      fs9.mkdirSync(dest, { recursive: true });
+      fs11.mkdirSync(dest, { recursive: true });
       copyDistAssets(src, dest, bundleFile);
     } else {
-      fs9.copyFileSync(src, dest);
+      fs11.copyFileSync(src, dest);
       if (entry !== bundleFile) {
         console.log(`\u2728 Copied asset: ${entry}`);
       }
@@ -2337,8 +2434,8 @@ function copyDistAssets(distDir, destDir, bundleFile) {
 }
 
 // src/common/tsconfigUtils.ts
-import fs10 from "fs";
-import path10 from "path";
+import fs12 from "fs";
+import path12 from "path";
 function stripJsonCommentsAndTrailingCommas(str) {
   return str.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "").replace(/,\s*([\]}])/g, "$1");
 }
@@ -2350,19 +2447,19 @@ function parseTsconfigJson(raw) {
   }
 }
 function readTsconfig(filePath) {
-  if (!fs10.existsSync(filePath)) return null;
+  if (!fs12.existsSync(filePath)) return null;
   try {
-    return parseTsconfigJson(fs10.readFileSync(filePath, "utf-8"));
+    return parseTsconfigJson(fs12.readFileSync(filePath, "utf-8"));
   } catch {
     return null;
   }
 }
 function resolveExtends(tsconfig, dir) {
   if (!tsconfig.extends) return tsconfig;
-  const basePath = path10.resolve(dir, tsconfig.extends);
+  const basePath = path12.resolve(dir, tsconfig.extends);
   const base = readTsconfig(basePath);
   if (!base) return tsconfig;
-  const baseDir = path10.dirname(basePath);
+  const baseDir = path12.dirname(basePath);
   const resolved = resolveExtends(base, baseDir);
   return {
     ...resolved,
@@ -2371,13 +2468,13 @@ function resolveExtends(tsconfig, dir) {
   };
 }
 function fixTsconfigReferencesForBuild(tsconfigPath) {
-  const dir = path10.dirname(tsconfigPath);
+  const dir = path12.dirname(tsconfigPath);
   const tsconfig = readTsconfig(tsconfigPath);
   if (!tsconfig?.references?.length) return false;
   const refsWithNoEmit = [];
   for (const ref of tsconfig.references) {
-    const refPath = path10.resolve(dir, ref.path);
-    const refConfigPath = refPath.endsWith(".json") ? refPath : path10.join(refPath, "tsconfig.json");
+    const refPath = path12.resolve(dir, ref.path);
+    const refConfigPath = refPath.endsWith(".json") ? refPath : path12.join(refPath, "tsconfig.json");
     const refConfig = readTsconfig(refConfigPath);
     if (refConfig?.compilerOptions?.noEmit === true) {
       refsWithNoEmit.push(refConfigPath);
@@ -2392,16 +2489,16 @@ function fixTsconfigReferencesForBuild(tsconfigPath) {
   const includes = [];
   const compilerOpts = { ...tsconfig.compilerOptions };
   for (const ref of tsconfig.references) {
-    const refPath = path10.resolve(dir, ref.path);
-    const refConfigPath = refPath.endsWith(".json") ? refPath : path10.join(refPath, "tsconfig.json");
+    const refPath = path12.resolve(dir, ref.path);
+    const refConfigPath = refPath.endsWith(".json") ? refPath : path12.join(refPath, "tsconfig.json");
     const refConfig = readTsconfig(refConfigPath);
     if (!refConfig) continue;
-    const refDir = path10.dirname(refConfigPath);
+    const refDir = path12.dirname(refConfigPath);
     const resolved = resolveExtends(refConfig, refDir);
     const inc = resolved.include;
     if (inc) {
       const arr = Array.isArray(inc) ? inc : [inc];
-      const baseDir = path10.relative(dir, refDir);
+      const baseDir = path12.relative(dir, refDir);
       for (const p of arr) {
         const clean = typeof p === "string" && p.startsWith("./") ? p.slice(2) : p;
         includes.push(!baseDir || baseDir === "." ? clean : `${baseDir}/${clean}`);
@@ -2419,7 +2516,7 @@ function fixTsconfigReferencesForBuild(tsconfigPath) {
   if (includes.length > 0) merged.include = [...new Set(includes)];
   compilerOpts.noEmit = true;
   merged.compilerOptions = compilerOpts;
-  fs10.writeFileSync(tsconfigPath, JSON.stringify(merged, null, 2));
+  fs12.writeFileSync(tsconfigPath, JSON.stringify(merged, null, 2));
   return true;
 }
 function addTamerTypesInclude(tsconfigPath, tamerTypesInclude) {
@@ -2430,23 +2527,23 @@ function addTamerTypesInclude(tsconfigPath, tamerTypesInclude) {
   if (arr.some((p) => (typeof p === "string" ? p : "").includes("tamer-"))) return false;
   arr.push(tamerTypesInclude);
   tsconfig.include = arr;
-  fs10.writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2));
+  fs12.writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2));
   return true;
 }
 
 // src/android/syncDevClient.ts
-import fs11 from "fs";
-import path11 from "path";
+import fs13 from "fs";
+import path13 from "path";
 function readAndSubstituteTemplate2(templatePath, vars) {
-  const raw = fs11.readFileSync(templatePath, "utf-8");
+  const raw = fs13.readFileSync(templatePath, "utf-8");
   return Object.entries(vars).reduce(
     (s, [k, v]) => s.replace(new RegExp(`\\{\\{${k}\\}\\}`, "g"), v),
     raw
   );
 }
 function patchAppLogService(appPath) {
-  if (!fs11.existsSync(appPath)) return;
-  const raw = fs11.readFileSync(appPath, "utf-8");
+  if (!fs13.existsSync(appPath)) return;
+  const raw = fs13.readFileSync(appPath, "utf-8");
   const patched = raw.replace(
     /private void initLynxService\(\)\s*\{[\s\S]*?\n\s*}\s*\n\s*private void initFresco\(\)/,
     `private void initLynxService() {
@@ -2465,7 +2562,7 @@ function patchAppLogService(appPath) {
   private void initFresco()`
   );
   if (patched !== raw) {
-    fs11.writeFileSync(appPath, patched);
+    fs13.writeFileSync(appPath, patched);
   }
 }
 async function syncDevClient(opts) {
@@ -2480,9 +2577,9 @@ async function syncDevClient(opts) {
   const packageName = config.android?.packageName;
   const appName = config.android?.appName;
   const packagePath = packageName.replace(/\./g, "/");
-  const javaDir = path11.join(rootDir, "app", "src", "main", "java", packagePath);
-  const kotlinDir = path11.join(rootDir, "app", "src", "main", "kotlin", packagePath);
-  if (!fs11.existsSync(javaDir) || !fs11.existsSync(kotlinDir)) {
+  const javaDir = path13.join(rootDir, "app", "src", "main", "java", packagePath);
+  const kotlinDir = path13.join(rootDir, "app", "src", "main", "kotlin", packagePath);
+  if (!fs13.existsSync(javaDir) || !fs13.existsSync(kotlinDir)) {
     console.error("\u274C Android project not found. Run `tamer android create` first.");
     process.exit(1);
   }
@@ -2498,14 +2595,14 @@ async function syncDevClient(opts) {
   const [templateProviderSource] = await Promise.all([
     fetchAndPatchTemplateProvider(vars)
   ]);
-  fs11.writeFileSync(path11.join(javaDir, "TemplateProvider.java"), templateProviderSource);
-  fs11.writeFileSync(path11.join(kotlinDir, "MainActivity.kt"), getStandaloneMainActivity(vars));
-  patchAppLogService(path11.join(javaDir, "App.java"));
-  const appDir = path11.join(rootDir, "app");
-  const mainDir = path11.join(appDir, "src", "main");
-  const manifestPath = path11.join(mainDir, "AndroidManifest.xml");
+  fs13.writeFileSync(path13.join(javaDir, "TemplateProvider.java"), templateProviderSource);
+  fs13.writeFileSync(path13.join(kotlinDir, "MainActivity.kt"), getStandaloneMainActivity(vars));
+  patchAppLogService(path13.join(javaDir, "App.java"));
+  const appDir = path13.join(rootDir, "app");
+  const mainDir = path13.join(appDir, "src", "main");
+  const manifestPath = path13.join(mainDir, "AndroidManifest.xml");
   if (hasDevClient) {
-    const templateDir = path11.join(devClientPkg, "android", "templates");
+    const templateDir = path13.join(devClientPkg, "android", "templates");
     const templateVars = { PACKAGE_NAME: packageName, APP_NAME: appName };
     const devClientFiles = [
       "DevClientManager.kt",
@@ -2514,13 +2611,13 @@ async function syncDevClient(opts) {
       "PortraitCaptureActivity.kt"
     ];
     for (const f of devClientFiles) {
-      const src = path11.join(templateDir, f);
-      if (fs11.existsSync(src)) {
+      const src = path13.join(templateDir, f);
+      if (fs13.existsSync(src)) {
         const content = readAndSubstituteTemplate2(src, templateVars);
-        fs11.writeFileSync(path11.join(kotlinDir, f), content);
+        fs13.writeFileSync(path13.join(kotlinDir, f), content);
       }
     }
-    let manifest = fs11.readFileSync(manifestPath, "utf-8");
+    let manifest = fs13.readFileSync(manifestPath, "utf-8");
     const projectActivityEntry = '        <activity android:name=".ProjectActivity" android:exported="false" android:taskAffinity="" android:launchMode="singleTask" android:documentLaunchMode="always" android:windowSoftInputMode="adjustResize" />';
     const portraitCaptureEntry = '        <activity android:name=".PortraitCaptureActivity" android:screenOrientation="portrait" android:stateNotNeeded="true" android:theme="@style/zxing_CaptureTheme" android:windowSoftInputMode="stateAlwaysHidden" />';
     if (!manifest.includes("ProjectActivity")) {
@@ -2542,16 +2639,16 @@ $1$2`);
         '$1 android:windowSoftInputMode="adjustResize"$2'
       );
     }
-    fs11.writeFileSync(manifestPath, manifest);
+    fs13.writeFileSync(manifestPath, manifest);
     console.log("\u2705 Synced dev client (TemplateProvider, MainActivity, ProjectActivity, DevClientManager)");
   } else {
     for (const f of ["DevClientManager.kt", "DevServerPrefs.kt", "ProjectActivity.kt", "PortraitCaptureActivity.kt", "DevLauncherActivity.kt"]) {
       try {
-        fs11.rmSync(path11.join(kotlinDir, f));
+        fs13.rmSync(path13.join(kotlinDir, f));
       } catch {
       }
     }
-    let manifest = fs11.readFileSync(manifestPath, "utf-8");
+    let manifest = fs13.readFileSync(manifestPath, "utf-8");
     manifest = manifest.replace(/\s*<activity android:name="\.ProjectActivity"[^\/]*\/>\n?/g, "");
     manifest = manifest.replace(/\s*<activity android:name="\.PortraitCaptureActivity"[^\/]*\/>\n?/g, "");
     const mainActivityTag = manifest.match(/<activity[^>]*android:name="\.MainActivity"[^>]*>/);
@@ -2561,7 +2658,7 @@ $1$2`);
         '$1 android:windowSoftInputMode="adjustResize"$2'
       );
     }
-    fs11.writeFileSync(manifestPath, manifest);
+    fs13.writeFileSync(manifestPath, manifest);
     console.log("\u2705 Synced (dev client disabled - use -d for debug build with dev client)");
   }
 }
@@ -2585,15 +2682,15 @@ async function bundleAndDeploy(opts = {}) {
   await syncDevClient_default({ includeDevClient });
   const iconPaths = resolveIconPaths(projectRoot, resolved.config);
   if (iconPaths) {
-    const resDir = path12.join(resolved.androidAppDir, "src", "main", "res");
+    const resDir = path14.join(resolved.androidAppDir, "src", "main", "res");
     if (applyAndroidLauncherIcons(resDir, iconPaths)) {
       console.log("\u2705 Synced Android launcher icon(s) from tamer.config.json");
-      ensureAndroidManifestLauncherIcon(path12.join(resolved.androidAppDir, "src", "main", "AndroidManifest.xml"));
+      ensureAndroidManifestLauncherIcon(path14.join(resolved.androidAppDir, "src", "main", "AndroidManifest.xml"));
     }
   }
   try {
-    const lynxTsconfig = path12.join(lynxProjectDir, "tsconfig.json");
-    if (fs12.existsSync(lynxTsconfig)) {
+    const lynxTsconfig = path14.join(lynxProjectDir, "tsconfig.json");
+    if (fs14.existsSync(lynxTsconfig)) {
       fixTsconfigReferencesForBuild(lynxTsconfig);
     }
     console.log("\u{1F4E6} Building Lynx bundle...");
@@ -2603,8 +2700,8 @@ async function bundleAndDeploy(opts = {}) {
     console.error("\u274C Build process failed.");
     process.exit(1);
   }
-  if (includeDevClient && devClientBundlePath && !fs12.existsSync(devClientBundlePath)) {
-    const devClientDir = path12.dirname(path12.dirname(devClientBundlePath));
+  if (includeDevClient && devClientBundlePath && !fs14.existsSync(devClientBundlePath)) {
+    const devClientDir = path14.dirname(path14.dirname(devClientBundlePath));
     try {
       console.log("\u{1F4E6} Building dev launcher (tamer-dev-client)...");
       execSync3("npm run build", { stdio: "inherit", cwd: devClientDir });
@@ -2615,22 +2712,22 @@ async function bundleAndDeploy(opts = {}) {
     }
   }
   try {
-    fs12.mkdirSync(destinationDir, { recursive: true });
+    fs14.mkdirSync(destinationDir, { recursive: true });
     if (release) {
-      const devClientAsset = path12.join(destinationDir, "dev-client.lynx.bundle");
-      if (fs12.existsSync(devClientAsset)) {
-        fs12.rmSync(devClientAsset);
+      const devClientAsset = path14.join(destinationDir, "dev-client.lynx.bundle");
+      if (fs14.existsSync(devClientAsset)) {
+        fs14.rmSync(devClientAsset);
         console.log(`\u2728 Removed dev-client.lynx.bundle from assets (production build)`);
       }
-    } else if (includeDevClient && devClientBundlePath && fs12.existsSync(devClientBundlePath)) {
-      fs12.copyFileSync(devClientBundlePath, path12.join(destinationDir, "dev-client.lynx.bundle"));
+    } else if (includeDevClient && devClientBundlePath && fs14.existsSync(devClientBundlePath)) {
+      fs14.copyFileSync(devClientBundlePath, path14.join(destinationDir, "dev-client.lynx.bundle"));
       console.log(`\u2728 Copied dev-client.lynx.bundle to assets`);
     }
-    if (!fs12.existsSync(lynxBundlePath)) {
+    if (!fs14.existsSync(lynxBundlePath)) {
       console.error(`\u274C Build output not found at: ${lynxBundlePath}`);
       process.exit(1);
     }
-    const distDir = path12.dirname(lynxBundlePath);
+    const distDir = path14.dirname(lynxBundlePath);
     copyDistAssets(distDir, destinationDir, resolved.lynxBundleFile);
     console.log(`\u2728 Copied ${resolved.lynxBundleFile} to assets`);
   } catch (error) {
@@ -2641,7 +2738,7 @@ async function bundleAndDeploy(opts = {}) {
 var bundle_default = bundleAndDeploy;
 
 // src/android/build.ts
-import path13 from "path";
+import path15 from "path";
 import { execSync as execSync4 } from "child_process";
 async function buildApk(opts = {}) {
   let resolved;
@@ -2652,12 +2749,17 @@ async function buildApk(opts = {}) {
   }
   const release = opts.release === true || opts.production === true;
   await bundle_default({ release, production: opts.production });
-  const androidDir = resolved.androidDir;
-  const gradlew = path13.join(androidDir, process.platform === "win32" ? "gradlew.bat" : "gradlew");
+  const { androidDir, projectRoot } = resolved;
+  cleanTamerAndroidLibBuildsIfVersionsChanged(projectRoot);
+  const gradlew = path15.join(androidDir, process.platform === "win32" ? "gradlew.bat" : "gradlew");
   const variant = release ? "Release" : "Debug";
   const task = opts.install ? `install${variant}` : `assemble${variant}`;
   console.log(`
 \u{1F528} Building ${variant.toLowerCase()} APK${opts.install ? " and installing" : ""}...`);
+  if (opts.clean === true) {
+    console.log("\u2139\uFE0F  Running Gradle clean (--clean)...");
+    execSync4(`"${gradlew}" clean`, { stdio: "inherit", cwd: androidDir });
+  }
   execSync4(`"${gradlew}" ${task}`, { stdio: "inherit", cwd: androidDir });
   console.log(`\u2705 APK ${opts.install ? "installed" : "built"} successfully.`);
   if (opts.install) {
@@ -2678,13 +2780,13 @@ async function buildApk(opts = {}) {
 var build_default = buildApk;
 
 // src/ios/create.ts
-import fs14 from "fs";
-import path15 from "path";
+import fs16 from "fs";
+import path17 from "path";
 
 // src/ios/getPod.ts
 import { execSync as execSync5 } from "child_process";
-import fs13 from "fs";
-import path14 from "path";
+import fs15 from "fs";
+import path16 from "path";
 function isCocoaPodsInstalled() {
   try {
     execSync5("command -v pod >/dev/null 2>&1");
@@ -2706,8 +2808,8 @@ async function setupCocoaPods(rootDir) {
   }
   try {
     console.log("\u{1F4E6} CocoaPods is installed. Proceeding with dependency installation...");
-    const podfilePath = path14.join(rootDir, "Podfile");
-    if (!fs13.existsSync(podfilePath)) {
+    const podfilePath = path16.join(rootDir, "Podfile");
+    if (!fs15.existsSync(podfilePath)) {
       throw new Error(`Podfile not found at ${podfilePath}`);
     }
     console.log(`\u{1F680} Executing pod install in: ${rootDir}`);
@@ -2733,7 +2835,7 @@ async function setupCocoaPods(rootDir) {
 // src/ios/create.ts
 import { randomBytes } from "crypto";
 function readAndSubstituteTemplate3(templatePath, vars) {
-  const raw = fs14.readFileSync(templatePath, "utf-8");
+  const raw = fs16.readFileSync(templatePath, "utf-8");
   return Object.entries(vars).reduce(
     (s, [k, v]) => s.replace(new RegExp(`\\{\\{${k}\\}\\}`, "g"), v),
     raw
@@ -2756,17 +2858,17 @@ var create2 = () => {
     process.exit(1);
   }
   const iosDir = config.paths?.iosDir ?? "ios";
-  const rootDir = path15.join(process.cwd(), iosDir);
-  const projectDir = path15.join(rootDir, appName);
-  const xcodeprojDir = path15.join(rootDir, `${appName}.xcodeproj`);
+  const rootDir = path17.join(process.cwd(), iosDir);
+  const projectDir = path17.join(rootDir, appName);
+  const xcodeprojDir = path17.join(rootDir, `${appName}.xcodeproj`);
   const bridgingHeader = `${appName}-Bridging-Header.h`;
   function writeFile2(filePath, content) {
-    fs14.mkdirSync(path15.dirname(filePath), { recursive: true });
-    fs14.writeFileSync(filePath, content.trimStart(), "utf8");
+    fs16.mkdirSync(path17.dirname(filePath), { recursive: true });
+    fs16.writeFileSync(filePath, content.trimStart(), "utf8");
   }
-  if (fs14.existsSync(rootDir)) {
+  if (fs16.existsSync(rootDir)) {
     console.log(`\u{1F9F9} Removing existing directory: ${rootDir}`);
-    fs14.rmSync(rootDir, { recursive: true, force: true });
+    fs16.rmSync(rootDir, { recursive: true, force: true });
   }
   console.log(`\u{1F680} Creating a new Tamer4Lynx project in: ${rootDir}`);
   const ids = {
@@ -2802,7 +2904,7 @@ var create2 = () => {
     targetDebugConfig: generateId(),
     targetReleaseConfig: generateId()
   };
-  writeFile2(path15.join(rootDir, "Podfile"), `
+  writeFile2(path17.join(rootDir, "Podfile"), `
 source 'https://cdn.cocoapods.org/'
 
 install! 'cocoapods', :incremental_installation => true, :generate_multiple_pod_projects => true
@@ -2889,15 +2991,15 @@ end
   const hostPkg = findTamerHostPackage(process.cwd());
   const templateVars = { PACKAGE_NAME: bundleId, APP_NAME: appName, BUNDLE_ID: bundleId };
   if (hostPkg) {
-    const templateDir = path15.join(hostPkg, "ios", "templates");
+    const templateDir = path17.join(hostPkg, "ios", "templates");
     for (const f of ["AppDelegate.swift", "SceneDelegate.swift", "ViewController.swift", "LynxProvider.swift", "LynxInitProcessor.swift"]) {
-      const srcPath = path15.join(templateDir, f);
-      if (fs14.existsSync(srcPath)) {
-        writeFile2(path15.join(projectDir, f), readAndSubstituteTemplate3(srcPath, templateVars));
+      const srcPath = path17.join(templateDir, f);
+      if (fs16.existsSync(srcPath)) {
+        writeFile2(path17.join(projectDir, f), readAndSubstituteTemplate3(srcPath, templateVars));
       }
     }
   } else {
-    writeFile2(path15.join(projectDir, "AppDelegate.swift"), `
+    writeFile2(path17.join(projectDir, "AppDelegate.swift"), `
 import UIKit
 
 @UIApplicationMain
@@ -2912,7 +3014,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
   }
 }
 	`);
-    writeFile2(path15.join(projectDir, "SceneDelegate.swift"), `
+    writeFile2(path17.join(projectDir, "SceneDelegate.swift"), `
 import UIKit
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
@@ -2926,7 +3028,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
   }
 }
 	`);
-    writeFile2(path15.join(projectDir, "ViewController.swift"), `
+    writeFile2(path17.join(projectDir, "ViewController.swift"), `
 import UIKit
 import Lynx
 import tamerinsets
@@ -2999,7 +3101,7 @@ class ViewController: UIViewController {
   }
 }
 	`);
-    writeFile2(path15.join(projectDir, "LynxProvider.swift"), `
+    writeFile2(path17.join(projectDir, "LynxProvider.swift"), `
 import Foundation
 
 class LynxProvider: NSObject, LynxTemplateProvider {
@@ -3018,7 +3120,7 @@ class LynxProvider: NSObject, LynxTemplateProvider {
     }
 }
 	`);
-    writeFile2(path15.join(projectDir, "LynxInitProcessor.swift"), `
+    writeFile2(path17.join(projectDir, "LynxInitProcessor.swift"), `
 // Copyright 2024 The Lynx Authors. All rights reserved.
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
@@ -3058,7 +3160,7 @@ final class LynxInitProcessor {
 }
 	`);
   }
-  writeFile2(path15.join(projectDir, bridgingHeader), `
+  writeFile2(path17.join(projectDir, bridgingHeader), `
 #import <Lynx/LynxConfig.h>
 #import <Lynx/LynxEnv.h>
 #import <Lynx/LynxTemplateProvider.h>
@@ -3067,7 +3169,7 @@ final class LynxInitProcessor {
 #import <SDWebImage/SDWebImage.h>
 #import <SDWebImageWebPCoder/SDWebImageWebPCoder.h>
 	`);
-  writeFile2(path15.join(projectDir, "Info.plist"), `
+  writeFile2(path17.join(projectDir, "Info.plist"), `
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -3125,21 +3227,21 @@ final class LynxInitProcessor {
 </dict>
 </plist>
 	`);
-  const appIconDir = path15.join(projectDir, "Assets.xcassets", "AppIcon.appiconset");
-  fs14.mkdirSync(appIconDir, { recursive: true });
+  const appIconDir = path17.join(projectDir, "Assets.xcassets", "AppIcon.appiconset");
+  fs16.mkdirSync(appIconDir, { recursive: true });
   const iconPaths = resolveIconPaths(process.cwd(), config);
   if (applyIosAppIconAssets(appIconDir, iconPaths)) {
     console.log(iconPaths?.ios ? "\u2705 Copied iOS icon from tamer.config.json icon.ios" : "\u2705 Copied app icon from tamer.config.json icon.source");
   } else {
-    writeFile2(path15.join(appIconDir, "Contents.json"), `
+    writeFile2(path17.join(appIconDir, "Contents.json"), `
 {
   "images" : [ { "idiom" : "universal", "platform" : "ios", "size" : "1024x1024" } ],
   "info" : { "author" : "xcode", "version" : 1 }
 }
 	`);
   }
-  fs14.mkdirSync(xcodeprojDir, { recursive: true });
-  writeFile2(path15.join(xcodeprojDir, "project.pbxproj"), `
+  fs16.mkdirSync(xcodeprojDir, { recursive: true });
+  writeFile2(path17.join(xcodeprojDir, "project.pbxproj"), `
 // !$*UTF8*$!
 {
 	archiveVersion = 1;
@@ -3425,8 +3527,8 @@ final class LynxInitProcessor {
 var create_default2 = create2;
 
 // src/ios/autolink.ts
-import fs16 from "fs";
-import path17 from "path";
+import fs18 from "fs";
+import path19 from "path";
 import { execSync as execSync6 } from "child_process";
 
 // src/common/hostNativeModulesManifest.ts
@@ -3437,8 +3539,8 @@ function buildHostNativeModulesManifestJson(moduleClassNames) {
 }
 
 // src/ios/syncHost.ts
-import fs15 from "fs";
-import path16 from "path";
+import fs17 from "fs";
+import path18 from "path";
 import crypto from "crypto";
 function deterministicUUID(seed) {
   return crypto.createHash("sha256").update(seed).digest("hex").substring(0, 24).toUpperCase();
@@ -3486,7 +3588,7 @@ function getLaunchScreenStoryboard() {
 `;
 }
 function addLaunchScreenToXcodeProject(pbxprojPath, appName) {
-  let content = fs15.readFileSync(pbxprojPath, "utf8");
+  let content = fs17.readFileSync(pbxprojPath, "utf8");
   if (content.includes("LaunchScreen.storyboard")) return;
   const baseFileRefUUID = deterministicUUID(`launchScreenBase:${appName}`);
   const variantGroupUUID = deterministicUUID(`launchScreenGroup:${appName}`);
@@ -3523,11 +3625,11 @@ function addLaunchScreenToXcodeProject(pbxprojPath, appName) {
   );
   content = content.replace(groupPattern, `$1
 				${variantGroupUUID} /* LaunchScreen.storyboard */,`);
-  fs15.writeFileSync(pbxprojPath, content, "utf8");
+  fs17.writeFileSync(pbxprojPath, content, "utf8");
   console.log("\u2705 Registered LaunchScreen.storyboard in Xcode project");
 }
 function addSwiftSourceToXcodeProject(pbxprojPath, appName, filename) {
-  let content = fs15.readFileSync(pbxprojPath, "utf8");
+  let content = fs17.readFileSync(pbxprojPath, "utf8");
   const escaped = filename.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   if (new RegExp(`path = "?${escaped}"?;`).test(content)) return;
   const fileRefUUID = deterministicUUID(`fileRef:${appName}:${filename}`);
@@ -3552,11 +3654,11 @@ function addSwiftSourceToXcodeProject(pbxprojPath, appName, filename) {
   );
   content = content.replace(groupPattern, `$1
 				${fileRefUUID} /* ${filename} */,`);
-  fs15.writeFileSync(pbxprojPath, content, "utf8");
+  fs17.writeFileSync(pbxprojPath, content, "utf8");
   console.log(`\u2705 Registered ${filename} in Xcode project sources`);
 }
 function addResourceToXcodeProject(pbxprojPath, appName, filename) {
-  let content = fs15.readFileSync(pbxprojPath, "utf8");
+  let content = fs17.readFileSync(pbxprojPath, "utf8");
   const escaped = filename.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   if (new RegExp(`path = "?${escaped}"?;`).test(content)) return;
   const fileRefUUID = deterministicUUID(`fileRef:${appName}:${filename}`);
@@ -3581,12 +3683,12 @@ function addResourceToXcodeProject(pbxprojPath, appName, filename) {
   );
   content = content.replace(groupPattern, `$1
 				${fileRefUUID} /* ${filename} */,`);
-  fs15.writeFileSync(pbxprojPath, content, "utf8");
+  fs17.writeFileSync(pbxprojPath, content, "utf8");
   console.log(`\u2705 Registered ${filename} in Xcode project resources`);
 }
 function writeFile(filePath, content) {
-  fs15.mkdirSync(path16.dirname(filePath), { recursive: true });
-  fs15.writeFileSync(filePath, content, "utf8");
+  fs17.mkdirSync(path18.dirname(filePath), { recursive: true });
+  fs17.writeFileSync(filePath, content, "utf8");
 }
 function getAppDelegateSwift() {
   return `import UIKit
@@ -3803,8 +3905,8 @@ class ViewController: UIViewController {
 `;
 }
 function patchInfoPlist(infoPlistPath) {
-  if (!fs15.existsSync(infoPlistPath)) return;
-  let content = fs15.readFileSync(infoPlistPath, "utf8");
+  if (!fs17.existsSync(infoPlistPath)) return;
+  let content = fs17.readFileSync(infoPlistPath, "utf8");
   content = content.replace(/\s*<key>UIMainStoryboardFile<\/key>\s*<string>[^<]*<\/string>/g, "");
   if (!content.includes("UILaunchStoryboardName")) {
     content = content.replace("</dict>\n</plist>", `	<key>UILaunchStoryboardName</key>
@@ -3836,7 +3938,7 @@ function patchInfoPlist(infoPlistPath) {
 </plist>`);
     console.log("\u2705 Added UIApplicationSceneManifest to Info.plist");
   }
-  fs15.writeFileSync(infoPlistPath, content, "utf8");
+  fs17.writeFileSync(infoPlistPath, content, "utf8");
 }
 function getSimpleLynxProviderSwift() {
   return `import Foundation
@@ -3861,9 +3963,9 @@ class LynxProvider: NSObject, LynxTemplateProvider {
 }
 function readTemplateOrFallback(devClientPkg, templateName, fallback, vars = {}) {
   if (devClientPkg) {
-    const tplPath = path16.join(devClientPkg, "ios", "templates", templateName);
-    if (fs15.existsSync(tplPath)) {
-      let content = fs15.readFileSync(tplPath, "utf8");
+    const tplPath = path18.join(devClientPkg, "ios", "templates", templateName);
+    if (fs17.existsSync(tplPath)) {
+      let content = fs17.readFileSync(tplPath, "utf8");
       for (const [k, v] of Object.entries(vars)) {
         content = content.replace(new RegExp(`\\{\\{${k}\\}\\}`, "g"), v);
       }
@@ -3881,19 +3983,19 @@ function syncHostIos(opts) {
   if (!appName) {
     throw new Error('"ios.appName" must be defined in tamer.config.json');
   }
-  const projectDir = path16.join(resolved.iosDir, appName);
-  const infoPlistPath = path16.join(projectDir, "Info.plist");
-  if (!fs15.existsSync(projectDir)) {
+  const projectDir = path18.join(resolved.iosDir, appName);
+  const infoPlistPath = path18.join(projectDir, "Info.plist");
+  if (!fs17.existsSync(projectDir)) {
     throw new Error(`iOS project not found at ${projectDir}. Run \`tamer ios create\` first.`);
   }
-  const pbxprojPath = path16.join(resolved.iosDir, `${appName}.xcodeproj`, "project.pbxproj");
-  const baseLprojDir = path16.join(projectDir, "Base.lproj");
-  const launchScreenPath = path16.join(baseLprojDir, "LaunchScreen.storyboard");
+  const pbxprojPath = path18.join(resolved.iosDir, `${appName}.xcodeproj`, "project.pbxproj");
+  const baseLprojDir = path18.join(projectDir, "Base.lproj");
+  const launchScreenPath = path18.join(baseLprojDir, "LaunchScreen.storyboard");
   patchInfoPlist(infoPlistPath);
-  writeFile(path16.join(projectDir, "AppDelegate.swift"), getAppDelegateSwift());
-  writeFile(path16.join(projectDir, "SceneDelegate.swift"), getSceneDelegateSwift());
-  if (!fs15.existsSync(launchScreenPath)) {
-    fs15.mkdirSync(baseLprojDir, { recursive: true });
+  writeFile(path18.join(projectDir, "AppDelegate.swift"), getAppDelegateSwift());
+  writeFile(path18.join(projectDir, "SceneDelegate.swift"), getSceneDelegateSwift());
+  if (!fs17.existsSync(launchScreenPath)) {
+    fs17.mkdirSync(baseLprojDir, { recursive: true });
     writeFile(launchScreenPath, getLaunchScreenStoryboard());
     addLaunchScreenToXcodeProject(pbxprojPath, appName);
   }
@@ -3902,33 +4004,33 @@ function syncHostIos(opts) {
     const devClientPkg2 = findDevClientPackage(resolved.projectRoot);
     const segment = resolved.lynxProjectDir.split("/").filter(Boolean).pop() ?? "";
     const tplVars = { PROJECT_BUNDLE_SEGMENT: segment };
-    writeFile(path16.join(projectDir, "ViewController.swift"), getDevViewControllerSwift());
-    writeFile(path16.join(projectDir, "LynxProvider.swift"), getSimpleLynxProviderSwift());
+    writeFile(path18.join(projectDir, "ViewController.swift"), getDevViewControllerSwift());
+    writeFile(path18.join(projectDir, "LynxProvider.swift"), getSimpleLynxProviderSwift());
     addSwiftSourceToXcodeProject(pbxprojPath, appName, "LynxProvider.swift");
     const devTPContent = readTemplateOrFallback(devClientPkg2, "DevTemplateProvider.swift", "", tplVars);
     if (devTPContent) {
-      writeFile(path16.join(projectDir, "DevTemplateProvider.swift"), devTPContent);
+      writeFile(path18.join(projectDir, "DevTemplateProvider.swift"), devTPContent);
       addSwiftSourceToXcodeProject(pbxprojPath, appName, "DevTemplateProvider.swift");
     }
     const projectVCContent = readTemplateOrFallback(devClientPkg2, "ProjectViewController.swift", "", tplVars);
     if (projectVCContent) {
-      writeFile(path16.join(projectDir, "ProjectViewController.swift"), projectVCContent);
+      writeFile(path18.join(projectDir, "ProjectViewController.swift"), projectVCContent);
       addSwiftSourceToXcodeProject(pbxprojPath, appName, "ProjectViewController.swift");
     }
     const devCMContent = readTemplateOrFallback(devClientPkg2, "DevClientManager.swift", "", tplVars);
     if (devCMContent) {
-      writeFile(path16.join(projectDir, "DevClientManager.swift"), devCMContent);
+      writeFile(path18.join(projectDir, "DevClientManager.swift"), devCMContent);
       addSwiftSourceToXcodeProject(pbxprojPath, appName, "DevClientManager.swift");
     }
     const qrContent = readTemplateOrFallback(devClientPkg2, "QRScannerViewController.swift", "", tplVars);
     if (qrContent) {
-      writeFile(path16.join(projectDir, "QRScannerViewController.swift"), qrContent);
+      writeFile(path18.join(projectDir, "QRScannerViewController.swift"), qrContent);
       addSwiftSourceToXcodeProject(pbxprojPath, appName, "QRScannerViewController.swift");
     }
     console.log("\u2705 Synced iOS host app (embedded dev mode) \u2014 ViewController, DevTemplateProvider, ProjectViewController, DevClientManager, QRScannerViewController");
   } else {
-    writeFile(path16.join(projectDir, "ViewController.swift"), getViewControllerSwift());
-    writeFile(path16.join(projectDir, "LynxProvider.swift"), getSimpleLynxProviderSwift());
+    writeFile(path18.join(projectDir, "ViewController.swift"), getViewControllerSwift());
+    writeFile(path18.join(projectDir, "LynxProvider.swift"), getSimpleLynxProviderSwift());
     addSwiftSourceToXcodeProject(pbxprojPath, appName, "LynxProvider.swift");
     console.log("\u2705 Synced iOS host app controller files");
   }
@@ -3947,11 +4049,11 @@ var autolink2 = (syncHostOpts) => {
   const projectRoot = resolved.projectRoot;
   const iosProjectPath = resolved.iosDir;
   function updateGeneratedSection(filePath, newContent, startMarker, endMarker) {
-    if (!fs16.existsSync(filePath)) {
+    if (!fs18.existsSync(filePath)) {
       console.warn(`\u26A0\uFE0F File not found, skipping update: ${filePath}`);
       return;
     }
-    let fileContent = fs16.readFileSync(filePath, "utf8");
+    let fileContent = fs18.readFileSync(filePath, "utf8");
     const escapedStartMarker = startMarker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const escapedEndMarker = endMarker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const regex = new RegExp(`${escapedStartMarker}[\\s\\S]*?${escapedEndMarker}`, "g");
@@ -3971,33 +4073,33 @@ ${replacementBlock}
 `;
       }
     } else {
-      console.warn(`\u26A0\uFE0F Could not find autolink markers in ${path17.basename(filePath)}. Appending to the end of the file.`);
+      console.warn(`\u26A0\uFE0F Could not find autolink markers in ${path19.basename(filePath)}. Appending to the end of the file.`);
       fileContent += `
 ${replacementBlock}
 `;
     }
-    fs16.writeFileSync(filePath, fileContent, "utf8");
-    console.log(`\u2705 Updated autolinked section in ${path17.basename(filePath)}`);
+    fs18.writeFileSync(filePath, fileContent, "utf8");
+    console.log(`\u2705 Updated autolinked section in ${path19.basename(filePath)}`);
   }
   function resolvePodDirectory(pkg) {
-    const configuredDir = path17.join(pkg.packagePath, pkg.config.ios?.podspecPath || ".");
-    if (fs16.existsSync(configuredDir)) {
+    const configuredDir = path19.join(pkg.packagePath, pkg.config.ios?.podspecPath || ".");
+    if (fs18.existsSync(configuredDir)) {
       return configuredDir;
     }
-    const iosDir = path17.join(pkg.packagePath, "ios");
-    if (fs16.existsSync(iosDir)) {
+    const iosDir = path19.join(pkg.packagePath, "ios");
+    if (fs18.existsSync(iosDir)) {
       const stack = [iosDir];
       while (stack.length > 0) {
         const current = stack.pop();
         try {
-          const entries = fs16.readdirSync(current, { withFileTypes: true });
+          const entries = fs18.readdirSync(current, { withFileTypes: true });
           const podspec = entries.find((entry) => entry.isFile() && entry.name.endsWith(".podspec"));
           if (podspec) {
             return current;
           }
           for (const entry of entries) {
             if (entry.isDirectory()) {
-              stack.push(path17.join(current, entry.name));
+              stack.push(path19.join(current, entry.name));
             }
           }
         } catch {
@@ -4008,9 +4110,9 @@ ${replacementBlock}
   }
   function resolvePodName(pkg) {
     const fullPodspecDir = resolvePodDirectory(pkg);
-    if (fs16.existsSync(fullPodspecDir)) {
+    if (fs18.existsSync(fullPodspecDir)) {
       try {
-        const files = fs16.readdirSync(fullPodspecDir);
+        const files = fs18.readdirSync(fullPodspecDir);
         const podspecFile = files.find((f) => f.endsWith(".podspec"));
         if (podspecFile) return podspecFile.replace(".podspec", "");
       } catch {
@@ -4019,13 +4121,13 @@ ${replacementBlock}
     return pkg.name.split("/").pop().replace(/-/g, "");
   }
   function updatePodfile(packages) {
-    const podfilePath = path17.join(iosProjectPath, "Podfile");
+    const podfilePath = path19.join(iosProjectPath, "Podfile");
     let scriptContent = `  # This section is automatically generated by Tamer4Lynx.
   # Manual edits will be overwritten.`;
     const iosPackages = packages.filter((p) => p.config.ios);
     if (iosPackages.length > 0) {
       iosPackages.forEach((pkg) => {
-        const relativePath = path17.relative(iosProjectPath, resolvePodDirectory(pkg));
+        const relativePath = path19.relative(iosProjectPath, resolvePodDirectory(pkg));
         const podName = resolvePodName(pkg);
         scriptContent += `
   pod '${podName}', :path => '${relativePath}'`;
@@ -4037,9 +4139,9 @@ ${replacementBlock}
     updateGeneratedSection(podfilePath, scriptContent.trim(), "# GENERATED AUTOLINK DEPENDENCIES START", "# GENERATED AUTOLINK DEPENDENCIES END");
   }
   function ensureXElementPod() {
-    const podfilePath = path17.join(iosProjectPath, "Podfile");
-    if (!fs16.existsSync(podfilePath)) return;
-    let content = fs16.readFileSync(podfilePath, "utf8");
+    const podfilePath = path19.join(iosProjectPath, "Podfile");
+    if (!fs18.existsSync(podfilePath)) return;
+    let content = fs18.readFileSync(podfilePath, "utf8");
     if (content.includes("pod 'XElement'")) return;
     const lynxVersionMatch = content.match(/pod\s+'Lynx',\s*'([^']+)'/);
     const lynxVersion = lynxVersionMatch?.[1] ?? "3.6.0";
@@ -4064,7 +4166,7 @@ ${replacementBlock}
 `;
       }
     }
-    fs16.writeFileSync(podfilePath, content, "utf8");
+    fs18.writeFileSync(podfilePath, content, "utf8");
     console.log(`\u2705 Added XElement pod (v${lynxVersion}) to Podfile`);
   }
   function ensureLynxDevToolPods(packages) {
@@ -4072,9 +4174,9 @@ ${replacementBlock}
       (p) => p.name === "@tamer4lynx/tamer-dev-client" || p.name === "tamer-dev-client"
     );
     if (!hasDevClient) return;
-    const podfilePath = path17.join(iosProjectPath, "Podfile");
-    if (!fs16.existsSync(podfilePath)) return;
-    let content = fs16.readFileSync(podfilePath, "utf8");
+    const podfilePath = path19.join(iosProjectPath, "Podfile");
+    if (!fs18.existsSync(podfilePath)) return;
+    let content = fs18.readFileSync(podfilePath, "utf8");
     if (content.includes("pod 'LynxDevtool'") || content.includes('pod "LynxDevtool"')) return;
     const lynxVersionMatch = content.match(/pod\s+'Lynx',\s*'([^']+)'/);
     const lynxVersion = lynxVersionMatch?.[1] ?? "3.6.0";
@@ -4102,13 +4204,13 @@ ${replacementBlock}
 `;
       }
     }
-    fs16.writeFileSync(podfilePath, content, "utf8");
+    fs18.writeFileSync(podfilePath, content, "utf8");
     console.log(`\u2705 Added Lynx DevTool pods (v${lynxVersion}) to Podfile`);
   }
   function ensureLynxPatchInPodfile() {
-    const podfilePath = path17.join(iosProjectPath, "Podfile");
-    if (!fs16.existsSync(podfilePath)) return;
-    let content = fs16.readFileSync(podfilePath, "utf8");
+    const podfilePath = path19.join(iosProjectPath, "Podfile");
+    if (!fs18.existsSync(podfilePath)) return;
+    let content = fs18.readFileSync(podfilePath, "utf8");
     if (content.includes("content.gsub(/\\btypeof\\(/, '__typeof__(')")) return;
     const patch = `
   Dir.glob(File.join(installer.sandbox.root, 'Lynx/platform/darwin/**/*.{m,mm}')).each do |lynx_source|
@@ -4120,13 +4222,13 @@ ${replacementBlock}
   end`;
     content = content.replace(/(\n  end\s*\n)(end\s*)$/, `$1${patch}
 $2`);
-    fs16.writeFileSync(podfilePath, content, "utf8");
+    fs18.writeFileSync(podfilePath, content, "utf8");
     console.log("\u2705 Added Lynx typeof patch to Podfile post_install.");
   }
   function ensurePodBuildSettings() {
-    const podfilePath = path17.join(iosProjectPath, "Podfile");
-    if (!fs16.existsSync(podfilePath)) return;
-    let content = fs16.readFileSync(podfilePath, "utf8");
+    const podfilePath = path19.join(iosProjectPath, "Podfile");
+    if (!fs18.existsSync(podfilePath)) return;
+    let content = fs18.readFileSync(podfilePath, "utf8");
     let changed = false;
     if (!content.includes("CLANG_ENABLE_EXPLICIT_MODULES")) {
       content = content.replace(
@@ -4169,7 +4271,7 @@ $2`);
       changed = true;
     }
     if (changed) {
-      fs16.writeFileSync(podfilePath, content, "utf8");
+      fs18.writeFileSync(podfilePath, content, "utf8");
       console.log("\u2705 Added Xcode compatibility build settings to Podfile post_install.");
     }
   }
@@ -4177,10 +4279,10 @@ $2`);
     const appNameFromConfig = resolved.config.ios?.appName;
     const candidatePaths = [];
     if (appNameFromConfig) {
-      candidatePaths.push(path17.join(iosProjectPath, appNameFromConfig, "LynxInitProcessor.swift"));
+      candidatePaths.push(path19.join(iosProjectPath, appNameFromConfig, "LynxInitProcessor.swift"));
     }
-    candidatePaths.push(path17.join(iosProjectPath, "LynxInitProcessor.swift"));
-    const found = candidatePaths.find((p) => fs16.existsSync(p));
+    candidatePaths.push(path19.join(iosProjectPath, "LynxInitProcessor.swift"));
+    const found = candidatePaths.find((p) => fs18.existsSync(p));
     const lynxInitPath = found ?? candidatePaths[0];
     const iosPackages = packages.filter((p) => getIosModuleClassNames(p.config.ios).length > 0 || Object.keys(getIosElements(p.config.ios)).length > 0);
     const seenModules = /* @__PURE__ */ new Set();
@@ -4219,7 +4321,7 @@ $2`);
         const podName = resolvePodName(pkg);
         return `import ${podName}`;
       }).join("\n");
-      const fileContent = fs16.readFileSync(filePath, "utf8");
+      const fileContent = fs18.readFileSync(filePath, "utf8");
       if (fileContent.indexOf(startMarker) !== -1) {
         updateGeneratedSection(filePath, imports, startMarker, endMarker);
         return;
@@ -4256,8 +4358,8 @@ ${after}`;
 ${fileContent}`;
         }
       }
-      fs16.writeFileSync(filePath, newContent, "utf8");
-      console.log(`\u2705 Updated imports in ${path17.basename(filePath)}`);
+      fs18.writeFileSync(filePath, newContent, "utf8");
+      console.log(`\u2705 Updated imports in ${path19.basename(filePath)}`);
     }
     updateImportsSection(lynxInitPath, importPackages);
     if (importPackages.length === 0) {
@@ -4301,7 +4403,7 @@ ${androidNames.map((n) => `            "${n.replace(/\\/g, "\\\\").replace(/"/g,
     } else {
       devClientSupportedBody = "        // @tamer4lynx/tamer-dev-client not linked";
     }
-    if (fs16.readFileSync(lynxInitPath, "utf8").includes("GENERATED DEV_CLIENT_SUPPORTED START")) {
+    if (fs18.readFileSync(lynxInitPath, "utf8").includes("GENERATED DEV_CLIENT_SUPPORTED START")) {
       updateGeneratedSection(lynxInitPath, devClientSupportedBody, "// GENERATED DEV_CLIENT_SUPPORTED START", "// GENERATED DEV_CLIENT_SUPPORTED END");
     }
   }
@@ -4309,13 +4411,13 @@ ${androidNames.map((n) => `            "${n.replace(/\\/g, "\\\\").replace(/"/g,
     const appNameFromConfig = resolved.config.ios?.appName;
     const candidates = [];
     if (appNameFromConfig) {
-      candidates.push(path17.join(iosProjectPath, appNameFromConfig, "Info.plist"));
+      candidates.push(path19.join(iosProjectPath, appNameFromConfig, "Info.plist"));
     }
-    candidates.push(path17.join(iosProjectPath, "Info.plist"));
-    return candidates.find((p) => fs16.existsSync(p)) ?? null;
+    candidates.push(path19.join(iosProjectPath, "Info.plist"));
+    return candidates.find((p) => fs18.existsSync(p)) ?? null;
   }
   function readPlistXml(plistPath) {
-    return fs16.readFileSync(plistPath, "utf8");
+    return fs18.readFileSync(plistPath, "utf8");
   }
   function syncInfoPlistPermissions(packages) {
     const plistPath = findInfoPlist();
@@ -4346,7 +4448,7 @@ ${androidNames.map((n) => `            "${n.replace(/\\/g, "\\\\").replace(/"/g,
       added++;
     }
     if (added > 0) {
-      fs16.writeFileSync(plistPath, plist, "utf8");
+      fs18.writeFileSync(plistPath, plist, "utf8");
       console.log(`\u2705 Synced ${added} Info.plist permission description(s)`);
     }
   }
@@ -4393,16 +4495,16 @@ ${schemesXml}
 $1`
       );
     }
-    fs16.writeFileSync(plistPath, plist, "utf8");
+    fs18.writeFileSync(plistPath, plist, "utf8");
     console.log(`\u2705 Synced ${urlSchemes.length} iOS URL scheme(s) into Info.plist`);
   }
   function runPodInstall(forcePath) {
-    const podfilePath = forcePath ?? path17.join(iosProjectPath, "Podfile");
-    if (!fs16.existsSync(podfilePath)) {
+    const podfilePath = forcePath ?? path19.join(iosProjectPath, "Podfile");
+    if (!fs18.existsSync(podfilePath)) {
       console.log("\u2139\uFE0F No Podfile found in ios directory; skipping `pod install`.");
       return;
     }
-    const cwd = path17.dirname(podfilePath);
+    const cwd = path19.dirname(podfilePath);
     try {
       console.log(`\u2139\uFE0F Running \`pod install\` in ${cwd}...`);
       try {
@@ -4437,8 +4539,8 @@ $1`
     syncInfoPlistUrlSchemes();
     const appNameFromConfig = resolved.config.ios?.appName;
     if (appNameFromConfig) {
-      const appPodfile = path17.join(iosProjectPath, appNameFromConfig, "Podfile");
-      if (fs16.existsSync(appPodfile)) {
+      const appPodfile = path19.join(iosProjectPath, appNameFromConfig, "Podfile");
+      if (fs18.existsSync(appPodfile)) {
         runPodInstall(appPodfile);
         console.log("\u2728 Autolinking complete for iOS.");
         return;
@@ -4453,13 +4555,13 @@ $1`
     const appFolder = resolved.config.ios?.appName;
     if (!hasDevClient || !appFolder) return;
     const androidNames = getDedupedAndroidModuleClassNames(allPkgs);
-    const appDir = path17.join(iosProjectPath, appFolder);
-    fs16.mkdirSync(appDir, { recursive: true });
-    const manifestPath = path17.join(appDir, TAMER_HOST_NATIVE_MODULES_FILENAME);
-    fs16.writeFileSync(manifestPath, buildHostNativeModulesManifestJson(androidNames), "utf8");
+    const appDir = path19.join(iosProjectPath, appFolder);
+    fs18.mkdirSync(appDir, { recursive: true });
+    const manifestPath = path19.join(appDir, TAMER_HOST_NATIVE_MODULES_FILENAME);
+    fs18.writeFileSync(manifestPath, buildHostNativeModulesManifestJson(androidNames), "utf8");
     console.log(`\u2705 Wrote ${TAMER_HOST_NATIVE_MODULES_FILENAME} (native module ids for dev-client checks)`);
-    const pbxprojPath = path17.join(iosProjectPath, `${appFolder}.xcodeproj`, "project.pbxproj");
-    if (fs16.existsSync(pbxprojPath)) {
+    const pbxprojPath = path19.join(iosProjectPath, `${appFolder}.xcodeproj`, "project.pbxproj");
+    if (fs18.existsSync(pbxprojPath)) {
       addResourceToXcodeProject(pbxprojPath, appFolder, TAMER_HOST_NATIVE_MODULES_FILENAME);
     }
   }
@@ -4468,8 +4570,8 @@ $1`
 var autolink_default2 = autolink2;
 
 // src/ios/bundle.ts
-import fs17 from "fs";
-import path18 from "path";
+import fs19 from "fs";
+import path20 from "path";
 import { execSync as execSync7 } from "child_process";
 function bundleAndDeploy2(opts = {}) {
   const release = opts.release === true || opts.production === true;
@@ -4487,19 +4589,19 @@ function bundleAndDeploy2(opts = {}) {
   const includeDevClient = !release && !!devClientPkg;
   const appName = resolved.config.ios.appName;
   const sourceBundlePath = resolved.lynxBundlePath;
-  const destinationDir = path18.join(resolved.iosDir, appName);
-  const destinationBundlePath = path18.join(destinationDir, resolved.lynxBundleFile);
+  const destinationDir = path20.join(resolved.iosDir, appName);
+  const destinationBundlePath = path20.join(destinationDir, resolved.lynxBundleFile);
   autolink_default2({ release, includeDevClient });
   const iconPaths = resolveIconPaths(resolved.projectRoot, resolved.config);
   if (iconPaths) {
-    const appIconDir = path18.join(destinationDir, "Assets.xcassets", "AppIcon.appiconset");
+    const appIconDir = path20.join(destinationDir, "Assets.xcassets", "AppIcon.appiconset");
     if (applyIosAppIconAssets(appIconDir, iconPaths)) {
       console.log("\u2705 Synced iOS AppIcon from tamer.config.json");
     }
   }
   try {
-    const lynxTsconfig = path18.join(resolved.lynxProjectDir, "tsconfig.json");
-    if (fs17.existsSync(lynxTsconfig)) {
+    const lynxTsconfig = path20.join(resolved.lynxProjectDir, "tsconfig.json");
+    if (fs19.existsSync(lynxTsconfig)) {
       fixTsconfigReferencesForBuild(lynxTsconfig);
     }
     console.log("\u{1F4E6} Building Lynx bundle...");
@@ -4510,40 +4612,40 @@ function bundleAndDeploy2(opts = {}) {
     process.exit(1);
   }
   try {
-    if (!fs17.existsSync(sourceBundlePath)) {
+    if (!fs19.existsSync(sourceBundlePath)) {
       console.error(`\u274C Build output not found at: ${sourceBundlePath}`);
       process.exit(1);
     }
-    if (!fs17.existsSync(destinationDir)) {
+    if (!fs19.existsSync(destinationDir)) {
       console.error(`Destination directory not found at: ${destinationDir}`);
       process.exit(1);
     }
-    const distDir = path18.dirname(sourceBundlePath);
+    const distDir = path20.dirname(sourceBundlePath);
     console.log(`\u{1F69A} Copying bundle and assets to iOS project...`);
     copyDistAssets(distDir, destinationDir, resolved.lynxBundleFile);
     console.log(`\u2728 Successfully copied bundle to: ${destinationBundlePath}`);
-    const pbxprojPath = path18.join(resolved.iosDir, `${appName}.xcodeproj`, "project.pbxproj");
-    if (fs17.existsSync(pbxprojPath)) {
+    const pbxprojPath = path20.join(resolved.iosDir, `${appName}.xcodeproj`, "project.pbxproj");
+    if (fs19.existsSync(pbxprojPath)) {
       const skip = /* @__PURE__ */ new Set([".rspeedy", "stats.json"]);
-      for (const entry of fs17.readdirSync(distDir)) {
-        if (skip.has(entry) || fs17.statSync(path18.join(distDir, entry)).isDirectory()) continue;
+      for (const entry of fs19.readdirSync(distDir)) {
+        if (skip.has(entry) || fs19.statSync(path20.join(distDir, entry)).isDirectory()) continue;
         addResourceToXcodeProject(pbxprojPath, appName, entry);
       }
     }
     if (includeDevClient && devClientPkg) {
-      const devClientBundle = path18.join(destinationDir, "dev-client.lynx.bundle");
+      const devClientBundle = path20.join(destinationDir, "dev-client.lynx.bundle");
       console.log("\u{1F4E6} Building dev-client bundle...");
       try {
         execSync7("npm run build", { stdio: "inherit", cwd: devClientPkg });
       } catch {
         console.warn("\u26A0\uFE0F  dev-client build failed; skipping dev-client bundle");
       }
-      const builtBundle = path18.join(devClientPkg, "dist", "dev-client.lynx.bundle");
-      if (fs17.existsSync(builtBundle)) {
-        fs17.copyFileSync(builtBundle, devClientBundle);
+      const builtBundle = path20.join(devClientPkg, "dist", "dev-client.lynx.bundle");
+      if (fs19.existsSync(builtBundle)) {
+        fs19.copyFileSync(builtBundle, devClientBundle);
         console.log("\u2728 Copied dev-client.lynx.bundle to iOS project");
-        const pbxprojPath2 = path18.join(resolved.iosDir, `${appName}.xcodeproj`, "project.pbxproj");
-        if (fs17.existsSync(pbxprojPath2)) {
+        const pbxprojPath2 = path20.join(resolved.iosDir, `${appName}.xcodeproj`, "project.pbxproj");
+        if (fs19.existsSync(pbxprojPath2)) {
           addResourceToXcodeProject(pbxprojPath2, appName, "dev-client.lynx.bundle");
         }
       }
@@ -4557,8 +4659,8 @@ function bundleAndDeploy2(opts = {}) {
 var bundle_default2 = bundleAndDeploy2;
 
 // src/ios/build.ts
-import fs18 from "fs";
-import path19 from "path";
+import fs20 from "fs";
+import path21 from "path";
 import os3 from "os";
 import { randomBytes as randomBytes2 } from "crypto";
 import { execSync as execSync8 } from "child_process";
@@ -4579,14 +4681,14 @@ function findBootedSimulator() {
   return null;
 }
 function findFirstConnectedIosDeviceUdid() {
-  const jsonPath = path19.join(os3.tmpdir(), `t4l-devicectl-${randomBytes2(8).toString("hex")}.json`);
+  const jsonPath = path21.join(os3.tmpdir(), `t4l-devicectl-${randomBytes2(8).toString("hex")}.json`);
   try {
     execSync8(`xcrun devicectl list devices --json-output "${jsonPath}"`, {
       stdio: ["pipe", "pipe", "pipe"]
     });
-    if (!fs18.existsSync(jsonPath)) return null;
-    const raw = fs18.readFileSync(jsonPath, "utf8");
-    fs18.unlinkSync(jsonPath);
+    if (!fs20.existsSync(jsonPath)) return null;
+    const raw = fs20.readFileSync(jsonPath, "utf8");
+    fs20.unlinkSync(jsonPath);
     const data = JSON.parse(raw);
     const devices = data.result?.devices ?? [];
     for (const d of devices) {
@@ -4597,7 +4699,7 @@ function findFirstConnectedIosDeviceUdid() {
     }
   } catch {
     try {
-      if (fs18.existsSync(jsonPath)) fs18.unlinkSync(jsonPath);
+      if (fs20.existsSync(jsonPath)) fs20.unlinkSync(jsonPath);
     } catch {
     }
   }
@@ -4615,11 +4717,11 @@ async function buildIpa(opts = {}) {
   const configuration = release ? "Release" : "Debug";
   bundle_default2({ release, production: opts.production });
   const scheme = appName;
-  const workspacePath = path19.join(iosDir, `${appName}.xcworkspace`);
-  const projectPath = path19.join(iosDir, `${appName}.xcodeproj`);
-  const xcproject = fs18.existsSync(workspacePath) ? workspacePath : projectPath;
+  const workspacePath = path21.join(iosDir, `${appName}.xcworkspace`);
+  const projectPath = path21.join(iosDir, `${appName}.xcodeproj`);
+  const xcproject = fs20.existsSync(workspacePath) ? workspacePath : projectPath;
   const flag = xcproject.endsWith(".xcworkspace") ? "-workspace" : "-project";
-  const derivedDataPath = path19.join(iosDir, "build");
+  const derivedDataPath = path21.join(iosDir, "build");
   const production = opts.production === true;
   const sdk = production ? "iphoneos" : opts.install ? "iphonesimulator" : "iphoneos";
   const signingArgs = production || opts.install ? "" : " CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO";
@@ -4638,14 +4740,14 @@ async function buildIpa(opts = {}) {
   console.log(`\u2705 Build completed.`);
   if (opts.install) {
     if (production) {
-      const appPath = path19.join(
+      const appPath = path21.join(
         derivedDataPath,
         "Build",
         "Products",
         `${configuration}-iphoneos`,
         `${appName}.app`
       );
-      if (!fs18.existsSync(appPath)) {
+      if (!fs20.existsSync(appPath)) {
         console.error(`\u274C Built app not found at: ${appPath}`);
         process.exit(1);
       }
@@ -4675,14 +4777,14 @@ async function buildIpa(opts = {}) {
         console.log('\u2705 App installed. (Set "ios.bundleId" in tamer.config.json to auto-launch.)');
       }
     } else {
-      const appGlob = path19.join(
+      const appGlob = path21.join(
         derivedDataPath,
         "Build",
         "Products",
         `${configuration}-iphonesimulator`,
         `${appName}.app`
       );
-      if (!fs18.existsSync(appGlob)) {
+      if (!fs20.existsSync(appGlob)) {
         console.error(`\u274C Built app not found at: ${appGlob}`);
         process.exit(1);
       }
@@ -4706,8 +4808,8 @@ async function buildIpa(opts = {}) {
 var build_default2 = buildIpa;
 
 // src/common/init.tsx
-import fs19 from "fs";
-import path20 from "path";
+import fs21 from "fs";
+import path22 from "path";
 import { useState as useState4, useEffect as useEffect2, useCallback as useCallback3 } from "react";
 import { render, Text as Text9, Box as Box8 } from "ink";
 
@@ -5025,22 +5127,22 @@ function InitWizard() {
       paths: { androidDir: "android", iosDir: "ios" }
     };
     if (lynxProject.trim()) config.lynxProject = lynxProject.trim();
-    const configPath = path20.join(process.cwd(), "tamer.config.json");
-    fs19.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    const configPath = path22.join(process.cwd(), "tamer.config.json");
+    fs21.writeFileSync(configPath, JSON.stringify(config, null, 2));
     const lines = [`Generated tamer.config.json at ${configPath}`];
     const tamerTypesInclude = "node_modules/@tamer4lynx/tamer-*/src/**/*.d.ts";
     const tsconfigCandidates = lynxProject.trim() ? [
-      path20.join(process.cwd(), lynxProject.trim(), "tsconfig.json"),
-      path20.join(process.cwd(), "tsconfig.json")
-    ] : [path20.join(process.cwd(), "tsconfig.json")];
+      path22.join(process.cwd(), lynxProject.trim(), "tsconfig.json"),
+      path22.join(process.cwd(), "tsconfig.json")
+    ] : [path22.join(process.cwd(), "tsconfig.json")];
     for (const tsconfigPath of tsconfigCandidates) {
-      if (!fs19.existsSync(tsconfigPath)) continue;
+      if (!fs21.existsSync(tsconfigPath)) continue;
       try {
         if (fixTsconfigReferencesForBuild(tsconfigPath)) {
-          lines.push(`Flattened ${path20.relative(process.cwd(), tsconfigPath)} (fixed TS6310)`);
+          lines.push(`Flattened ${path22.relative(process.cwd(), tsconfigPath)} (fixed TS6310)`);
         }
         if (addTamerTypesInclude(tsconfigPath, tamerTypesInclude)) {
-          lines.push(`Updated ${path20.relative(process.cwd(), tsconfigPath)} for tamer types`);
+          lines.push(`Updated ${path22.relative(process.cwd(), tsconfigPath)} for tamer types`);
         }
         break;
       } catch (e) {
@@ -5200,8 +5302,8 @@ async function init() {
 }
 
 // src/common/create.ts
-import fs20 from "fs";
-import path21 from "path";
+import fs22 from "fs";
+import path23 from "path";
 import readline from "readline";
 var rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: false });
 function ask(question) {
@@ -5263,13 +5365,13 @@ async function create3(opts) {
   const simpleModuleName = extName.split("-").map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join("") + "Module";
   const fullModuleClassName = `${packageName}.${simpleModuleName}`;
   const cwd = process.cwd();
-  const root = path21.join(cwd, extName);
-  if (fs20.existsSync(root)) {
+  const root = path23.join(cwd, extName);
+  if (fs22.existsSync(root)) {
     console.error(`\u274C Directory ${extName} already exists.`);
     rl.close();
     process.exit(1);
   }
-  fs20.mkdirSync(root, { recursive: true });
+  fs22.mkdirSync(root, { recursive: true });
   const lynxExt = {
     platforms: {
       android: {
@@ -5284,7 +5386,7 @@ async function create3(opts) {
       web: {}
     }
   };
-  fs20.writeFileSync(path21.join(root, "lynx.ext.json"), JSON.stringify(lynxExt, null, 2));
+  fs22.writeFileSync(path23.join(root, "lynx.ext.json"), JSON.stringify(lynxExt, null, 2));
   const pkg = {
     name: extName,
     version: "0.0.1",
@@ -5297,20 +5399,20 @@ async function create3(opts) {
     engines: { node: ">=18" }
   };
   if (includeModule) pkg.types = "src/index.d.ts";
-  fs20.writeFileSync(path21.join(root, "package.json"), JSON.stringify(pkg, null, 2));
+  fs22.writeFileSync(path23.join(root, "package.json"), JSON.stringify(pkg, null, 2));
   const pkgPath = packageName.replace(/\./g, "/");
   const hasSrc = includeModule || includeElement || includeService;
   if (hasSrc) {
-    fs20.mkdirSync(path21.join(root, "src"), { recursive: true });
+    fs22.mkdirSync(path23.join(root, "src"), { recursive: true });
   }
   if (includeModule) {
-    fs20.writeFileSync(path21.join(root, "src", "index.d.ts"), `/** @lynxmodule */
+    fs22.writeFileSync(path23.join(root, "src", "index.d.ts"), `/** @lynxmodule */
 export declare class ${simpleModuleName} {
   // Add your module methods here
 }
 `);
-    fs20.mkdirSync(path21.join(root, "android", "src", "main", "kotlin", pkgPath), { recursive: true });
-    fs20.writeFileSync(path21.join(root, "android", "build.gradle.kts"), `plugins {
+    fs22.mkdirSync(path23.join(root, "android", "src", "main", "kotlin", pkgPath), { recursive: true });
+    fs22.writeFileSync(path23.join(root, "android", "build.gradle.kts"), `plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
 }
@@ -5331,7 +5433,7 @@ dependencies {
     implementation(libs.lynx.jssdk)
 }
 `);
-    fs20.writeFileSync(path21.join(root, "android", "src", "main", "AndroidManifest.xml"), `<?xml version="1.0" encoding="utf-8"?>
+    fs22.writeFileSync(path23.join(root, "android", "src", "main", "AndroidManifest.xml"), `<?xml version="1.0" encoding="utf-8"?>
 <manifest />
 `);
     const ktContent = `package ${packageName}
@@ -5348,8 +5450,8 @@ class ${simpleModuleName}(context: Context) : LynxModule(context) {
     }
 }
 `;
-    fs20.writeFileSync(path21.join(root, "android", "src", "main", "kotlin", pkgPath, `${simpleModuleName}.kt`), ktContent);
-    fs20.mkdirSync(path21.join(root, "ios", extName, extName, "Classes"), { recursive: true });
+    fs22.writeFileSync(path23.join(root, "android", "src", "main", "kotlin", pkgPath, `${simpleModuleName}.kt`), ktContent);
+    fs22.mkdirSync(path23.join(root, "ios", extName, extName, "Classes"), { recursive: true });
     const podspec = `Pod::Spec.new do |s|
   s.name             = '${extName}'
   s.version          = '0.0.1'
@@ -5363,7 +5465,7 @@ class ${simpleModuleName}(context: Context) : LynxModule(context) {
   s.dependency       'Lynx'
 end
 `;
-    fs20.writeFileSync(path21.join(root, "ios", extName, `${extName}.podspec`), podspec);
+    fs22.writeFileSync(path23.join(root, "ios", extName, `${extName}.podspec`), podspec);
     const swiftContent = `import Foundation
 
 @objc public class ${simpleModuleName}: NSObject {
@@ -5372,18 +5474,18 @@ end
     }
 }
 `;
-    fs20.writeFileSync(path21.join(root, "ios", extName, extName, "Classes", `${simpleModuleName}.swift`), swiftContent);
+    fs22.writeFileSync(path23.join(root, "ios", extName, extName, "Classes", `${simpleModuleName}.swift`), swiftContent);
   }
   if (includeElement && !includeModule) {
     const elementName = extName.split("-").map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join("");
-    fs20.writeFileSync(path21.join(root, "src", "index.tsx"), `import type { FC } from '@lynx-js/react';
+    fs22.writeFileSync(path23.join(root, "src", "index.tsx"), `import type { FC } from '@lynx-js/react';
 
 export const ${elementName}: FC = () => {
   return null;
 };
 `);
   }
-  fs20.writeFileSync(path21.join(root, "index.js"), `'use strict';
+  fs22.writeFileSync(path23.join(root, "index.js"), `'use strict';
 module.exports = {};
 `);
   const tsconfigCompiler = {
@@ -5396,11 +5498,11 @@ module.exports = {};
     tsconfigCompiler.jsx = "preserve";
     tsconfigCompiler.jsxImportSource = "@lynx-js/react";
   }
-  fs20.writeFileSync(path21.join(root, "tsconfig.json"), JSON.stringify({
+  fs22.writeFileSync(path23.join(root, "tsconfig.json"), JSON.stringify({
     compilerOptions: tsconfigCompiler,
     include: includeElement ? ["src", "src/**/*.tsx"] : ["src"]
   }, null, 2));
-  fs20.writeFileSync(path21.join(root, "README.md"), `# ${extName}
+  fs22.writeFileSync(path23.join(root, "README.md"), `# ${extName}
 
 Lynx extension for ${extName}.
 
@@ -5425,8 +5527,8 @@ This package uses \`lynx.ext.json\` (RFC-compliant) for autolinking.
 var create_default3 = create3;
 
 // src/common/codegen.ts
-import fs21 from "fs";
-import path22 from "path";
+import fs23 from "fs";
+import path24 from "path";
 function codegen() {
   const cwd = process.cwd();
   const config = loadExtensionConfig(cwd);
@@ -5434,9 +5536,9 @@ function codegen() {
     console.error("\u274C No lynx.ext.json or tamer.json found. Run from an extension package root.");
     process.exit(1);
   }
-  const srcDir = path22.join(cwd, "src");
-  const generatedDir = path22.join(cwd, "generated");
-  fs21.mkdirSync(generatedDir, { recursive: true });
+  const srcDir = path24.join(cwd, "src");
+  const generatedDir = path24.join(cwd, "generated");
+  fs23.mkdirSync(generatedDir, { recursive: true });
   const dtsFiles = findDtsFiles(srcDir);
   const modules = extractLynxModules(dtsFiles);
   if (modules.length === 0) {
@@ -5446,28 +5548,28 @@ function codegen() {
   for (const mod of modules) {
     const tsContent = `export type { ${mod} } from '../src/index.js';
 `;
-    const outPath = path22.join(generatedDir, `${mod}.ts`);
-    fs21.writeFileSync(outPath, tsContent);
+    const outPath = path24.join(generatedDir, `${mod}.ts`);
+    fs23.writeFileSync(outPath, tsContent);
     console.log(`\u2705 Generated ${outPath}`);
   }
   if (config.android) {
-    const androidGenerated = path22.join(cwd, "android", "src", "main", "kotlin", config.android.moduleClassName.replace(/\./g, "/").replace(/[^/]+$/, ""), "generated");
-    fs21.mkdirSync(androidGenerated, { recursive: true });
+    const androidGenerated = path24.join(cwd, "android", "src", "main", "kotlin", config.android.moduleClassName.replace(/\./g, "/").replace(/[^/]+$/, ""), "generated");
+    fs23.mkdirSync(androidGenerated, { recursive: true });
     console.log(`\u2139\uFE0F Android generated dir: ${androidGenerated} (spec generation coming soon)`);
   }
   if (config.ios) {
-    const iosGenerated = path22.join(cwd, "ios", "generated");
-    fs21.mkdirSync(iosGenerated, { recursive: true });
+    const iosGenerated = path24.join(cwd, "ios", "generated");
+    fs23.mkdirSync(iosGenerated, { recursive: true });
     console.log(`\u2139\uFE0F iOS generated dir: ${iosGenerated} (spec generation coming soon)`);
   }
   console.log("\u2728 Codegen complete.");
 }
 function findDtsFiles(dir) {
   const result = [];
-  if (!fs21.existsSync(dir)) return result;
-  const entries = fs21.readdirSync(dir, { withFileTypes: true });
+  if (!fs23.existsSync(dir)) return result;
+  const entries = fs23.readdirSync(dir, { withFileTypes: true });
   for (const e of entries) {
-    const full = path22.join(dir, e.name);
+    const full = path24.join(dir, e.name);
     if (e.isDirectory()) result.push(...findDtsFiles(full));
     else if (e.name.endsWith(".d.ts")) result.push(full);
   }
@@ -5477,7 +5579,7 @@ function extractLynxModules(files) {
   const modules = [];
   const seen = /* @__PURE__ */ new Set();
   for (const file of files) {
-    const content = fs21.readFileSync(file, "utf8");
+    const content = fs23.readFileSync(file, "utf8");
     const regex = /\/\*\*\s*@lynxmodule\s*\*\/\s*export\s+declare\s+class\s+(\w+)/g;
     let m;
     while ((m = regex.exec(content)) !== null) {
@@ -5494,10 +5596,10 @@ var codegen_default = codegen;
 // src/common/devServer.tsx
 import { useState as useState5, useEffect as useEffect3, useRef, useCallback as useCallback4 } from "react";
 import { spawn } from "child_process";
-import fs22 from "fs";
+import fs24 from "fs";
 import http from "http";
 import os4 from "os";
-import path23 from "path";
+import path25 from "path";
 import { render as render2, useInput, useApp } from "ink";
 import { WebSocket, WebSocketServer } from "ws";
 import { jsx as jsx10 } from "react/jsx-runtime";
@@ -5515,13 +5617,13 @@ var STATIC_MIME = {
   ".pdf": "application/pdf"
 };
 function sendFileFromDisk(res, absPath) {
-  fs22.readFile(absPath, (err, data) => {
+  fs24.readFile(absPath, (err, data) => {
     if (err) {
       res.writeHead(404);
       res.end("Not found");
       return;
     }
-    const ext = path23.extname(absPath).toLowerCase();
+    const ext = path25.extname(absPath).toLowerCase();
     res.setHeader("Content-Type", STATIC_MIME[ext] ?? "application/octet-stream");
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.end(data);
@@ -5558,9 +5660,9 @@ function getLanIp() {
   return "localhost";
 }
 function detectPackageManager(cwd) {
-  const dir = path23.resolve(cwd);
-  if (fs22.existsSync(path23.join(dir, "pnpm-lock.yaml"))) return { cmd: "pnpm", args: ["run", "build"] };
-  if (fs22.existsSync(path23.join(dir, "bun.lockb")) || fs22.existsSync(path23.join(dir, "bun.lock")))
+  const dir = path25.resolve(cwd);
+  if (fs24.existsSync(path25.join(dir, "pnpm-lock.yaml"))) return { cmd: "pnpm", args: ["run", "build"] };
+  if (fs24.existsSync(path25.join(dir, "bun.lockb")) || fs24.existsSync(path25.join(dir, "bun.lock")))
     return { cmd: "bun", args: ["run", "build"] };
   return { cmd: "npm", args: ["run", "build"] };
 }
@@ -5647,8 +5749,8 @@ function DevServerApp({ verbose }) {
       try {
         const resolved = resolveHostPaths();
         const { projectRoot, lynxProjectDir, lynxBundlePath, lynxBundleFile, config } = resolved;
-        const distDir = path23.dirname(lynxBundlePath);
-        const projectName = path23.basename(lynxProjectDir);
+        const distDir = path25.dirname(lynxBundlePath);
+        const projectName = path25.basename(lynxProjectDir);
         const basePath = `/${projectName}`;
         setUi((s) => ({ ...s, projectName, lynxBundleFile }));
         const preferredPort = config.devServer?.port ?? config.devServer?.httpPort ?? DEFAULT_PORT;
@@ -5658,18 +5760,18 @@ function DevServerApp({ verbose }) {
         }
         const iconPaths = resolveIconPaths(projectRoot, config);
         let iconFilePath = null;
-        if (iconPaths?.source && fs22.statSync(iconPaths.source).isFile()) {
+        if (iconPaths?.source && fs24.statSync(iconPaths.source).isFile()) {
           iconFilePath = iconPaths.source;
-        } else if (iconPaths?.androidAdaptiveForeground && fs22.statSync(iconPaths.androidAdaptiveForeground).isFile()) {
+        } else if (iconPaths?.androidAdaptiveForeground && fs24.statSync(iconPaths.androidAdaptiveForeground).isFile()) {
           iconFilePath = iconPaths.androidAdaptiveForeground;
         } else if (iconPaths?.android) {
-          const androidIcon = path23.join(iconPaths.android, "mipmap-xxxhdpi", "ic_launcher.png");
-          if (fs22.existsSync(androidIcon)) iconFilePath = androidIcon;
+          const androidIcon = path25.join(iconPaths.android, "mipmap-xxxhdpi", "ic_launcher.png");
+          if (fs24.existsSync(androidIcon)) iconFilePath = androidIcon;
         } else if (iconPaths?.ios) {
-          const iosIcon = path23.join(iconPaths.ios, "Icon-1024.png");
-          if (fs22.existsSync(iosIcon)) iconFilePath = iosIcon;
+          const iosIcon = path25.join(iconPaths.ios, "Icon-1024.png");
+          if (fs24.existsSync(iosIcon)) iconFilePath = iosIcon;
         }
-        const iconExt = iconFilePath ? path23.extname(iconFilePath) || ".png" : "";
+        const iconExt = iconFilePath ? path25.extname(iconFilePath) || ".png" : "";
         const runBuild = () => {
           return new Promise((resolve, reject) => {
             const { cmd, args } = detectPackageManager(lynxProjectDir);
@@ -5751,7 +5853,7 @@ function DevServerApp({ verbose }) {
             return;
           }
           if (iconFilePath && (reqPath === `${basePath}/icon` || reqPath === `${basePath}/icon${iconExt}`)) {
-            fs22.readFile(iconFilePath, (err, data) => {
+            fs24.readFile(iconFilePath, (err, data) => {
               if (err) {
                 res.writeHead(404);
                 res.end();
@@ -5777,20 +5879,20 @@ function DevServerApp({ verbose }) {
               res.end();
               return;
             }
-            const safe = path23.normalize(rel).replace(/^(\.\.(\/|\\|$))+/, "");
-            if (path23.isAbsolute(safe) || safe.startsWith("..")) {
+            const safe = path25.normalize(rel).replace(/^(\.\.(\/|\\|$))+/, "");
+            if (path25.isAbsolute(safe) || safe.startsWith("..")) {
               res.writeHead(403);
               res.end();
               return;
             }
-            const allowedRoot = path23.resolve(lynxProjectDir, rootSub);
-            const abs = path23.resolve(allowedRoot, safe);
-            if (!abs.startsWith(allowedRoot + path23.sep) && abs !== allowedRoot) {
+            const allowedRoot = path25.resolve(lynxProjectDir, rootSub);
+            const abs = path25.resolve(allowedRoot, safe);
+            if (!abs.startsWith(allowedRoot + path25.sep) && abs !== allowedRoot) {
               res.writeHead(403);
               res.end();
               return;
             }
-            if (!fs22.existsSync(abs) || !fs22.statSync(abs).isFile()) {
+            if (!fs24.existsSync(abs) || !fs24.statSync(abs).isFile()) {
               res.writeHead(404);
               res.end("Not found");
               return;
@@ -5804,14 +5906,14 @@ function DevServerApp({ verbose }) {
             reqPath = basePath + (reqPath.startsWith("/") ? reqPath : "/" + reqPath);
           }
           const relPath = reqPath.replace(basePath, "").replace(/^\//, "") || lynxBundleFile;
-          const filePath = path23.resolve(distDir, relPath);
-          const distResolved = path23.resolve(distDir);
-          if (!filePath.startsWith(distResolved + path23.sep) && filePath !== distResolved) {
+          const filePath = path25.resolve(distDir, relPath);
+          const distResolved = path25.resolve(distDir);
+          if (!filePath.startsWith(distResolved + path25.sep) && filePath !== distResolved) {
             res.writeHead(403);
             res.end();
             return;
           }
-          fs22.readFile(filePath, (err, data) => {
+          fs24.readFile(filePath, (err, data) => {
             if (err) {
               res.writeHead(404);
               res.end("Not found");
@@ -5883,10 +5985,10 @@ function DevServerApp({ verbose }) {
         }
         if (chokidar) {
           const watchPaths = [
-            path23.join(lynxProjectDir, "src"),
-            path23.join(lynxProjectDir, "lynx.config.ts"),
-            path23.join(lynxProjectDir, "lynx.config.js")
-          ].filter((p) => fs22.existsSync(p));
+            path25.join(lynxProjectDir, "src"),
+            path25.join(lynxProjectDir, "lynx.config.ts"),
+            path25.join(lynxProjectDir, "lynx.config.js")
+          ].filter((p) => fs24.existsSync(p));
           if (watchPaths.length > 0) {
             const w = chokidar.watch(watchPaths, { ignoreInitial: true });
             w.on("change", async () => {
@@ -6006,10 +6108,10 @@ async function start(opts) {
 var start_default = start;
 
 // src/common/injectHost.ts
-import fs23 from "fs";
-import path24 from "path";
+import fs25 from "fs";
+import path26 from "path";
 function readAndSubstitute(templatePath, vars) {
-  const raw = fs23.readFileSync(templatePath, "utf-8");
+  const raw = fs25.readFileSync(templatePath, "utf-8");
   return Object.entries(vars).reduce(
     (s, [k, v]) => s.replace(new RegExp(`\\{\\{${k}\\}\\}`, "g"), v),
     raw
@@ -6030,32 +6132,32 @@ async function injectHostAndroid(opts) {
     process.exit(1);
   }
   const androidDir = config.paths?.androidDir ?? "android";
-  const rootDir = path24.join(projectRoot, androidDir);
+  const rootDir = path26.join(projectRoot, androidDir);
   const packagePath = packageName.replace(/\./g, "/");
-  const javaDir = path24.join(rootDir, "app", "src", "main", "java", packagePath);
-  const kotlinDir = path24.join(rootDir, "app", "src", "main", "kotlin", packagePath);
-  if (!fs23.existsSync(javaDir) || !fs23.existsSync(kotlinDir)) {
+  const javaDir = path26.join(rootDir, "app", "src", "main", "java", packagePath);
+  const kotlinDir = path26.join(rootDir, "app", "src", "main", "kotlin", packagePath);
+  if (!fs25.existsSync(javaDir) || !fs25.existsSync(kotlinDir)) {
     console.error("\u274C Android project not found. Run `t4l android create` first or ensure android/ exists.");
     process.exit(1);
   }
-  const templateDir = path24.join(hostPkg, "android", "templates");
+  const templateDir = path26.join(hostPkg, "android", "templates");
   const vars = { PACKAGE_NAME: packageName, APP_NAME: appName };
   const files = [
-    { src: "App.java", dst: path24.join(javaDir, "App.java") },
-    { src: "TemplateProvider.java", dst: path24.join(javaDir, "TemplateProvider.java") },
-    { src: "MainActivity.kt", dst: path24.join(kotlinDir, "MainActivity.kt") }
+    { src: "App.java", dst: path26.join(javaDir, "App.java") },
+    { src: "TemplateProvider.java", dst: path26.join(javaDir, "TemplateProvider.java") },
+    { src: "MainActivity.kt", dst: path26.join(kotlinDir, "MainActivity.kt") }
   ];
   for (const { src, dst } of files) {
-    const srcPath = path24.join(templateDir, src);
-    if (!fs23.existsSync(srcPath)) continue;
-    if (fs23.existsSync(dst) && !opts?.force) {
-      console.log(`\u23ED\uFE0F  Skipping ${path24.basename(dst)} (use --force to overwrite)`);
+    const srcPath = path26.join(templateDir, src);
+    if (!fs25.existsSync(srcPath)) continue;
+    if (fs25.existsSync(dst) && !opts?.force) {
+      console.log(`\u23ED\uFE0F  Skipping ${path26.basename(dst)} (use --force to overwrite)`);
       continue;
     }
     const content = readAndSubstitute(srcPath, vars);
-    fs23.mkdirSync(path24.dirname(dst), { recursive: true });
-    fs23.writeFileSync(dst, content);
-    console.log(`\u2705 Injected ${path24.basename(dst)}`);
+    fs25.mkdirSync(path26.dirname(dst), { recursive: true });
+    fs25.writeFileSync(dst, content);
+    console.log(`\u2705 Injected ${path26.basename(dst)}`);
   }
 }
 async function injectHostIos(opts) {
@@ -6073,13 +6175,13 @@ async function injectHostIos(opts) {
     process.exit(1);
   }
   const iosDir = config.paths?.iosDir ?? "ios";
-  const rootDir = path24.join(projectRoot, iosDir);
-  const projectDir = path24.join(rootDir, appName);
-  if (!fs23.existsSync(projectDir)) {
+  const rootDir = path26.join(projectRoot, iosDir);
+  const projectDir = path26.join(rootDir, appName);
+  if (!fs25.existsSync(projectDir)) {
     console.error("\u274C iOS project not found. Run `t4l ios create` first or ensure ios/ exists.");
     process.exit(1);
   }
-  const templateDir = path24.join(hostPkg, "ios", "templates");
+  const templateDir = path26.join(hostPkg, "ios", "templates");
   const vars = { PACKAGE_NAME: bundleId, APP_NAME: appName, BUNDLE_ID: bundleId };
   const files = [
     "AppDelegate.swift",
@@ -6089,22 +6191,22 @@ async function injectHostIos(opts) {
     "LynxInitProcessor.swift"
   ];
   for (const f of files) {
-    const srcPath = path24.join(templateDir, f);
-    const dstPath = path24.join(projectDir, f);
-    if (!fs23.existsSync(srcPath)) continue;
-    if (fs23.existsSync(dstPath) && !opts?.force) {
+    const srcPath = path26.join(templateDir, f);
+    const dstPath = path26.join(projectDir, f);
+    if (!fs25.existsSync(srcPath)) continue;
+    if (fs25.existsSync(dstPath) && !opts?.force) {
       console.log(`\u23ED\uFE0F  Skipping ${f} (use --force to overwrite)`);
       continue;
     }
     const content = readAndSubstitute(srcPath, vars);
-    fs23.writeFileSync(dstPath, content);
+    fs25.writeFileSync(dstPath, content);
     console.log(`\u2705 Injected ${f}`);
   }
 }
 
 // src/common/buildEmbeddable.ts
-import fs24 from "fs";
-import path25 from "path";
+import fs26 from "fs";
+import path27 from "path";
 import { execSync as execSync9 } from "child_process";
 var EMBEDDABLE_DIR = "embeddable";
 var LIB_PACKAGE = "com.tamer.embeddable";
@@ -6181,14 +6283,14 @@ object LynxEmbeddable {
 }
 `;
 function generateAndroidLibrary(outDir, androidDir, projectRoot, lynxBundlePath, lynxBundleFile, modules, abiFilters) {
-  const libDir = path25.join(androidDir, "lib");
-  const libSrcMain = path25.join(libDir, "src", "main");
-  const assetsDir = path25.join(libSrcMain, "assets");
-  const kotlinDir = path25.join(libSrcMain, "kotlin", LIB_PACKAGE.replace(/\./g, "/"));
-  const generatedDir = path25.join(kotlinDir, "generated");
-  fs24.mkdirSync(path25.join(androidDir, "gradle"), { recursive: true });
-  fs24.mkdirSync(generatedDir, { recursive: true });
-  fs24.mkdirSync(assetsDir, { recursive: true });
+  const libDir = path27.join(androidDir, "lib");
+  const libSrcMain = path27.join(libDir, "src", "main");
+  const assetsDir = path27.join(libSrcMain, "assets");
+  const kotlinDir = path27.join(libSrcMain, "kotlin", LIB_PACKAGE.replace(/\./g, "/"));
+  const generatedDir = path27.join(kotlinDir, "generated");
+  fs26.mkdirSync(path27.join(androidDir, "gradle"), { recursive: true });
+  fs26.mkdirSync(generatedDir, { recursive: true });
+  fs26.mkdirSync(assetsDir, { recursive: true });
   const androidModules = modules.filter((m) => m.config.android);
   const abiList = abiFilters.map((a) => `"${a}"`).join(", ");
   const settingsContent = `pluginManagement {
@@ -6208,7 +6310,7 @@ include(":lib")
 ${androidModules.map((p) => {
     const gradleName = p.name.replace(/^@/, "").replace(/\//g, "_");
     const sourceDir = p.config.android?.sourceDir || "android";
-    const absPath = path25.join(p.packagePath, sourceDir).replace(/\\/g, "/");
+    const absPath = path27.join(p.packagePath, sourceDir).replace(/\\/g, "/");
     return `include(":${gradleName}")
 project(":${gradleName}").projectDir = file("${absPath}")`;
   }).join("\n")}
@@ -6257,10 +6359,10 @@ dependencies {
 ${libDeps}
 }
 `;
-  fs24.writeFileSync(path25.join(androidDir, "gradle", "libs.versions.toml"), LIBS_VERSIONS_TOML);
-  fs24.writeFileSync(path25.join(androidDir, "settings.gradle.kts"), settingsContent);
-  fs24.writeFileSync(
-    path25.join(androidDir, "build.gradle.kts"),
+  fs26.writeFileSync(path27.join(androidDir, "gradle", "libs.versions.toml"), LIBS_VERSIONS_TOML);
+  fs26.writeFileSync(path27.join(androidDir, "settings.gradle.kts"), settingsContent);
+  fs26.writeFileSync(
+    path27.join(androidDir, "build.gradle.kts"),
     `plugins {
     alias(libs.plugins.android.library) apply false
     alias(libs.plugins.kotlin.android) apply false
@@ -6268,26 +6370,26 @@ ${libDeps}
 }
 `
   );
-  fs24.writeFileSync(
-    path25.join(androidDir, "gradle.properties"),
+  fs26.writeFileSync(
+    path27.join(androidDir, "gradle.properties"),
     `org.gradle.jvmargs=-Xmx2048m
 android.useAndroidX=true
 kotlin.code.style=official
 `
   );
-  fs24.writeFileSync(path25.join(libDir, "build.gradle.kts"), libBuildContent);
-  fs24.writeFileSync(
-    path25.join(libSrcMain, "AndroidManifest.xml"),
+  fs26.writeFileSync(path27.join(libDir, "build.gradle.kts"), libBuildContent);
+  fs26.writeFileSync(
+    path27.join(libSrcMain, "AndroidManifest.xml"),
     '<?xml version="1.0" encoding="utf-8"?>\n<manifest />'
   );
-  fs24.copyFileSync(lynxBundlePath, path25.join(assetsDir, lynxBundleFile));
-  fs24.writeFileSync(path25.join(kotlinDir, "LynxEmbeddable.kt"), LYNX_EMBEDDABLE_KT);
-  fs24.writeFileSync(
-    path25.join(generatedDir, "GeneratedLynxExtensions.kt"),
+  fs26.copyFileSync(lynxBundlePath, path27.join(assetsDir, lynxBundleFile));
+  fs26.writeFileSync(path27.join(kotlinDir, "LynxEmbeddable.kt"), LYNX_EMBEDDABLE_KT);
+  fs26.writeFileSync(
+    path27.join(generatedDir, "GeneratedLynxExtensions.kt"),
     generateLynxExtensionsKotlin(modules, LIB_PACKAGE)
   );
-  fs24.writeFileSync(
-    path25.join(generatedDir, "GeneratedActivityLifecycle.kt"),
+  fs26.writeFileSync(
+    path27.join(generatedDir, "GeneratedActivityLifecycle.kt"),
     generateActivityLifecycleKotlin(modules, LIB_PACKAGE)
   );
 }
@@ -6296,20 +6398,20 @@ async function buildEmbeddable(opts = {}) {
   const { lynxProjectDir, lynxBundlePath, lynxBundleFile, projectRoot, config } = resolved;
   console.log("\u{1F4E6} Building Lynx project (release)...");
   execSync9("npm run build", { stdio: "inherit", cwd: lynxProjectDir });
-  if (!fs24.existsSync(lynxBundlePath)) {
+  if (!fs26.existsSync(lynxBundlePath)) {
     console.error(`\u274C Bundle not found at ${lynxBundlePath}`);
     process.exit(1);
   }
-  const outDir = path25.join(projectRoot, EMBEDDABLE_DIR);
-  fs24.mkdirSync(outDir, { recursive: true });
-  const distDir = path25.dirname(lynxBundlePath);
+  const outDir = path27.join(projectRoot, EMBEDDABLE_DIR);
+  fs26.mkdirSync(outDir, { recursive: true });
+  const distDir = path27.dirname(lynxBundlePath);
   copyDistAssets(distDir, outDir, lynxBundleFile);
   const modules = discoverModules(projectRoot);
   const androidModules = modules.filter((m) => m.config.android);
   const abiFilters = resolveAbiFilters(config);
-  const androidDir = path25.join(outDir, "android");
-  if (fs24.existsSync(androidDir)) fs24.rmSync(androidDir, { recursive: true });
-  fs24.mkdirSync(androidDir, { recursive: true });
+  const androidDir = path27.join(outDir, "android");
+  if (fs26.existsSync(androidDir)) fs26.rmSync(androidDir, { recursive: true });
+  fs26.mkdirSync(androidDir, { recursive: true });
   generateAndroidLibrary(
     outDir,
     androidDir,
@@ -6319,23 +6421,23 @@ async function buildEmbeddable(opts = {}) {
     modules,
     abiFilters
   );
-  const gradlewPath = path25.join(androidDir, "gradlew");
+  const gradlewPath = path27.join(androidDir, "gradlew");
   const devAppDir = findDevAppPackage(projectRoot);
   const existingGradleDirs = [
-    path25.join(projectRoot, "android"),
-    devAppDir ? path25.join(devAppDir, "android") : null
+    path27.join(projectRoot, "android"),
+    devAppDir ? path27.join(devAppDir, "android") : null
   ].filter(Boolean);
   let hasWrapper = false;
   for (const d of existingGradleDirs) {
-    if (fs24.existsSync(path25.join(d, "gradlew"))) {
+    if (fs26.existsSync(path27.join(d, "gradlew"))) {
       for (const name of ["gradlew", "gradlew.bat", "gradle"]) {
-        const src = path25.join(d, name);
-        if (fs24.existsSync(src)) {
-          const dest = path25.join(androidDir, name);
-          if (fs24.statSync(src).isDirectory()) {
-            fs24.cpSync(src, dest, { recursive: true });
+        const src = path27.join(d, name);
+        if (fs26.existsSync(src)) {
+          const dest = path27.join(androidDir, name);
+          if (fs26.statSync(src).isDirectory()) {
+            fs26.cpSync(src, dest, { recursive: true });
           } else {
-            fs24.copyFileSync(src, dest);
+            fs26.copyFileSync(src, dest);
           }
         }
       }
@@ -6354,10 +6456,10 @@ async function buildEmbeddable(opts = {}) {
     console.error("\u274C Android AAR build failed. Run manually: cd embeddable/android && ./gradlew :lib:assembleRelease");
     throw e;
   }
-  const aarSrc = path25.join(androidDir, "lib", "build", "outputs", "aar", "lib-release.aar");
-  const aarDest = path25.join(outDir, "tamer-embeddable.aar");
-  if (fs24.existsSync(aarSrc)) {
-    fs24.copyFileSync(aarSrc, aarDest);
+  const aarSrc = path27.join(androidDir, "lib", "build", "outputs", "aar", "lib-release.aar");
+  const aarDest = path27.join(outDir, "tamer-embeddable.aar");
+  if (fs26.existsSync(aarSrc)) {
+    fs26.copyFileSync(aarSrc, aarDest);
     console.log(`   - tamer-embeddable.aar`);
   }
   const snippetAndroid = `// Add to your app's build.gradle:
@@ -6368,7 +6470,7 @@ async function buildEmbeddable(opts = {}) {
 // LynxEmbeddable.init(applicationContext)
 // val lynxView = LynxEmbeddable.buildLynxView(containerViewGroup)
 `;
-  fs24.writeFileSync(path25.join(outDir, "snippet-android.kt"), snippetAndroid);
+  fs26.writeFileSync(path27.join(outDir, "snippet-android.kt"), snippetAndroid);
   generateIosPod(outDir, projectRoot, lynxBundlePath, lynxBundleFile, modules);
   const readme = `# Embeddable Lynx Bundle
 
@@ -6399,7 +6501,7 @@ Add the \`Podfile.snippet\` entries to your Podfile (inside your app target), th
 
 - [Embedding LynxView](https://lynxjs.org/guide/embed-lynx-to-native)
 `;
-  fs24.writeFileSync(path25.join(outDir, "README.md"), readme);
+  fs26.writeFileSync(path27.join(outDir, "README.md"), readme);
   console.log(`
 \u2705 Embeddable output at ${outDir}/`);
   console.log("   - main.lynx.bundle");
@@ -6411,20 +6513,20 @@ Add the \`Podfile.snippet\` entries to your Podfile (inside your app target), th
   console.log("   - README.md");
 }
 function generateIosPod(outDir, projectRoot, lynxBundlePath, lynxBundleFile, modules) {
-  const iosDir = path25.join(outDir, "ios");
-  const podDir = path25.join(iosDir, "TamerEmbeddable");
-  const resourcesDir = path25.join(podDir, "Resources");
-  fs24.mkdirSync(resourcesDir, { recursive: true });
-  fs24.copyFileSync(lynxBundlePath, path25.join(resourcesDir, lynxBundleFile));
+  const iosDir = path27.join(outDir, "ios");
+  const podDir = path27.join(iosDir, "TamerEmbeddable");
+  const resourcesDir = path27.join(podDir, "Resources");
+  fs26.mkdirSync(resourcesDir, { recursive: true });
+  fs26.copyFileSync(lynxBundlePath, path27.join(resourcesDir, lynxBundleFile));
   const iosModules = modules.filter((m) => m.config.ios);
   const podDeps = iosModules.map((p) => {
     const podspecPath = p.config.ios?.podspecPath || ".";
-    const podspecDir = path25.join(p.packagePath, podspecPath);
-    if (!fs24.existsSync(podspecDir)) return null;
-    const files = fs24.readdirSync(podspecDir);
+    const podspecDir = path27.join(p.packagePath, podspecPath);
+    if (!fs26.existsSync(podspecDir)) return null;
+    const files = fs26.readdirSync(podspecDir);
     const podspecFile = files.find((f) => f.endsWith(".podspec"));
     const podName = podspecFile ? podspecFile.replace(".podspec", "") : p.name.split("/").pop().replace(/-/g, "");
-    const absPath = path25.resolve(podspecDir);
+    const absPath = path27.resolve(podspecDir);
     return { podName, absPath };
   }).filter(Boolean);
   const podDepLines = podDeps.map((d) => `  s.dependency '${d.podName}'`).join("\n");
@@ -6464,9 +6566,9 @@ end
   });
   const swiftImports = iosModules.map((p) => {
     const podspecPath = p.config.ios?.podspecPath || ".";
-    const podspecDir = path25.join(p.packagePath, podspecPath);
-    if (!fs24.existsSync(podspecDir)) return null;
-    const files = fs24.readdirSync(podspecDir);
+    const podspecDir = path27.join(p.packagePath, podspecPath);
+    if (!fs26.existsSync(podspecDir)) return null;
+    const files = fs26.readdirSync(podspecDir);
     const podspecFile = files.find((f) => f.endsWith(".podspec"));
     return podspecFile ? podspecFile.replace(".podspec", "") : null;
   }).filter(Boolean);
@@ -6485,17 +6587,17 @@ ${regBlock}
     }
 }
 `;
-  fs24.writeFileSync(path25.join(iosDir, "TamerEmbeddable.podspec"), podspecContent);
-  fs24.writeFileSync(path25.join(podDir, "LynxEmbeddable.swift"), lynxEmbeddableSwift);
-  const absIosDir = path25.resolve(iosDir);
+  fs26.writeFileSync(path27.join(iosDir, "TamerEmbeddable.podspec"), podspecContent);
+  fs26.writeFileSync(path27.join(podDir, "LynxEmbeddable.swift"), lynxEmbeddableSwift);
+  const absIosDir = path27.resolve(iosDir);
   const podfileSnippet = `# Paste into your app target in Podfile:
 
 pod 'TamerEmbeddable', :path => '${absIosDir}'
 ${podDeps.map((d) => `pod '${d.podName}', :path => '${d.absPath}'`).join("\n")}
 `;
-  fs24.writeFileSync(path25.join(iosDir, "Podfile.snippet"), podfileSnippet);
-  fs24.writeFileSync(
-    path25.join(outDir, "snippet-ios.swift"),
+  fs26.writeFileSync(path27.join(iosDir, "Podfile.snippet"), podfileSnippet);
+  fs26.writeFileSync(
+    path27.join(outDir, "snippet-ios.swift"),
     `// Add LynxEmbeddable.initEnvironment() in your AppDelegate/SceneDelegate before presenting LynxView.
 // Then create LynxView with your bundle URL (main.lynx.bundle is in the pod resources).
 `
@@ -6503,8 +6605,8 @@ ${podDeps.map((d) => `pod '${d.podName}', :path => '${d.absPath}'`).join("\n")}
 }
 
 // src/common/add.ts
-import fs25 from "fs";
-import path26 from "path";
+import fs27 from "fs";
+import path28 from "path";
 import { execFile, execSync as execSync10 } from "child_process";
 import { promisify } from "util";
 import semver from "semver";
@@ -6555,9 +6657,9 @@ async function normalizeTamerInstallSpec(pkg) {
   return `${pkg}@prerelease`;
 }
 function detectPackageManager2(cwd) {
-  const dir = path26.resolve(cwd);
-  if (fs25.existsSync(path26.join(dir, "pnpm-lock.yaml"))) return "pnpm";
-  if (fs25.existsSync(path26.join(dir, "bun.lockb"))) return "bun";
+  const dir = path28.resolve(cwd);
+  if (fs27.existsSync(path28.join(dir, "pnpm-lock.yaml"))) return "pnpm";
+  if (fs27.existsSync(path28.join(dir, "bun.lockb"))) return "bun";
   return "npm";
 }
 function runInstall(cwd, packages, pm) {
@@ -6609,13 +6711,13 @@ async function add(packages = []) {
 // src/common/signing.tsx
 import { useState as useState6, useEffect as useEffect4, useRef as useRef2 } from "react";
 import { render as render3, Text as Text10, Box as Box9 } from "ink";
-import fs28 from "fs";
-import path29 from "path";
+import fs30 from "fs";
+import path31 from "path";
 
 // src/common/androidKeystore.ts
 import { execFileSync } from "child_process";
-import fs26 from "fs";
-import path27 from "path";
+import fs28 from "fs";
+import path29 from "path";
 function normalizeJavaHome(raw) {
   if (!raw) return void 0;
   const t = raw.trim().replace(/^["']|["']$/g, "");
@@ -6628,7 +6730,7 @@ function discoverJavaHomeMacOs() {
       encoding: "utf8",
       stdio: ["pipe", "pipe", "pipe"]
     }).trim().split("\n")[0]?.trim();
-    if (out && fs26.existsSync(path27.join(out, "bin", "keytool"))) return out;
+    if (out && fs28.existsSync(path29.join(out, "bin", "keytool"))) return out;
   } catch {
   }
   return void 0;
@@ -6638,13 +6740,13 @@ function resolveKeytoolPath() {
   const win = process.platform === "win32";
   const keytoolName = win ? "keytool.exe" : "keytool";
   if (jh) {
-    const p = path27.join(jh, "bin", keytoolName);
-    if (fs26.existsSync(p)) return p;
+    const p = path29.join(jh, "bin", keytoolName);
+    if (fs28.existsSync(p)) return p;
   }
   const mac = discoverJavaHomeMacOs();
   if (mac) {
-    const p = path27.join(mac, "bin", keytoolName);
-    if (fs26.existsSync(p)) return p;
+    const p = path29.join(mac, "bin", keytoolName);
+    if (fs28.existsSync(p)) return p;
   }
   return "keytool";
 }
@@ -6659,16 +6761,16 @@ function keytoolAvailable() {
   };
   if (tryRun("keytool")) return true;
   const fromJavaHome = resolveKeytoolPath();
-  if (fromJavaHome !== "keytool" && fs26.existsSync(fromJavaHome)) {
+  if (fromJavaHome !== "keytool" && fs28.existsSync(fromJavaHome)) {
     return tryRun(fromJavaHome);
   }
   return false;
 }
 function generateReleaseKeystore(opts) {
   const keytool = resolveKeytoolPath();
-  const dir = path27.dirname(opts.keystoreAbsPath);
-  fs26.mkdirSync(dir, { recursive: true });
-  if (fs26.existsSync(opts.keystoreAbsPath)) {
+  const dir = path29.dirname(opts.keystoreAbsPath);
+  fs28.mkdirSync(dir, { recursive: true });
+  if (fs28.existsSync(opts.keystoreAbsPath)) {
     throw new Error(`Keystore already exists: ${opts.keystoreAbsPath}`);
   }
   if (!opts.storePassword || !opts.keyPassword) {
@@ -6706,13 +6808,13 @@ function generateReleaseKeystore(opts) {
 }
 
 // src/common/appendEnvFile.ts
-import fs27 from "fs";
-import path28 from "path";
-import { parse } from "dotenv";
+import fs29 from "fs";
+import path30 from "path";
+import { parse as parse2 } from "dotenv";
 function keysDefinedInFile(filePath) {
-  if (!fs27.existsSync(filePath)) return /* @__PURE__ */ new Set();
+  if (!fs29.existsSync(filePath)) return /* @__PURE__ */ new Set();
   try {
-    return new Set(Object.keys(parse(fs27.readFileSync(filePath, "utf8"))));
+    return new Set(Object.keys(parse2(fs29.readFileSync(filePath, "utf8"))));
   } catch {
     return /* @__PURE__ */ new Set();
   }
@@ -6727,11 +6829,11 @@ function formatEnvLine(key, value) {
 function appendEnvVarsIfMissing(projectRoot, vars) {
   const entries = Object.entries(vars).filter(([, v]) => v !== void 0 && v !== "");
   if (entries.length === 0) return null;
-  const envLocal = path28.join(projectRoot, ".env.local");
-  const envDefault = path28.join(projectRoot, ".env");
+  const envLocal = path30.join(projectRoot, ".env.local");
+  const envDefault = path30.join(projectRoot, ".env");
   let target;
-  if (fs27.existsSync(envLocal)) target = envLocal;
-  else if (fs27.existsSync(envDefault)) target = envDefault;
+  if (fs29.existsSync(envLocal)) target = envLocal;
+  else if (fs29.existsSync(envDefault)) target = envDefault;
   else target = envLocal;
   const existing = keysDefinedInFile(target);
   const lines = [];
@@ -6743,20 +6845,20 @@ function appendEnvVarsIfMissing(projectRoot, vars) {
   }
   if (lines.length === 0) {
     return {
-      file: path28.basename(target),
+      file: path30.basename(target),
       keys: [],
       skippedAll: entries.length > 0
     };
   }
   let prefix = "";
-  if (fs27.existsSync(target)) {
-    const cur = fs27.readFileSync(target, "utf8");
+  if (fs29.existsSync(target)) {
+    const cur = fs29.readFileSync(target, "utf8");
     prefix = cur.length === 0 ? "" : cur.endsWith("\n") ? cur : `${cur}
 `;
   }
   const block = lines.join("\n") + "\n";
-  fs27.writeFileSync(target, prefix + block, "utf8");
-  return { file: path28.basename(target), keys: appendedKeys };
+  fs29.writeFileSync(target, prefix + block, "utf8");
+  return { file: path30.basename(target), keys: appendedKeys };
 }
 
 // src/common/signing.tsx
@@ -6862,7 +6964,7 @@ function SigningWizard({ platform: initialPlatform }) {
       try {
         const resolved = resolveHostPaths();
         const rel = state.android.genKeystorePath.trim() || "android/release.keystore";
-        abs = path29.isAbsolute(rel) ? rel : path29.join(resolved.projectRoot, rel);
+        abs = path31.isAbsolute(rel) ? rel : path31.join(resolved.projectRoot, rel);
         const alias = state.android.keyAlias.trim() || "release";
         const pw = state.android.genPassword;
         const pkg = resolved.config.android?.packageName ?? "com.example.app";
@@ -6889,7 +6991,7 @@ function SigningWizard({ platform: initialPlatform }) {
         }));
       } catch (e) {
         const msg = e.message;
-        if (abs && fs28.existsSync(abs) && (msg.includes("already exists") || msg.includes("Keystore already exists"))) {
+        if (abs && fs30.existsSync(abs) && (msg.includes("already exists") || msg.includes("Keystore already exists"))) {
           if (cancelled || runId !== generateRunId.current) return;
           const rel = state.android.genKeystorePath.trim() || "android/release.keystore";
           const alias = state.android.keyAlias.trim() || "release";
@@ -6929,11 +7031,11 @@ function SigningWizard({ platform: initialPlatform }) {
   const saveConfig = async () => {
     try {
       const resolved = resolveHostPaths();
-      const configPath = path29.join(resolved.projectRoot, "tamer.config.json");
+      const configPath = path31.join(resolved.projectRoot, "tamer.config.json");
       let config = {};
       let androidEnvAppend = null;
-      if (fs28.existsSync(configPath)) {
-        config = JSON.parse(fs28.readFileSync(configPath, "utf8"));
+      if (fs30.existsSync(configPath)) {
+        config = JSON.parse(fs30.readFileSync(configPath, "utf8"));
       }
       if (state.platform === "android" || state.platform === "both") {
         config.android = config.android || {};
@@ -6960,10 +7062,10 @@ function SigningWizard({ platform: initialPlatform }) {
           ...state.ios.provisioningProfileSpecifier && { provisioningProfileSpecifier: state.ios.provisioningProfileSpecifier }
         };
       }
-      fs28.writeFileSync(configPath, JSON.stringify(config, null, 2));
-      const gitignorePath = path29.join(resolved.projectRoot, ".gitignore");
-      if (fs28.existsSync(gitignorePath)) {
-        let gitignore = fs28.readFileSync(gitignorePath, "utf8");
+      fs30.writeFileSync(configPath, JSON.stringify(config, null, 2));
+      const gitignorePath = path31.join(resolved.projectRoot, ".gitignore");
+      if (fs30.existsSync(gitignorePath)) {
+        let gitignore = fs30.readFileSync(gitignorePath, "utf8");
         const additions = [
           ".env.local",
           "*.jks",
@@ -6976,7 +7078,7 @@ ${addition}
 `;
           }
         }
-        fs28.writeFileSync(gitignorePath, gitignore);
+        fs30.writeFileSync(gitignorePath, gitignore);
       }
       setState((s) => ({
         ...s,
@@ -7234,13 +7336,13 @@ async function signing(platform) {
 }
 
 // src/common/productionSigning.ts
-import fs29 from "fs";
-import path30 from "path";
+import fs31 from "fs";
+import path32 from "path";
 function isAndroidSigningConfigured(resolved) {
   const signing2 = resolved.config.android?.signing;
   const hasConfig = Boolean(signing2?.keystoreFile?.trim() && signing2?.keyAlias?.trim());
-  const signingProps = path30.join(resolved.androidDir, "signing.properties");
-  const hasProps = fs29.existsSync(signingProps);
+  const signingProps = path32.join(resolved.androidDir, "signing.properties");
+  const hasProps = fs31.existsSync(signingProps);
   return hasConfig || hasProps;
 }
 function isIosSigningConfigured(resolved) {
@@ -7270,6 +7372,7 @@ function assertProductionSigningReady(filter) {
 }
 
 // index.ts
+loadProjectEnv();
 var version = getCliVersion();
 function validateBuildMode(debug, release, production) {
   const modes = [debug, release, production].filter(Boolean).length;
@@ -7309,10 +7412,10 @@ program.command("create <target>").description("Create a project or extension. T
   console.error(`Invalid create target: ${target}. Use ios | android | module | element | service | combo`);
   process.exit(1);
 });
-program.command("build [platform]").description("Build app. Platform: ios | android (default: both)").option("-e, --embeddable", "Output embeddable bundle + code for existing apps. Use with --release.").option("-d, --debug", "Debug build with dev client embedded (default)").option("-r, --release", "Release build without dev client (unsigned)").option("-p, --production", "Production build for app store (signed)").option(
+program.command("build [platform]").description("Build app. Platform: ios | android (default: both)").option("-e, --embeddable", "Output embeddable bundle + code for existing apps (release-style; no separate --release needed).").option("-d, --debug", "Debug build with dev client embedded (default)").option("-r, --release", "Release build without dev client (unsigned)").option("-p, --production", "Production build for app store (signed)").option(
   "-i, --install",
   "Install after build (iOS: simulator with -d; connected device with -p)"
-).action(async (platform, opts) => {
+).option("-C, --clean", "Run Gradle clean before Android build (fixes stubborn caches)").action(async (platform, opts) => {
   validateBuildMode(opts.debug, opts.release, opts.production);
   const release = opts.release === true || opts.production === true;
   const production = opts.production === true;
@@ -7325,7 +7428,7 @@ program.command("build [platform]").description("Build app. Platform: ios | andr
     assertProductionSigningReady(p);
   }
   if (p === "android" || p === "all") {
-    await build_default({ install: opts.install, release, production });
+    await build_default({ install: opts.install, release, production, clean: opts.clean });
   }
   if (p === "ios" || p === "all") {
     await build_default2({ install: opts.install, release, production });
@@ -7414,7 +7517,7 @@ program.command("signing [platform]").description("Configure Android and iOS sig
 program.command("codegen").description("Generate code from @lynxmodule declarations").action(() => {
   codegen_default();
 });
-program.command("android <subcommand>").description("(Legacy) Use: t4l <command> android. e.g. t4l create android").option("-d, --debug", "Create: host project. Bundle/build: debug with dev client.").option("-r, --release", "Create: dev-app project. Bundle/build: release without dev client.").option("-p, --production", "Bundle/build: production for app store (signed)").option("-i, --install", "Install after build").option("-e, --embeddable", "Build embeddable").option("-f, --force", "Force (inject)").action(async (subcommand, opts) => {
+program.command("android <subcommand>").description("(Legacy) Use: t4l <command> android. e.g. t4l create android").option("-d, --debug", "Create: host project. Bundle/build: debug with dev client.").option("-r, --release", "Create: dev-app project. Bundle/build: release without dev client.").option("-p, --production", "Bundle/build: production for app store (signed)").option("-i, --install", "Install after build").option("-C, --clean", "Run Gradle clean before Android build").option("-e, --embeddable", "Build embeddable").option("-f, --force", "Force (inject)").action(async (subcommand, opts) => {
   const sub = subcommand?.toLowerCase();
   if (sub === "create") {
     if (opts.debug && opts.release) {
@@ -7440,7 +7543,12 @@ program.command("android <subcommand>").description("(Legacy) Use: t4l <command>
     if (opts.embeddable) await buildEmbeddable({ release: true });
     else {
       if (opts.production === true) assertProductionSigningReady("android");
-      await build_default({ install: opts.install, release, production: opts.production === true });
+      await build_default({
+        install: opts.install,
+        release,
+        production: opts.production === true,
+        clean: opts.clean
+      });
     }
     return;
   }
@@ -7489,10 +7597,10 @@ program.command("ios <subcommand>").description("(Legacy) Use: t4l <command> ios
   process.exit(1);
 });
 program.command("autolink-toggle").alias("autolink").description("Toggle autolink on/off in tamer.config.json (controls postinstall linking)").action(async () => {
-  const configPath = path31.join(process.cwd(), "tamer.config.json");
+  const configPath = path33.join(process.cwd(), "tamer.config.json");
   let config = {};
-  if (fs30.existsSync(configPath)) {
-    config = JSON.parse(fs30.readFileSync(configPath, "utf8"));
+  if (fs32.existsSync(configPath)) {
+    config = JSON.parse(fs32.readFileSync(configPath, "utf8"));
   }
   if (config.autolink) {
     delete config.autolink;
@@ -7501,7 +7609,7 @@ program.command("autolink-toggle").alias("autolink").description("Toggle autolin
     config.autolink = true;
     console.log("Autolink enabled in tamer.config.json");
   }
-  fs30.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  fs32.writeFileSync(configPath, JSON.stringify(config, null, 2));
   console.log(`Updated ${configPath}`);
 });
 if (process.argv.length <= 2 || process.argv.length === 3 && process.argv[2] === "init") {

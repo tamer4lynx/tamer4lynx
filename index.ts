@@ -7,6 +7,9 @@ import path from 'path';
 import { program } from 'commander';
 
 import { getCliVersion } from './src/common/cliVersion.ts';
+import { loadProjectEnv } from './src/common/loadProjectEnv.ts';
+
+loadProjectEnv();
 
 const version = getCliVersion();
 
@@ -89,7 +92,7 @@ program
 program
     .command('build [platform]')
     .description('Build app. Platform: ios | android (default: both)')
-    .option('-e, --embeddable', 'Output embeddable bundle + code for existing apps. Use with --release.')
+    .option('-e, --embeddable', 'Output embeddable bundle + code for existing apps (release-style; no separate --release needed).')
     .option('-d, --debug', 'Debug build with dev client embedded (default)')
     .option('-r, --release', 'Release build without dev client (unsigned)')
     .option('-p, --production', 'Production build for app store (signed)')
