@@ -232,13 +232,21 @@ import okhttp3.WebSocketListener
 
 class DevClientManager(private val context: Context, private val onReload: Runnable) {
     private var webSocket: WebSocket? = null
+    private var shouldReconnect = false
     private val handler = Handler(Looper.getMainLooper())
+    private val reconnectDelayMs = 3000L
     private val client = OkHttpClient.Builder()
         .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(0, java.util.concurrent.TimeUnit.SECONDS)
         .build()
 
     fun connect() {
+        shouldReconnect = true
+        connectInternal()
+    }
+
+    private fun connectInternal() {
+        if (webSocket != null) return
         val devUrl = DevServerPrefs.getUrl(context) ?: return
         val uri = Uri.parse(devUrl)
         val scheme = if (uri.scheme == "https") "wss" else "ws"
@@ -257,12 +265,29 @@ class DevClientManager(private val context: Context, private val onReload: Runna
                     }
                 } catch (_: Exception) { }
             }
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) { }
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) { }
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                clearSocket()
+                scheduleReconnect()
+            }
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                clearSocket()
+                scheduleReconnect()
+            }
         })
     }
 
+    private fun clearSocket() {
+        webSocket = null
+    }
+
+    private fun scheduleReconnect() {
+        if (!shouldReconnect) return
+        handler.postDelayed({ connectInternal() }, reconnectDelayMs)
+    }
+
     fun disconnect() {
+        shouldReconnect = false
+        handler.removeCallbacksAndMessages(null)
         webSocket?.close(1000, null)
         webSocket = null
     }

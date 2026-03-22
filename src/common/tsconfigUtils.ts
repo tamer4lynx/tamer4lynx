@@ -114,15 +114,76 @@ export function fixTsconfigReferencesForBuild(tsconfigPath: string): boolean {
 	return true;
 }
 
-export function addTamerTypesInclude(tsconfigPath: string, tamerTypesInclude: string): boolean {
+const OLD_TAMER_GLOB_PATTERNS = [
+	"node_modules/@tamer4lynx/tamer-*/src/**/*.d.ts",
+	"node_modules/@tamer4lynx/tamer-*/**/*.d.ts",
+];
+
+const TAMER_COMPONENTS_MARKERS = [".tamer/tamer-components.d.ts", "../.tamer/tamer-components.d.ts"];
+
+/** Paths relative to project root: lynx/tsconfig.json, optional lynx/src/tsconfig.json, src/tsconfig.json, root tsconfig.json. */
+export function findTsconfigCandidates(projectRoot: string, lynxProjectRelative?: string): string[] {
+	const out: string[] = [];
+	if (lynxProjectRelative?.trim()) {
+		const lp = lynxProjectRelative.trim();
+		out.push(path.join(projectRoot, lp, "tsconfig.json"));
+		const lynxSrc = path.join(projectRoot, lp, "src", "tsconfig.json");
+		if (fs.existsSync(lynxSrc)) out.push(lynxSrc);
+	}
+	const rootSrc = path.join(projectRoot, "src", "tsconfig.json");
+	if (fs.existsSync(rootSrc)) out.push(rootSrc);
+	out.push(path.join(projectRoot, "tsconfig.json"));
+	return [...new Set(out)];
+}
+
+function normalizeIncludePathForCompare(p: string): string {
+	return p.replace(/\\/g, "/");
+}
+
+/** Remove old tamer glob includes from tsconfig. */
+export function migrateOldTamerGlobIncludes(tsconfigPath: string): boolean {
+	const tsconfig = readTsconfig(tsconfigPath);
+	if (!tsconfig?.include) return false;
+
+	const include = tsconfig.include;
+	const arr = Array.isArray(include) ? include : [include];
+	const oldSet = new Set(OLD_TAMER_GLOB_PATTERNS.map(normalizeIncludePathForCompare));
+	const next = arr.filter((p) => {
+		if (typeof p !== "string") return true;
+		const n = normalizeIncludePathForCompare(p);
+		return !oldSet.has(n);
+	});
+	if (next.length === arr.length) return false;
+
+	tsconfig.include = next;
+	fs.writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2));
+	return true;
+}
+
+/** Ensure `.tamer/tamer-components.d.ts` is in `include` (path relative to this tsconfig). */
+export function ensureTamerComponentsIncludeForProject(tsconfigPath: string, projectRoot: string): boolean {
 	const tsconfig = readTsconfig(tsconfigPath);
 	if (!tsconfig) return false;
 
-	const include = tsconfig.include ?? [];
-	const arr = Array.isArray(include) ? include : [include];
-	if (arr.some((p) => (typeof p === "string" ? p : "").includes("tamer-"))) return false;
+	const tsDir = path.dirname(path.resolve(tsconfigPath));
+	const target = path.join(projectRoot, ".tamer", "tamer-components.d.ts");
+	let rel = path.relative(tsDir, target);
+	if (!rel.startsWith(".")) {
+		rel = `./${rel}`;
+	}
+	rel = rel.split(path.sep).join("/");
 
-	arr.push(tamerTypesInclude);
+	const include = tsconfig.include ?? [];
+	const arr = Array.isArray(include) ? [...include] : [include];
+
+	const hasMarker = arr.some((p) => {
+		if (typeof p !== "string") return false;
+		const n = normalizeIncludePathForCompare(p);
+		return TAMER_COMPONENTS_MARKERS.some((m) => n.endsWith(m) || n.includes(".tamer/tamer-components.d.ts"));
+	});
+	if (hasMarker) return false;
+
+	arr.push(rel);
 	tsconfig.include = arr;
 	fs.writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2));
 	return true;

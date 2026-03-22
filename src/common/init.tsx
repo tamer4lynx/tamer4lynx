@@ -1,7 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import React, { useState, useEffect, useCallback } from 'react';
-import { fixTsconfigReferencesForBuild, addTamerTypesInclude } from './tsconfigUtils';
+import { fixTsconfigReferencesForBuild } from './tsconfigUtils';
+import { runTamerComponentTypesPipeline } from './syncTamerComponentTypes';
 import { render, Text, Box } from 'ink';
 import {
   Wizard,
@@ -68,6 +69,7 @@ function InitWizard() {
         bundleId: iosBundleId || undefined,
       },
       paths: { androidDir: 'android', iosDir: 'ios' },
+      syncTamerComponentTypes: true,
     };
     if (lynxProject.trim()) config.lynxProject = lynxProject.trim();
 
@@ -75,7 +77,6 @@ function InitWizard() {
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
     const lines = [`Generated tamer.config.json at ${configPath}`];
 
-    const tamerTypesInclude = 'node_modules/@tamer4lynx/tamer-*/src/**/*.d.ts';
     const tsconfigCandidates = lynxProject.trim()
       ? [
           path.join(process.cwd(), lynxProject.trim(), 'tsconfig.json'),
@@ -89,13 +90,17 @@ function InitWizard() {
         if (fixTsconfigReferencesForBuild(tsconfigPath)) {
           lines.push(`Flattened ${path.relative(process.cwd(), tsconfigPath)} (fixed TS6310)`);
         }
-        if (addTamerTypesInclude(tsconfigPath, tamerTypesInclude)) {
-          lines.push(`Updated ${path.relative(process.cwd(), tsconfigPath)} for tamer types`);
-        }
         break;
       } catch (e) {
         lines.push(`Could not update ${tsconfigPath}: ${(e as Error).message}`);
       }
+    }
+
+    try {
+      runTamerComponentTypesPipeline(process.cwd());
+      lines.push('Generated .tamer/tamer-components.d.ts and updated tsconfig include (when applicable)');
+    } catch (e) {
+      lines.push(`Could not sync tamer component types: ${(e as Error).message}`);
     }
 
     setDoneMessage(lines);

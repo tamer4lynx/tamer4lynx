@@ -2,28 +2,45 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "jsxImportSource": "@lynx-js/react",
-
     "module": "node18",
     "moduleResolution": "node16",
-
     "strict": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
-
     "esModuleInterop": true,
     "skipLibCheck": true,
-
     "baseUrl": ".",
     "paths": {
-      "@tamer4lynx/tamer-router/generated-routes": ["node_modules/.tamer-router/_generated_routes.tsx"],
-      "@tamer4lynx/tamer-auth": ["../tamer-auth/src/index.ts"],
-      "@tamer4lynx/tamer-linking": ["../tamer-linking/src/index.ts"],
-      "@tamer4lynx/tamer-display-browser": ["../tamer-display-browser/src/index.ts"],
-      "@tamer4lynx/tamer-app-shell": ["../tamer-app-shell/src/index.tsx"],
-      "@tamer4lynx/tamer-screen": ["../tamer-screen/src/index.tsx"],
-      "@tamer4lynx/tamer-icons": ["../tamer-icons/src/index.tsx"]
+      "@tamer4lynx/tamer-router/generated-routes": [
+        "node_modules/.tamer-router/_generated_routes.tsx"
+      ],
+      "@tamer4lynx/tamer-auth": [
+        "../tamer-auth/src/index.ts"
+      ],
+      "@tamer4lynx/tamer-linking": [
+        "../tamer-linking/src/index.ts"
+      ],
+      "@tamer4lynx/tamer-display-browser": [
+        "../tamer-display-browser/src/index.ts"
+      ],
+      "@tamer4lynx/tamer-app-shell": [
+        "../tamer-app-shell/src/index.tsx"
+      ],
+      "@tamer4lynx/tamer-screen": [
+        "../tamer-screen/src/index.tsx"
+      ],
+      "@tamer4lynx/tamer-icons": [
+        "../tamer-icons/src/index.tsx"
+      ]
     }
   },
-  "include": ["intrinsic-element.d.ts", "src/**/*", "lynx.config.ts"],
-  "exclude": ["dist/"]
+  "include": [
+    "intrinsic-element.d.ts",
+    "src/**/*",
+    "lynx.config.ts",
+    "../../.tamer/tamer-components.d.ts"
+  ],
+  "exclude": [
+    "dist/"
+  ]
 }

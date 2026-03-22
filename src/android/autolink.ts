@@ -4,6 +4,7 @@ import { execSync } from 'child_process';
 import { discoverModules, type DiscoveredModule } from '../common/discoverModules';
 import { generateActivityLifecycleKotlin, generateLynxExtensionsKotlin } from '../common/generateExtCode';
 import { resolveHostPaths, type DeepLinkConfig } from '../common/hostConfig';
+import { runTamerComponentTypesPipeline } from '../common/syncTamerComponentTypes';
 import { invalidateTamerAndroidLibVersionMarker } from './cleanTamerAndroidCaches.ts';
 import type { NormalizedExtensionConfig } from '../common/config';
 
@@ -244,6 +245,7 @@ ${generateActivityLifecycleKotlin(packages, projectPackage)}`;
         runGradleSync();
         invalidateTamerAndroidLibVersionMarker(projectRoot);
         console.log('✨ Autolinking complete.');
+        runTamerComponentTypesPipeline(projectRoot);
     }
 
     function runGradleSync() {

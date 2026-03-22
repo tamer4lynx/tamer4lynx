@@ -375,12 +375,23 @@ class DevClientManager {
     private var webSocketTask: URLSessionWebSocketTask?
     private let onReload: () -> Void
     private var session: URLSession?
+    private var shouldReconnect = false
+    private var reconnectWorkItem: DispatchWorkItem?
+
+    private let reconnectDelay: TimeInterval = 3.0
 
     init(onReload: @escaping () -> Void) {
         self.onReload = onReload
     }
 
     func connect() {
+        shouldReconnect = true
+        openSocketIfNeeded()
+    }
+
+    private func openSocketIfNeeded() {
+        guard shouldReconnect else { return }
+        guard webSocketTask == nil else { return }
         guard let devUrl = DevServerPrefs.getUrl(), !devUrl.isEmpty else { return }
         guard let base = URL(string: devUrl) else { return }
 
@@ -408,14 +419,31 @@ class DevClientManager {
                 }
                 self.receive()
             case .failure:
-                break
+                self.handleDisconnect()
             }
         }
     }
 
-    func disconnect() {
-        webSocketTask?.cancel(with: .normalClosure, reason: nil)
+    private func handleDisconnect() {
         webSocketTask = nil
+        session?.invalidateAndCancel()
+        session = nil
+        guard shouldReconnect else { return }
+        reconnectWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.openSocketIfNeeded()
+        }
+        reconnectWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + reconnectDelay, execute: work)
+    }
+
+    func disconnect() {
+        shouldReconnect = false
+        reconnectWorkItem?.cancel()
+        reconnectWorkItem = nil
+        webSocketTask?.cancel(with: .goingAway, reason: nil)
+        webSocketTask = nil
+        session?.invalidateAndCancel()
         session = nil
     }
 }
@@ -652,42 +680,52 @@ target '${APP_NAME}' do
 end
 
 post_install do |installer|
-  installer.pods_project.targets.each do |target|
-    target.build_configurations.each do |config|
-      config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-      config.build_settings['CLANG_ENABLE_EXPLICIT_MODULES'] = 'NO'
-      config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
-      config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
-    end
-
-    if target.name == 'Lynx'
+  # generate_multiple_pod_projects => true: pods_project may be nil; use generated_projects (CocoaPods 1.8+).
+  pod_xcode_projects = if installer.pods_project
+    [installer.pods_project]
+  elsif installer.respond_to?(:generated_projects) && !installer.generated_projects.empty?
+    installer.generated_projects
+  else
+    []
+  end
+  pod_xcode_projects.each do |project|
+    project.targets.each do |target|
       target.build_configurations.each do |config|
-        flags = [
-          '-Wno-vla-extension',
-          '-Wno-vla',
-          '-Wno-error=vla-extension',
-          '-Wno-deprecated-declarations',
-          '-Wno-deprecated',
-          '-Wno-deprecated-implementations',
-          '-Wno-macro-redefined',
-          '-Wno-enum-compare',
-          '-Wno-enum-compare-conditional',
-          '-Wno-enum-conversion',
-          '-Wno-error'
-        ].join(' ')
-
-        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) #{flags}"
-        config.build_settings['OTHER_CFLAGS'] = "$(inherited) #{flags}"
-        config.build_settings['CLANG_WARN_VLA'] = 'NO'
-        config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
-        config.build_settings['CLANG_WARN_ENUM_CONVERSION'] = 'NO'
+        config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+        config.build_settings['CLANG_ENABLE_EXPLICIT_MODULES'] = 'NO'
+        config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
+        config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
       end
-    end
-    if target.name == 'PrimJS'
-      target.build_configurations.each do |config|
-        config.build_settings['OTHER_CFLAGS'] = "$(inherited) -Wno-macro-redefined"
-        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) -Wno-macro-redefined"
+
+      if target.name == 'Lynx'
+        target.build_configurations.each do |config|
+          flags = [
+            '-Wno-vla-extension',
+            '-Wno-vla',
+            '-Wno-error=vla-extension',
+            '-Wno-deprecated-declarations',
+            '-Wno-deprecated',
+            '-Wno-deprecated-implementations',
+            '-Wno-macro-redefined',
+            '-Wno-enum-compare',
+            '-Wno-enum-compare-conditional',
+            '-Wno-enum-conversion',
+            '-Wno-error'
+          ].join(' ')
+
+          config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) #{flags}"
+          config.build_settings['OTHER_CFLAGS'] = "$(inherited) #{flags}"
+          config.build_settings['CLANG_WARN_VLA'] = 'NO'
+          config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
+          config.build_settings['CLANG_WARN_ENUM_CONVERSION'] = 'NO'
+        end
+      end
+      if target.name == 'PrimJS'
+        target.build_configurations.each do |config|
+          config.build_settings['OTHER_CFLAGS'] = "$(inherited) -Wno-macro-redefined"
+          config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) -Wno-macro-redefined"
+        end
       end
     end
   end

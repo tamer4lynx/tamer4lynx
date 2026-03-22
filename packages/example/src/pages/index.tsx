@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from '@lynx-js/react'
 import { useTamerRouter } from '@tamer4lynx/tamer-router'
-import { Icon } from '@tamer4lynx/tamer-icons'
+import '@tamer4lynx/tamer-icons'
 
 import '../App.css'
 import lynxLogo from '../assets/lynx-logo.png'
@@ -74,9 +74,9 @@ export default function Home() {
             <text className="ButtonText">Storage</text>
           </view>
           <view className="Button" style={{ flex: "45%", display: 'flex', backgroundColor: '#dd7777', flexDirection: 'row', gap: 16, justifyContent: 'center', alignItems: 'center' }}>
-            <Icon name="search" set="material" size={20} color="#ffffff" />
-            <Icon name="home" set="material" size={20} color="#fff" />
-            <Icon name="heart" set="fontawesome" size={20} color="#000" />
+            <icon icon="search" set="material" size={20} iconColor="#ffffff" style={{ width: '20px', height: '20px' }} />
+            <icon icon="home" set="material" size={20} iconColor="#fff" style={{ width: '20px', height: '20px' }} />
+            <icon icon="heart" set="fontawesome" size={20} iconColor="#000" style={{ width: '20px', height: '20px' }} />
           </view>
         </view>
       </view>

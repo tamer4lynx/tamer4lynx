@@ -32,6 +32,12 @@ function parsePlatform(value: string): 'ios' | 'android' | 'all' | null {
     return null;
 }
 
+function parseBuildPlatform(value: string | undefined): 'ios' | 'android' | null {
+    const p = value?.toLowerCase()?.trim();
+    if (p === 'ios' || p === 'android') return p;
+    return null;
+}
+
 import android_create from './src/android/create';
 import android_autolink from './src/android/autolink';
 import android_bundle from './src/android/bundle';
@@ -90,34 +96,75 @@ program
     });
 
 program
-    .command('build [platform]')
-    .description('Build app. Platform: ios | android (default: both)')
+    .command('build <platform>')
+    .description('Build app. Platform: ios | android (required; one at a time)')
     .option('-e, --embeddable', 'Output embeddable bundle + code for existing apps (release-style; no separate --release needed).')
     .option('-d, --debug', 'Debug build with dev client embedded (default)')
     .option('-r, --release', 'Release build without dev client (unsigned)')
     .option('-p, --production', 'Production build for app store (signed)')
     .option(
         '-i, --install',
-        'Install after build (iOS: simulator with -d; connected device with -p)',
+        'Install after build (iOS: simulator with -d; physical device only with -p, never simulator)',
+    )
+    .option('--ipa', 'iOS only: after production build, archive and export a signed IPA')
+    .option(
+        '--mac',
+        'iOS only: after build, convert Mach-O for Mac Catalyst (vtool) and run on Apple Silicon like PlayCover',
     )
     .option('-C, --clean', 'Run Gradle clean before Android build (fixes stubborn caches)')
-    .action(async (platform: string | undefined, opts) => {
+    .action(async (platform: string, opts) => {
         validateBuildMode(opts.debug, opts.release, opts.production);
         const release = opts.release === true || opts.production === true;
         const production = opts.production === true;
         if (opts.embeddable) {
+            const ep = parseBuildPlatform(platform);
+            if (!ep) {
+                console.error('Embeddable build requires a platform: t4l build android --embeddable');
+                process.exit(1);
+            }
+            if (ep !== 'android') {
+                console.error('Embeddable output is only supported for Android. Use: t4l build android --embeddable');
+                process.exit(1);
+            }
             await buildEmbeddable({ release: true });
             return;
         }
-        const p = parsePlatform(platform ?? 'all') ?? 'all';
+        const p = parseBuildPlatform(platform);
+        if (!p) {
+            console.error(`Invalid or missing platform: "${platform ?? ''}". Use: t4l build ios | t4l build android`);
+            process.exit(1);
+        }
+        if (opts.ipa && p !== 'ios') {
+            console.error('--ipa is only valid with: t4l build ios -p');
+            process.exit(1);
+        }
+        if (opts.ipa && !production) {
+            console.error('--ipa requires production signing: add -p');
+            process.exit(1);
+        }
+        if (opts.mac && p !== 'ios') {
+            console.error('--mac is only valid with: t4l build ios');
+            process.exit(1);
+        }
+        if (opts.mac && opts.ipa) {
+            console.error(
+                '--mac cannot be combined with --ipa (IPA targets device/App Store; --mac uses Mac Catalyst / PlayCover-style conversion).',
+            );
+            process.exit(1);
+        }
         if (production) {
             assertProductionSigningReady(p);
         }
-        if (p === 'android' || p === 'all') {
+        if (p === 'android') {
             await android_build({ install: opts.install, release, production, clean: opts.clean });
-        }
-        if (p === 'ios' || p === 'all') {
-            await ios_build({ install: opts.install, release, production });
+        } else {
+            await ios_build({
+                install: opts.install,
+                release,
+                production,
+                ipa: opts.ipa === true,
+                mac: opts.mac === true,
+            });
         }
     });
 
@@ -201,9 +248,8 @@ program
     .command('build-dev-app')
     .option('-p, --platform <platform>', 'Platform: android, ios, or all (default)', 'all')
     .option('-i, --install', 'Install APK to connected device and launch app after building')
-    .description('(Deprecated) Use: t4l build android -d [--install]')
+    .description('Build with dev client embedded (same as t4l build -d)')
     .action(async (opts) => {
-        console.warn('⚠️  build-dev-app is deprecated. Use: t4l build android -d [--install]');
         const p = parsePlatform(opts.platform ?? 'all') ?? 'all';
         if (p === 'android' || p === 'all') {
             await android_build({ install: opts.install, release: false });
@@ -255,7 +301,7 @@ program
 
 program
     .command('android <subcommand>')
-    .description('(Legacy) Use: t4l <command> android. e.g. t4l create android')
+    .description('Android: create | link | bundle | build | sync | inject (alias for t4l <command> android)')
     .option('-d, --debug', 'Create: host project. Bundle/build: debug with dev client.')
     .option('-r, --release', 'Create: dev-app project. Bundle/build: release without dev client.')
     .option('-p, --production', 'Bundle/build: production for app store (signed)')
@@ -312,11 +358,13 @@ program
 
 program
     .command('ios <subcommand>')
-    .description('(Legacy) Use: t4l <command> ios. e.g. t4l create ios')
+    .description('iOS: create | link | bundle | build | sync | inject (alias for t4l <command> ios)')
     .option('-d, --debug', 'Debug (bundle/build)')
     .option('-r, --release', 'Release (bundle/build)')
     .option('-p, --production', 'Production for app store (signed)')
     .option('-i, --install', 'Install after build')
+    .option('--ipa', 'After production build, archive and export IPA')
+    .option('--mac', 'Convert Mach-O for Mac Catalyst (vtool) and run on Apple Silicon (PlayCover-style)')
     .option('-e, --embeddable', 'Build embeddable')
     .option('-f, --force', 'Force (inject)')
     .action(async (subcommand: string, opts) => {
@@ -338,10 +386,25 @@ program
         if (sub === 'build') {
             validateBuildMode(opts.debug, opts.release, opts.production);
             const release = opts.release === true || opts.production === true;
+            const production = opts.production === true;
             if (opts.embeddable) await buildEmbeddable({ release: true });
             else {
-                if (opts.production === true) assertProductionSigningReady('ios');
-                await ios_build({ install: opts.install, release, production: opts.production === true });
+                if (opts.ipa && !production) {
+                    console.error('--ipa requires production signing: add -p');
+                    process.exit(1);
+                }
+                if (opts.mac && opts.ipa) {
+                    console.error('--mac cannot be combined with --ipa');
+                    process.exit(1);
+                }
+                if (production) assertProductionSigningReady('ios');
+                await ios_build({
+                    install: opts.install,
+                    release,
+                    production,
+                    ipa: opts.ipa === true,
+                    mac: opts.mac === true,
+                });
             }
             return;
         }

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { resolveHostPaths, type HostConfig, type ResolvedPaths } from './hostConfig';
+import { extractTeamIdFromIdentityLabel } from './iosSigningDiscovery';
 
 type Resolved = ResolvedPaths & { config: HostConfig };
 
@@ -13,34 +14,33 @@ export function isAndroidSigningConfigured(resolved: Resolved): boolean {
 }
 
 export function isIosSigningConfigured(resolved: Resolved): boolean {
-  const team = resolved.config.ios?.signing?.developmentTeam?.trim();
-  return Boolean(team);
+  const signing = resolved.config.ios?.signing;
+  const team = signing?.developmentTeam?.trim();
+  if (team) return true;
+  const id = signing?.codeSignIdentity?.trim();
+  if (id && extractTeamIdFromIdentityLabel(id)) return true;
+  return false;
 }
 
-export type BuildPlatformFilter = 'android' | 'ios' | 'all';
+export type BuildPlatformFilter = 'android' | 'ios';
 
 export function assertProductionSigningReady(filter: BuildPlatformFilter): void {
   const resolved = resolveHostPaths();
-
-  const needAndroid = filter === 'android' || filter === 'all';
-  const needIos = filter === 'ios' || filter === 'all';
   const missing: string[] = [];
 
-  if (needAndroid && !isAndroidSigningConfigured(resolved)) {
+  if (filter === 'android' && !isAndroidSigningConfigured(resolved)) {
     missing.push('Android: run `t4l signing android`, then `t4l build android -p`.');
   }
-  if (needIos && !isIosSigningConfigured(resolved)) {
+  if (filter === 'ios' && !isIosSigningConfigured(resolved)) {
     missing.push('iOS: run `t4l signing ios`, then `t4l build ios -p`.');
   }
 
   if (missing.length === 0) return;
 
-  console.error('\n❌ Production build (`-p`) needs signing configured for the platform(s) you are building.');
+  console.error('\n❌ Production build (`-p`) needs signing configured for this platform.');
   for (const line of missing) {
     console.error(`   ${line}`);
   }
-  console.error(
-    '\n   `t4l build -p` (no platform) builds both Android and iOS; use `t4l build android -p` or `t4l build ios -p` for one platform only.\n'
-  );
+  console.error('');
   process.exit(1);
 }

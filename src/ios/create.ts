@@ -121,41 +121,50 @@ target '${appName}' do
 end
 
 post_install do |installer|
-  installer.pods_project.targets.each do |target|
-    target.build_configurations.each do |config|
-      config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-      config.build_settings['CLANG_ENABLE_EXPLICIT_MODULES'] = 'NO'
-      config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
-    end
-
-    if target.name == 'Lynx'
+  pod_xcode_projects = if installer.pods_project
+    [installer.pods_project]
+  elsif installer.respond_to?(:generated_projects) && !installer.generated_projects.empty?
+    installer.generated_projects
+  else
+    []
+  end
+  pod_xcode_projects.each do |project|
+    project.targets.each do |target|
       target.build_configurations.each do |config|
-        flags = [
-          '-Wno-vla-extension',
-          '-Wno-vla',
-          '-Wno-error=vla-extension',
-          '-Wno-deprecated-declarations',
-          '-Wno-deprecated',
-          '-Wno-deprecated-implementations',
-          '-Wno-macro-redefined',
-          '-Wno-enum-compare',
-          '-Wno-enum-compare-conditional',
-          '-Wno-enum-conversion',
-          '-Wno-error'
-        ].join(' ')
-
-        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) #{flags}"
-        config.build_settings['OTHER_CFLAGS'] = "$(inherited) #{flags}"
-        config.build_settings['CLANG_WARN_VLA'] = 'NO'
-        config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
-        config.build_settings['CLANG_WARN_ENUM_CONVERSION'] = 'NO'
+        config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+        config.build_settings['CLANG_ENABLE_EXPLICIT_MODULES'] = 'NO'
+        config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
       end
-    end
-    if target.name == 'PrimJS'
-      target.build_configurations.each do |config|
-        config.build_settings['OTHER_CFLAGS'] = "$(inherited) -Wno-macro-redefined"
-        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) -Wno-macro-redefined"
+
+      if target.name == 'Lynx'
+        target.build_configurations.each do |config|
+          flags = [
+            '-Wno-vla-extension',
+            '-Wno-vla',
+            '-Wno-error=vla-extension',
+            '-Wno-deprecated-declarations',
+            '-Wno-deprecated',
+            '-Wno-deprecated-implementations',
+            '-Wno-macro-redefined',
+            '-Wno-enum-compare',
+            '-Wno-enum-compare-conditional',
+            '-Wno-enum-conversion',
+            '-Wno-error'
+          ].join(' ')
+
+          config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) #{flags}"
+          config.build_settings['OTHER_CFLAGS'] = "$(inherited) #{flags}"
+          config.build_settings['CLANG_WARN_VLA'] = 'NO'
+          config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
+          config.build_settings['CLANG_WARN_ENUM_CONVERSION'] = 'NO'
+        end
+      end
+      if target.name == 'PrimJS'
+        target.build_configurations.each do |config|
+          config.build_settings['OTHER_CFLAGS'] = "$(inherited) -Wno-macro-redefined"
+          config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) -Wno-macro-redefined"
+        end
       end
     end
   end
@@ -538,6 +547,12 @@ final class LynxInitProcessor {
 			isa = PBXProject;
 			attributes = {
 				LastUpgradeCheck = 1530;
+				TargetAttributes = {
+					${ids.nativeTarget} = {
+						CreatedOnToolsVersion = 15.3;
+						ProvisioningStyle = Automatic;
+					};
+				};
 			};
 			buildConfigurationList = ${ids.projectBuildConfigList} /* Build configuration list for PBXProject "${appName}" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -654,6 +669,7 @@ final class LynxInitProcessor {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = "${appName}/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
@@ -670,6 +686,7 @@ final class LynxInitProcessor {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = "${appName}/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";

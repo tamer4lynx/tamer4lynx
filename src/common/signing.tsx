@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { render, Text, Box } from 'ink';
 import fs from 'fs';
 import path from 'path';
@@ -11,6 +11,13 @@ import {
   TuiSpinner,
   type SelectItem,
 } from './tui';
+import {
+  listCodeSigningIdentities,
+  listProvisioningProfiles,
+  resolveDevelopmentTeamFromIdentity,
+  type CodeSigningIdentity,
+  type ProvisioningProfileInfo,
+} from './iosSigningDiscovery';
 
 type Platform = 'android' | 'ios' | 'both';
 
@@ -29,6 +36,7 @@ interface SigningState {
     developmentTeam: string;
     codeSignIdentity: string;
     provisioningProfileSpecifier: string;
+    provisioningProfileUuid: string;
   };
   step:
     | 'platform'
@@ -41,9 +49,9 @@ interface SigningState {
     | 'android-alias'
     | 'android-password-env'
     | 'android-key-password-env'
-    | 'ios-team'
-    | 'ios-identity'
-    | 'ios-profile'
+    | 'ios-identity-select'
+    | 'ios-profile-select'
+    | 'ios-manual'
     | 'saving'
     | 'done';
   generateError: string | null;
@@ -84,13 +92,146 @@ function AndroidKeystoreModeSelect({
   );
 }
 
+function IosIdentitySelectStep({
+  onPick,
+}: {
+  onPick: (identity: CodeSigningIdentity | 'manual') => void;
+}) {
+  const identities = useMemo(() => listCodeSigningIdentities(), []);
+  const items: SelectItem<string>[] = useMemo(() => {
+    const rows: SelectItem<string>[] = identities.map((id) => ({
+      label: `${id.label}`,
+      value: id.sha1,
+    }));
+    rows.push({ label: 'Enter team / identity / profile manually…', value: '__manual__' });
+    return rows;
+  }, [identities]);
+
+  if (identities.length === 0) {
+    return (
+      <Box flexDirection="column">
+        <Text color="yellow">No code signing identities found in Keychain.</Text>
+        <Text dimColor>Install a certificate or sign in to Xcode with your Apple ID.</Text>
+        <TuiSelectInput
+          label="Continue:"
+          items={[{ label: 'Enter signing details manually…', value: 'manual' }]}
+          onSelect={() => onPick('manual')}
+        />
+      </Box>
+    );
+  }
+
+  return (
+    <TuiSelectInput
+      label="Code signing identity:"
+      items={items}
+      onSelect={(sha1) => {
+        if (sha1 === '__manual__') onPick('manual');
+        else {
+          const id = identities.find((i) => i.sha1 === sha1);
+          if (id) onPick(id);
+        }
+      }}
+    />
+  );
+}
+
+function IosProfileSelectStep({
+  bundleId,
+  onPick,
+}: {
+  bundleId?: string;
+  onPick: (profile: ProvisioningProfileInfo | null) => void;
+}) {
+  const profiles = useMemo(() => listProvisioningProfiles(bundleId?.trim()), [bundleId]);
+  const items: SelectItem<string>[] = useMemo(() => {
+    const rows: SelectItem<string>[] = [
+      { label: 'Skip (automatic signing / Xcode defaults)', value: '__skip__' },
+      ...profiles.map((p) => ({
+        label: `${p.name}${p.expiration ? ` — exp ${p.expiration}` : ''}`,
+        value: p.uuid,
+      })),
+    ];
+    return rows;
+  }, [profiles]);
+
+  return (
+    <TuiSelectInput
+      label="Provisioning profile (optional):"
+      items={items}
+      onSelect={(uuid) => {
+        if (uuid === '__skip__') onPick(null);
+        else {
+          const p = profiles.find((x) => x.uuid === uuid);
+          onPick(p ?? null);
+        }
+      }}
+    />
+  );
+}
+
+function IosManualStep({
+  onDone,
+}: {
+  onDone: (v: { developmentTeam: string; codeSignIdentity: string; provisioningProfileSpecifier: string }) => void;
+}) {
+  const [phase, setPhase] = useState<'team' | 'identity' | 'profile'>('team');
+  const [team, setTeam] = useState('');
+  const [identity, setIdentity] = useState('');
+  if (phase === 'team') {
+    return (
+      <TuiTextInput
+        label="iOS Development Team ID:"
+        defaultValue={team}
+        onSubmitValue={(v) => setTeam(v)}
+        onSubmit={() => setPhase('identity')}
+        hint="10-character Team ID (Membership page in Apple Developer)"
+      />
+    );
+  }
+  if (phase === 'identity') {
+    return (
+      <TuiTextInput
+        label="Code sign identity (optional, Enter to skip):"
+        defaultValue={identity}
+        onSubmitValue={(v) => setIdentity(v)}
+        onSubmit={() => setPhase('profile')}
+        hint='e.g. "Apple Development" or full name from Keychain'
+      />
+    );
+  }
+  return (
+    <TuiTextInput
+      label="Provisioning profile name or UUID (optional, Enter to skip):"
+      defaultValue=""
+      onSubmitValue={(v) => {
+        onDone({
+          developmentTeam: team.trim(),
+          codeSignIdentity: identity.trim(),
+          provisioningProfileSpecifier: v.trim(),
+        });
+      }}
+      onSubmit={() => {}}
+      hint="Profile name as in Xcode, or UUID"
+    />
+  );
+}
+
 function firstStepForPlatform(p: Platform | null): SigningState['step'] {
-  if (p === 'ios') return 'ios-team';
+  if (p === 'ios') return 'ios-identity-select';
   if (p === 'android' || p === 'both') return 'android-keystore-mode';
   return 'platform';
 }
 
 function SigningWizard({ platform: initialPlatform }: { platform?: 'android' | 'ios' }) {
+  const iosBundleId = useMemo(() => {
+    try {
+      return resolveHostPaths().config.ios?.bundleId;
+    } catch {
+      return undefined;
+    }
+  }, []);
+
   const [state, setState] = useState<SigningState>({
     platform: initialPlatform || null,
     android: {
@@ -106,6 +247,7 @@ function SigningWizard({ platform: initialPlatform }: { platform?: 'android' | '
       developmentTeam: '',
       codeSignIdentity: '',
       provisioningProfileSpecifier: '',
+      provisioningProfileUuid: '',
     },
     step: initialPlatform ? firstStepForPlatform(initialPlatform) : 'platform',
     generateError: null,
@@ -131,17 +273,8 @@ function SigningWizard({ platform: initialPlatform }: { platform?: 'android' | '
       }
       if (s.step === 'android-key-password-env') {
         if (s.platform === 'both') {
-          return { ...s, step: 'ios-team' as const };
+          return { ...s, step: 'ios-identity-select' as const };
         }
-        return { ...s, step: 'saving' as const };
-      }
-      if (s.step === 'ios-team') {
-        return { ...s, step: 'ios-identity' as const };
-      }
-      if (s.step === 'ios-identity') {
-        return { ...s, step: 'ios-profile' as const };
-      }
-      if (s.step === 'ios-profile') {
         return { ...s, step: 'saving' as const };
       }
       return s;
@@ -273,7 +406,12 @@ function SigningWizard({ platform: initialPlatform }: { platform?: 'android' | '
         config.ios.signing = {
           developmentTeam: state.ios.developmentTeam,
           ...(state.ios.codeSignIdentity && { codeSignIdentity: state.ios.codeSignIdentity }),
-          ...(state.ios.provisioningProfileSpecifier && { provisioningProfileSpecifier: state.ios.provisioningProfileSpecifier }),
+          ...(state.ios.provisioningProfileSpecifier && {
+            provisioningProfileSpecifier: state.ios.provisioningProfileSpecifier,
+          }),
+          ...(state.ios.provisioningProfileUuid && {
+            provisioningProfileUuid: state.ios.provisioningProfileUuid,
+          }),
         };
       }
 
@@ -337,26 +475,22 @@ function SigningWizard({ platform: initialPlatform }: { platform?: 'android' | '
           <Box flexDirection="column" marginTop={1}>
             <Text>iOS signing configured:</Text>
             <Text dimColor>  Team ID: {state.ios.developmentTeam}</Text>
-            {state.ios.codeSignIdentity && <Text dimColor>  Identity: {state.ios.codeSignIdentity}</Text>}
+            {state.ios.codeSignIdentity ? (
+              <Text dimColor>  Identity: {state.ios.codeSignIdentity}</Text>
+            ) : null}
+            {state.ios.provisioningProfileSpecifier ? (
+              <Text dimColor>  Provisioning profile: {state.ios.provisioningProfileSpecifier}</Text>
+            ) : null}
           </Box>
         )}
         <Box flexDirection="column" marginTop={1}>
           {state.platform === 'android' && (
-            <>
-              <Text>Run `t4l build android -p` to build this platform with signing.</Text>
-              <Text dimColor>`t4l build -p` (no platform) builds both Android and iOS.</Text>
-            </>
+            <Text>Run `t4l build android -p` to build with signing.</Text>
           )}
-          {state.platform === 'ios' && (
-            <>
-              <Text>Run `t4l build ios -p` to build this platform with signing.</Text>
-              <Text dimColor>`t4l build -p` (no platform) builds both Android and iOS.</Text>
-            </>
-          )}
+          {state.platform === 'ios' && <Text>Run `t4l build ios -p` to build with signing.</Text>}
           {state.platform === 'both' && (
             <>
-              <Text>Run `t4l build -p` to build both platforms with signing.</Text>
-              <Text dimColor>Or: `t4l build android -p` / `t4l build ios -p` for one platform.</Text>
+              <Text>Run `t4l build android -p` and `t4l build ios -p` separately (one platform per command).</Text>
             </>
           )}
         </Box>
@@ -494,7 +628,7 @@ function SigningWizard({ platform: initialPlatform }: { platform?: 'android' | '
           }}
           onSubmit={() => {
             if (state.platform === 'both') {
-              setState((s) => ({ ...s, step: 'ios-team' }));
+              setState((s) => ({ ...s, step: 'ios-identity-select' }));
             } else {
               setState((s) => ({ ...s, step: 'saving' }));
             }
@@ -502,41 +636,62 @@ function SigningWizard({ platform: initialPlatform }: { platform?: 'android' | '
           hint="Default: ANDROID_KEY_PASSWORD (will be written to .env / .env.local)"
         />
       )}
-      {state.step === 'ios-team' && (
-        <TuiTextInput
-          label="iOS Development Team ID:"
-          defaultValue={state.ios.developmentTeam}
-          onSubmitValue={(v) => {
-            setState((s) => ({ ...s, ios: { ...s.ios, developmentTeam: v } }));
+      {state.step === 'ios-identity-select' && (
+        <IosIdentitySelectStep
+          onPick={(id) => {
+            if (id === 'manual') {
+              setState((s) => ({ ...s, step: 'ios-manual' }));
+              return;
+            }
+            const team = resolveDevelopmentTeamFromIdentity(id);
+            setState((s) => ({
+              ...s,
+              ios: {
+                ...s.ios,
+                developmentTeam: team,
+                codeSignIdentity: id.label,
+              },
+              step: 'ios-profile-select',
+            }));
           }}
-          onSubmit={nextStep}
-          hint="Example: ABC123DEF4 (found in Apple Developer account)"
         />
       )}
-      {state.step === 'ios-identity' && (
-        <TuiTextInput
-          label="iOS Code Sign Identity (optional, press Enter to skip):"
-          defaultValue={state.ios.codeSignIdentity}
-          onSubmitValue={(v) => {
-            setState((s) => ({ ...s, ios: { ...s.ios, codeSignIdentity: v } }));
+      {state.step === 'ios-profile-select' && (
+        <IosProfileSelectStep
+          bundleId={iosBundleId}
+          onPick={(profile) => {
+            setState((s) => {
+              let team = s.ios.developmentTeam.trim();
+              if (!team && profile?.teamIds?.[0]) team = profile.teamIds[0];
+              return {
+                ...s,
+                ios: {
+                  ...s.ios,
+                  developmentTeam: team,
+                  provisioningProfileSpecifier: profile?.name ?? '',
+                  provisioningProfileUuid: profile?.uuid ?? '',
+                },
+                step: 'saving',
+              };
+            });
           }}
-          onSubmit={() => {
-            setState((s) => ({ ...s, step: 'ios-profile' }));
-          }}
-          hint='Example: "iPhone Developer" or "Apple Development"'
         />
       )}
-      {state.step === 'ios-profile' && (
-        <TuiTextInput
-          label="iOS Provisioning Profile Specifier (optional, press Enter to skip):"
-          defaultValue={state.ios.provisioningProfileSpecifier}
-          onSubmitValue={(v) => {
-            setState((s) => ({ ...s, ios: { ...s.ios, provisioningProfileSpecifier: v } }));
+      {state.step === 'ios-manual' && (
+        <IosManualStep
+          onDone={(v) => {
+            setState((s) => ({
+              ...s,
+              ios: {
+                ...s.ios,
+                developmentTeam: v.developmentTeam,
+                codeSignIdentity: v.codeSignIdentity,
+                provisioningProfileSpecifier: v.provisioningProfileSpecifier,
+                provisioningProfileUuid: '',
+              },
+              step: 'saving',
+            }));
           }}
-          onSubmit={() => {
-            setState((s) => ({ ...s, step: 'saving' }));
-          }}
-          hint="UUID of the provisioning profile"
         />
       )}
     </Box>

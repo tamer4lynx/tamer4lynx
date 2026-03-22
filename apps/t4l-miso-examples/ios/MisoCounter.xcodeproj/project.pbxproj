@@ -1,0 +1,339 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		2AECF954A15EDCF5D42359A3 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 538B7A0EAAC6DA9304022E99 /* AppDelegate.swift */; };
+		37AB528CAF06CE9FB6FDAA4B /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D70B29EFF4E1754A1D801D /* ViewController.swift */; };
+		9B6D812510D31E51B88A75A4 /* LynxInitProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65C3971356FC9251FFDA35DD /* LynxInitProcessor.swift */; };
+		B0C8D49B64289BE694B0F4F8 /* LynxProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0640554341BBE147F66BE8F6 /* LynxProvider.swift */; };
+		B9B769583BE6C34A44A700A6 /* libPods-MisoCounter.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F1DAD98F8875A4D797913E95 /* libPods-MisoCounter.a */; };
+		DF244151CB61AD9FC9367DFF /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FBAA48FED11C975EB639688 /* SceneDelegate.swift */; };
+		EF1C74A4D8C4A2A823568078 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 41D50492BA8DD69E8497BF89 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0217EB4E70DEFC606EBF31F0 /* MisoCounter.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MisoCounter.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0640554341BBE147F66BE8F6 /* LynxProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LynxProvider.swift; sourceTree = "<group>"; };
+		2B409AB10D4321A0F9C85899 /* MisoCounter-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MisoCounter-Bridging-Header.h"; sourceTree = "<group>"; };
+		2E921D390573986701E3F144 /* Pods-MisoCounter.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-MisoCounter.release.xcconfig"; path = "Target Support Files/Pods-MisoCounter/Pods-MisoCounter.release.xcconfig"; sourceTree = "<group>"; };
+		32637A8385E1E9315352F326 /* Pods-MisoCounter.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-MisoCounter.debug.xcconfig"; path = "Target Support Files/Pods-MisoCounter/Pods-MisoCounter.debug.xcconfig"; sourceTree = "<group>"; };
+		41D50492BA8DD69E8497BF89 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		4FBAA48FED11C975EB639688 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		538B7A0EAAC6DA9304022E99 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		65C3971356FC9251FFDA35DD /* LynxInitProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LynxInitProcessor.swift; sourceTree = "<group>"; };
+		79D70B29EFF4E1754A1D801D /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
+		F1DAD98F8875A4D797913E95 /* libPods-MisoCounter.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-MisoCounter.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		843B102E53D7C53A2B7747CE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B9B769583BE6C34A44A700A6 /* libPods-MisoCounter.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		3482663EE0B9B7D2644AC1C5 = {
+			isa = PBXGroup;
+			children = (
+				D2ECB9187514157D6B79E34D /* MisoCounter */,
+				5A35EB87145F36BDCA6A2D14 /* Products */,
+				48D23E44E2FAF405A6F16C49 /* Frameworks */,
+				EDB50477C589238E5DB5D899 /* Pods */,
+			);
+			sourceTree = "<group>";
+		};
+		48D23E44E2FAF405A6F16C49 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				F1DAD98F8875A4D797913E95 /* libPods-MisoCounter.a */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		5A35EB87145F36BDCA6A2D14 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				0217EB4E70DEFC606EBF31F0 /* MisoCounter.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D2ECB9187514157D6B79E34D /* MisoCounter */ = {
+			isa = PBXGroup;
+			children = (
+				538B7A0EAAC6DA9304022E99 /* AppDelegate.swift */,
+				4FBAA48FED11C975EB639688 /* SceneDelegate.swift */,
+				79D70B29EFF4E1754A1D801D /* ViewController.swift */,
+				41D50492BA8DD69E8497BF89 /* Assets.xcassets */,
+				0640554341BBE147F66BE8F6 /* LynxProvider.swift */,
+				65C3971356FC9251FFDA35DD /* LynxInitProcessor.swift */,
+				2B409AB10D4321A0F9C85899 /* MisoCounter-Bridging-Header.h */,
+			);
+			path = MisoCounter;
+			sourceTree = "<group>";
+		};
+		EDB50477C589238E5DB5D899 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				32637A8385E1E9315352F326 /* Pods-MisoCounter.debug.xcconfig */,
+				2E921D390573986701E3F144 /* Pods-MisoCounter.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1CBD94E0F855B83A24EE7964 /* MisoCounter */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2C3BA82BB532363392D26F49 /* Build configuration list for PBXNativeTarget "MisoCounter" */;
+			buildPhases = (
+				5E4EFA587A58D6D6F8DF2CEA /* [CP] Check Pods Manifest.lock */,
+				59615692B74239C96C9A7162 /* Sources */,
+				843B102E53D7C53A2B7747CE /* Frameworks */,
+				725C30EEE81C659B63DBF849 /* Resources */,
+				476F329E8415FD38073E06E7 /* [CP] Copy Pods Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MisoCounter;
+			productName = MisoCounter;
+			productReference = 0217EB4E70DEFC606EBF31F0 /* MisoCounter.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A0F823FE5DBEDC4D9A96FECB /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 1530;
+			};
+			buildConfigurationList = 057200B50DECE27706928215 /* Build configuration list for PBXProject "MisoCounter" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 3482663EE0B9B7D2644AC1C5;
+			productRefGroup = 5A35EB87145F36BDCA6A2D14 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				1CBD94E0F855B83A24EE7964 /* MisoCounter */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		725C30EEE81C659B63DBF849 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EF1C74A4D8C4A2A823568078 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		476F329E8415FD38073E06E7 /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-MisoCounter/Pods-MisoCounter-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-MisoCounter/Pods-MisoCounter-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-MisoCounter/Pods-MisoCounter-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		5E4EFA587A58D6D6F8DF2CEA /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-MisoCounter-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		59615692B74239C96C9A7162 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B0C8D49B64289BE694B0F4F8 /* LynxProvider.swift in Sources */,
+				9B6D812510D31E51B88A75A4 /* LynxInitProcessor.swift in Sources */,
+				DF244151CB61AD9FC9367DFF /* SceneDelegate.swift in Sources */,
+				37AB528CAF06CE9FB6FDAA4B /* ViewController.swift in Sources */,
+				2AECF954A15EDCF5D42359A3 /* AppDelegate.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		2634F73D4E132B33A72C4857 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 2E921D390573986701E3F144 /* Pods-MisoCounter.release.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = MisoCounter/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tamer4lynx.MisoCounter;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "MisoCounter/MisoCounter-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		2E112382D376B0ADB6C4D960 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 32637A8385E1E9315352F326 /* Pods-MisoCounter.debug.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = MisoCounter/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tamer4lynx.MisoCounter;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "MisoCounter/MisoCounter-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		5DBB0522F8CA6DD9433ABEE8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		F18ED9B2DDD2CA30F2D6D1DD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		057200B50DECE27706928215 /* Build configuration list for PBXProject "MisoCounter" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F18ED9B2DDD2CA30F2D6D1DD /* Debug */,
+				5DBB0522F8CA6DD9433ABEE8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		2C3BA82BB532363392D26F49 /* Build configuration list for PBXNativeTarget "MisoCounter" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2E112382D376B0ADB6C4D960 /* Debug */,
+				2634F73D4E132B33A72C4857 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A0F823FE5DBEDC4D9A96FECB /* Project object */;
+}

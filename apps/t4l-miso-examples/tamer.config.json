@@ -1,0 +1,19 @@
+{
+  "android": {
+    "appName": "MisoCounter",
+    "packageName": "com.tamer4lynx.misocounter",
+    "sdk": "~/Library/Android/sdk"
+  },
+  "ios": {
+    "appName": "MisoCounter",
+    "bundleId": "com.tamer4lynx.MisoCounter"
+  },
+  "lynxProject": ".",
+  "paths": {
+    "androidDir": "android",
+    "iosDir": "ios",
+    "lynxBundleRoot": "dist",
+    "lynxBundleFile": "main.lynx.bundle"
+  },
+  "autolink": true
+}

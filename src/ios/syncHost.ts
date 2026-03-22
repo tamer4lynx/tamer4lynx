@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { resolveHostPaths, findDevClientPackage } from '../common/hostConfig';
+import { resolveDevelopmentTeamFromIdentity, listCodeSigningIdentities } from '../common/iosSigningDiscovery';
 
 function deterministicUUID(seed: string): string {
     return crypto.createHash('sha256').update(seed).digest('hex').substring(0, 24).toUpperCase();
@@ -474,6 +475,55 @@ function syncHostIos(opts?: { release?: boolean; includeDevClient?: boolean }): 
     const pbxprojPath = path.join(resolved.iosDir, `${appName}.xcodeproj`, 'project.pbxproj');
     const baseLprojDir = path.join(projectDir, 'Base.lproj');
     const launchScreenPath = path.join(baseLprojDir, 'LaunchScreen.storyboard');
+
+    if (fs.existsSync(pbxprojPath)) {
+        let pbx = fs.readFileSync(pbxprojPath, 'utf8');
+        let changed = false;
+
+        if (!pbx.includes('CODE_SIGN_STYLE')) {
+            pbx = pbx.replace(
+                /(\bASSETCATALOG_COMPILER_APPICON_NAME\b[^\n]*\n)/g,
+                '$1\t\t\t\tCODE_SIGN_STYLE = Automatic;\n'
+            );
+            changed = true;
+        }
+
+        // Resolve team ID from config or signing identity so TargetAttributes and DEVELOPMENT_TEAM are set.
+        const signingCfg = resolved.config.ios?.signing;
+        let teamId = signingCfg?.developmentTeam?.trim() || '';
+        if (!teamId && signingCfg?.codeSignIdentity?.trim()) {
+            const idents = listCodeSigningIdentities();
+            const match = idents.find((i: { label: string }) => i.label === signingCfg.codeSignIdentity!.trim());
+            if (match) teamId = resolveDevelopmentTeamFromIdentity(match);
+        }
+
+        if (teamId) {
+            if (!pbx.includes('DEVELOPMENT_TEAM')) {
+                pbx = pbx.replace(
+                    /(\bCODE_SIGN_STYLE = Automatic;\n)/g,
+                    `$1\t\t\t\tDEVELOPMENT_TEAM = ${teamId};\n`
+                );
+                changed = true;
+            }
+
+            if (!pbx.includes('TargetAttributes')) {
+                const nativeTargetMatch = pbx.match(
+                    /([A-F0-9]{24})\s*\/\*\s*\S+\s*\*\/\s*=\s*\{\s*isa\s*=\s*PBXNativeTarget;/
+                );
+                if (nativeTargetMatch) {
+                    pbx = pbx.replace(
+                        /(LastUpgradeCheck\s*=\s*\d+;)/,
+                        `$1\n\t\t\t\tTargetAttributes = {\n\t\t\t\t\t${nativeTargetMatch[1]} = {\n\t\t\t\t\t\tDevelopmentTeam = ${teamId};\n\t\t\t\t\t\tProvisioningStyle = Automatic;\n\t\t\t\t\t};\n\t\t\t\t};`
+                    );
+                    changed = true;
+                }
+            }
+        }
+
+        if (changed) {
+            fs.writeFileSync(pbxprojPath, pbx, 'utf8');
+        }
+    }
 
     patchInfoPlist(infoPlistPath);
     writeFile(path.join(projectDir, 'AppDelegate.swift'), getAppDelegateSwift());

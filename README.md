@@ -26,12 +26,12 @@ npm run cli -- init
 
 ## Installation
 
-All Tamer packages are published under the `@tamer4lynx` scope on npm. Install the CLI globally (use `@prerelease` for latest):
+All Tamer packages are published under the `@tamer4lynx` scope on npm. Install the CLI globally:
 
 ```bash
-npm i -g @tamer4lynx/cli@prerelease
-pnpm add -g @tamer4lynx/cli@prerelease
-bun add -g @tamer4lynx/cli@prerelease
+npm i -g @tamer4lynx/cli@latest
+pnpm add -g @tamer4lynx/cli@latest
+bun add -g @tamer4lynx/cli@latest
 ```
 
 Or from GitHub (run `npm uninstall -g @tamer4lynx/cli` first if switching):
@@ -163,19 +163,21 @@ Commands use the form **`t4l <command> [target] [flags]`** so they stay consiste
 | `service` | — | Create Lynx extension with service only. |
 | `combo` | — | Create Lynx extension with module + element + service. |
 
-### **Build** (`t4l build [platform]`)
+### **Build** (`t4l build <platform>`)
 
-Builds your app. Dev client (QR scan, HMR) is included with **debug** (`-d`) when `@tamer4lynx/tamer-dev-client` is installed; **release** (`-r`) builds without it.
+Builds your app. **Platform is required:** `ios` or `android` (one per command). Dev client (QR scan, HMR) is included with **debug** (`-d`) when `@tamer4lynx/tamer-dev-client` is installed; **release** (`-r`) builds without it.
 
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
-| platform | — | both | `ios`, `android`, or omit for both |
-| `--embeddable` | `-e` | — | Output to `embeddable/`. Use with `--release`. |
+| platform | — | — | `ios` or `android` (required) |
+| `--embeddable` | `-e` | — | Output to `embeddable/`. Use **`t4l build android --embeddable`**. |
 | `--debug` | `-d` | default | Debug build with dev client |
 | `--release` | `-r` | — | Release build without dev client |
-| `--install` | `-i` | — | Install to device/simulator after build |
+| `--production` | `-p` | — | Signed production build |
+| `--install` | `-i` | — | Install after build (iOS: simulator with `-d`, physical device only with `-p`) |
+| `--ipa` | — | — | iOS only with `-p`: export IPA (`APP_STORE_CONNECT_*` env + team → App Store archive/export; else zip) |
 
-Examples: `t4l build`, `t4l build android -i`, `t4l build ios -r`.
+Examples: `t4l build android -i`, `t4l build ios -r`, `t4l build ios -p --ipa`.
 
 ### **Link** (`t4l link [platform]`)
 
@@ -207,9 +209,9 @@ Sync dev client files from tamer.config.json. Only `android` is supported (defau
 
 **Long-form options:** All flags support both short and long form (e.g. `-d` or `--debug`, `-r` or `--release`, `-i` or `--install`).
 
-**Legacy commands:** Platform-first form still works: `t4l android create`, `t4l android build -r`, `t4l ios link`, `t4l ios bundle`, etc.
+**Platform-first form:** `t4l android create`, `t4l android build -r`, `t4l ios link`, `t4l ios bundle`, etc.
 
-See [Commands Reference](packages/docs/docs/commands.md) for full flag details.
+See [Commands Reference](packages/docs/docs/reference/commands.md) for full flag details.
 
 ---
 
@@ -231,11 +233,11 @@ For the best experience, add a `postinstall` script to your project's `package.j
 - **Component:** `tamer.config.ts` — Rsbuild plugins (routing, etc.). Used by tamer-plugin.
 - **Extension:** `lynx.ext.json` — native module registration per platform. Lives in each extension package.
 
-See [Configuration Reference](packages/docs/docs/docs/configuration.md) for field-by-field docs. lynx.ext.json follows the [Lynx Autolink RFC](https://github.com/lynx-family/lynx/discussions/2653); [contribute to the RFC](https://github.com/lynx-family/lynx/discussions/2653) if you want to help improve it.
+See [Configuration Reference](packages/docs/docs/guide/configuration.md) for field-by-field docs. lynx.ext.json follows the [Lynx Autolink RFC](https://github.com/lynx-family/lynx/discussions/2653); [contribute to the RFC](https://github.com/lynx-family/lynx/discussions/2653) if you want to help improve it.
 
 ## Extension Configuration
 
-Extensions are discovered via **lynx.ext.json** (RFC standard) or **tamer.json** (legacy).
+Extensions are discovered via **lynx.ext.json** (RFC standard) or **tamer.json** (flat format).
 
 ### lynx.ext.json (recommended)
 
@@ -256,7 +258,7 @@ Extensions are discovered via **lynx.ext.json** (RFC standard) or **tamer.json**
 }
 ```
 
-### tamer.json (legacy, still supported)
+### tamer.json (flat format)
 
 ```json
 {

@@ -121,7 +121,7 @@ Case study:
 Common APIs:
 
 * [Interface `NodesRef`](https://lynxjs.org/api/lynx-api/nodes-ref.md)
-* [invoke()](https://lynxjs.org/api/lynx-api/nodes-ref/nodes-ref-invoke.md)
+* [invoke()](https://lynxjs.org/api/lynx-api/nodes-ref/nodes-ref-invoke.html)
 * [setNativeProps()](https://lynxjs.org/api/lynx-api/nodes-ref/nodes-ref-set-native-props.md)
 * [Interface `MainThread.Element`](https://lynxjs.org/api/lynx-api/main-thread/main-thread-element.md)
 * [animate()](https://lynxjs.org/api/lynx-api/main-thread/lynx-animate-api.md)

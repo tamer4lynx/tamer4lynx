@@ -1,17 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from '@lynx-js/react'
-import { useInitData } from '@lynx-js/react'
-import { getItemAsync, setItemAsync, deleteItemAsync } from '@tamer4lynx/tamer-secure-store'
+import { useCallback, useEffect, useState } from '@lynx-js/react'
+import { localStorage } from '@tamer4lynx/tamer-local-storage'
 
 import '../../App.css'
+import { px } from '@tamer4lynx/tamer-app-shell'
 
 const REGISTRY_KEY = '__storage_keys__'
-
-function keychainServiceWithTamerIdentity(initData: unknown, baseService = 'key_v1'): string {
-  if (initData == null || typeof initData !== 'object') return baseService
-  const key = (initData as Record<string, unknown>).tamerAppKey
-  if (typeof key !== 'string' || !key.trim()) return baseService
-  return `${baseService}:${key.trim()}`
-}
 
 type StoreItem = { key: string; value: string }
 
@@ -26,32 +19,27 @@ function parseKeys(json: string | null): string[] {
 }
 
 export default function StoragePage() {
-  const initData = useInitData()
-  const storeOpts = useMemo(() => ({ keychainService: keychainServiceWithTamerIdentity(initData) }), [initData])
-
   const [key, setKey] = useState('')
   const [value, setValue] = useState('')
   const [items, setItems] = useState<StoreItem[]>([])
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const loadItems = useCallback(() => {
     'background only'
-    setLoading(true)
-    setError(null)
-    getItemAsync(REGISTRY_KEY, storeOpts)
-      .then((json: string | null) => {
-        const keys = parseKeys(json).filter((k) => k !== REGISTRY_KEY)
-        return Promise.all(
-          keys.map((k) =>
-            getItemAsync(k, storeOpts).then((v: string | null) => (v !== null ? { key: k, value: v } : null))
-          )
-        ).then((results) => results.filter((r: StoreItem | null): r is StoreItem => r !== null))
-      })
-      .then(setItems)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to read'))
-      .finally(() => setLoading(false))
-  }, [storeOpts])
+    try {
+      setError(null)
+      const json = localStorage.getItem(REGISTRY_KEY)
+      const keys = parseKeys(json).filter((k) => k !== REGISTRY_KEY)
+      const next: StoreItem[] = []
+      for (const k of keys) {
+        const v = localStorage.getItem(k)
+        if (v !== null) next.push({ key: k, value: v })
+      }
+      setItems(next)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to read')
+    }
+  }, [])
 
   useEffect(() => {
     'background only'
@@ -62,80 +50,76 @@ export default function StoragePage() {
     'background only'
     const k = key.trim()
     if (!k) return
-    setLoading(true)
-    setError(null)
-    getItemAsync(REGISTRY_KEY, storeOpts)
-      .then((json: string | null) => {
-        const keys = parseKeys(json)
-        if (!keys.includes(k)) keys.push(k)
-        return setItemAsync(REGISTRY_KEY, JSON.stringify(keys), storeOpts).then(() =>
-          setItemAsync(k, value, storeOpts).then(() => {
-            setKey('')
-            setValue('')
-            return loadItems()
-          })
-        )
-      })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to save'))
-      .finally(() => setLoading(false))
-  }, [key, value, loadItems, storeOpts])
+    try {
+      setError(null)
+      const json = localStorage.getItem(REGISTRY_KEY)
+      const keys = parseKeys(json)
+      if (!keys.includes(k)) keys.push(k)
+      localStorage.setItem(REGISTRY_KEY, JSON.stringify(keys))
+      localStorage.setItem(k, value)
+      setKey('')
+      setValue('')
+      loadItems()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to save')
+    }
+  }, [key, value, loadItems])
 
   const handleDeleteItem = useCallback(
     (itemKey: string) => {
       'background only'
-      setLoading(true)
-      setError(null)
-      getItemAsync(REGISTRY_KEY, storeOpts)
-        .then((json: string | null) => {
-          const keys = parseKeys(json).filter((k) => k !== itemKey)
-          return setItemAsync(REGISTRY_KEY, JSON.stringify(keys), storeOpts).then(() =>
-            deleteItemAsync(itemKey, storeOpts).then(loadItems)
-          )
-        })
-        .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to delete'))
-        .finally(() => setLoading(false))
+      try {
+        setError(null)
+        const json = localStorage.getItem(REGISTRY_KEY)
+        const keys = parseKeys(json).filter((k) => k !== itemKey)
+        localStorage.setItem(REGISTRY_KEY, JSON.stringify(keys))
+        localStorage.removeItem(itemKey)
+        loadItems()
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Failed to delete')
+      }
     },
-    [loadItems, storeOpts]
+    [loadItems]
   )
 
   return (
     <scroll-view style={{ padding: 24, flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <text className="Title" style={{ marginBottom: 8 }}>Local Storage Test</text>
-      <text className="Description" style={{ marginBottom: 16 }}>
-        Uses tamer-secure-store. Keychain service includes tamerAppKey from host initData when present, so the same keys apply when loading from different dev server URLs.
+      <text className="Description" style={{ marginBottom: 16, fontSize: px(14), }}>
+        Uses @tamer4lynx/tamer-local-storage (SharedPreferences on Android, UserDefaults on iOS). Web-style
+        localStorage API.
       </text>
 
       <view style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <text className="Hint" style={{ marginBottom: 4 }}>Key</text>
+        <text className="Hint" style={{ marginBottom: 4, fontSize: px(14) }}>Key</text>
         <input
           value={key}
           placeholder="Storage key"
           style={{
             backgroundColor: '#222',
             color: '#fff',
-            padding: '12px 24px',
+            padding: px(6, 6),
             borderRadius: "8px",
             border: '1px solid #444',
-            fontSize: "24px",
-            height: "48px",
+            fontSize: px(14),
+            height: px(40),
           }}
           bindinput={(e) => setKey(e.detail.value)}
         />
       </view>
 
       <view style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: "16px" }}>
-        <text className="Hint" style={{ marginBottom: 4 }}>Value</text>
+        <text className="Hint" style={{ marginBottom: 4, fontSize: px(14) }}>Value</text>
         <input
           value={value}
           placeholder="Value to store"
           style={{
             backgroundColor: '#222',
             color: '#fff',
-            padding: '12px 24px',
+            padding: px(6, 6),
             borderRadius: "8px",
             border: '1px solid #444',
-            fontSize: "24px",
-            height: "48px",
+            fontSize: px(14),
+            height: px(40),
           }}
           bindinput={(e) => setValue(e.detail.value)}
         />
@@ -158,9 +142,7 @@ export default function StoragePage() {
 
       <view style={{ marginTop: 8 }}>
         <text className="Hint" style={{ marginBottom: 8 }}>Stored items ({items.length})</text>
-        {loading ? (
-          <text className="Description">Loading...</text>
-        ) : items.length === 0 ? (
+        {items.length === 0 ? (
           <text className="Description" style={{ color: '#888' }}>(empty)</text>
         ) : (
           <view style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

@@ -1,6 +1,6 @@
 {
   "name": "example",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "scripts": {
     "build": "rspeedy build",
@@ -15,7 +15,7 @@
   "dependencies": {
     "@lynx-js/react": ">=0.112.0",
     "@tamer4lynx/jiggle": "^0.0.1",
-    "@tamer4lynx/tamer-icons": "^0.0.2",
+    "@tamer4lynx/tamer-icons": "^0.0.5",
     "@tamer4lynx/tamer-transports": "^0.0.1",
     "@tamer4lynx/tamer-auth": "^0.0.1",
     "@tamer4lynx/tamer-linking": "^0.0.1",
@@ -23,12 +23,13 @@
     "react-router": "^6.28.0",
     "@tamer4lynx/tamer-dev-client": "file:../tamer-dev-client",
     "@tamer4lynx/tamer-insets": "^0.0.1",
-    "@tamer4lynx/tamer-app-shell": "^0.0.2",
+    "@tamer4lynx/tamer-app-shell": "^0.0.3",
     "@tamer4lynx/tamer-screen": "^0.0.2",
     "@tamer4lynx/tamer-system-ui": "^0.0.1",
     "@tamer4lynx/tamer-webview": "file:../tamer-webview",
     "@tamer4lynx/tamer-plugin": "^0.0.3",
     "@tamer4lynx/tamer-router": "^0.0.1",
+    "@tamer4lynx/tamer-local-storage": "file:../tamer-local-storage",
     "@tamer4lynx/tamer-secure-store": "^0.0.1",
     "@tamer4lynx/tamer-biometric": "^0.0.1",
     "ws": "^8.18.3"

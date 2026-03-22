@@ -57,6 +57,30 @@ export interface IosUrlSchemeConfig {
 const DEFAULT_ABI_FILTERS = ['armeabi-v7a', 'arm64-v8a'];
 const DEFAULT_IOS_ARCHITECTURES = ['arm64'];
 
+export interface AndroidSigningConfig {
+  keystoreFile?: string;
+  keyAlias?: string;
+  storePasswordEnv?: string;
+  keyPasswordEnv?: string;
+}
+
+export interface IosSigningConfig {
+  developmentTeam?: string;
+  codeSignIdentity?: string;
+  provisioningProfileSpecifier?: string;
+  provisioningProfileUuid?: string;
+}
+
+/** Env var *names* for App Store Connect API (values in process.env / .env). Defaults: APP_STORE_CONNECT_* */
+export interface IosAppStoreConnectConfig {
+  /** Path to AuthKey_xxx.p8 — default env: APP_STORE_CONNECT_API_KEY_PATH */
+  apiKeyPathEnv?: string;
+  /** API Key ID — default env: APP_STORE_CONNECT_API_KEY_ID */
+  apiKeyIdEnv?: string;
+  /** Issuer ID — default env: APP_STORE_CONNECT_ISSUER_ID */
+  issuerIdEnv?: string;
+}
+
 export interface HostConfig {
   android?: {
     appName?: string;
@@ -64,12 +88,16 @@ export interface HostConfig {
     sdk?: string;
     deepLinks?: DeepLinkConfig[];
     abiFilters?: string[];
+    signing?: AndroidSigningConfig;
   };
   ios?: {
     appName?: string;
     bundleId?: string;
     urlSchemes?: IosUrlSchemeConfig[];
     architectures?: string[];
+    signing?: IosSigningConfig;
+    /** Optional: env var names for `t4l build ios -p --ipa` App Store archive/export via xcodebuild + .p8 key */
+    appStoreConnect?: IosAppStoreConnectConfig;
   };
   icon?: string | HostConfigIcon;
   paths?: HostConfigPaths;
@@ -82,6 +110,11 @@ export interface HostConfig {
     port?: number;
     httpPort?: number;
   };
+  /**
+   * When true (default), `t4l init` / `t4l link` generate `.tamer/tamer-components.d.ts`
+   * and ensure `tsconfig` includes it. Set to false to skip.
+   */
+  syncTamerComponentTypes?: boolean;
 }
 
 export interface ResolvedPaths {

@@ -12,9 +12,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **iOS App Store IPA (API key)** — When **`APP_STORE_CONNECT_API_KEY_PATH`**, **`APP_STORE_CONNECT_API_KEY_ID`**, and **`APP_STORE_CONNECT_ISSUER_ID`** are set (e.g. in `.env`), **`t4l build ios -p --ipa`** runs **`xcodebuild archive`** and **`-exportArchive`** with **app-store** export and **`-authenticationKeyPath` / `-authenticationKeyID` / `-authenticationKeyIssuerID`** (requires **`ios.signing.developmentTeam`**). Optional env var *name* overrides: **`ios.appStoreConnect`** in **`tamer.config.json`**. If those env vars are unset, **`--ipa`** keeps the previous behavior (unsigned build, manual codesign, zip **`Payload`**).
+
 - **`@tamer4lynx/tamer-dev-client` — Lynx DevTool** — Android: `lynx-devtool` / `lynx-service-devtool` (debug classpath only) plus `LynxDevToolBootstrap`; iOS: `LynxDevtool` pod + `LynxService` `Devtool` subspec (via `t4l link`), `LynxInitProcessor` sets `lynxDebugEnabled` / `devtoolEnabled` / `logBoxEnabled` under `#if DEBUG` only. `GeneratedLynxExtensions.register()` calls the bootstrap when the package is linked. **Not active** for `t4l build` **`-r`** / **`-p`** (release/production).
 
 ### Changed
+
+- **`t4l build`** — **Breaking:** requires an explicit platform: **`t4l build ios`** or **`t4l build android`** (no default “both”). Embeddable: **`t4l build android --embeddable`** only. **`t4l signing ios`** now discovers **code signing identities** and **provisioning profiles** from the Mac (pickers); Team ID is derived from the chosen certificate when possible. Production iOS builds pass **`DEVELOPMENT_TEAM`** / signing settings from `tamer.config.json` to **`xcodebuild`**. **`t4l build ios -p -i`** uses **`xcrun devicectl --device <UDID>`**; with multiple connected devices, an interactive picker runs (single device: install without prompt). Android **`t4l build android -i`** sets **`ANDROID_SERIAL`** / uses **`adb -s`** after a picker when multiple devices are connected. **`t4l build ios -p --ipa`** archives and exports an IPA under **`ios/build/ipa-export/`**.
 
 - **`@tamer4lynx/tamer-router`** — Re-exports **`useLocation`**, **`useNavigate`**, **`useOutlet`**, **`useParams`** from react-router (same pattern as **`Outlet`** / **`Slot`**).
 
@@ -30,9 +34,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **`t4l build ios` (Debug)** — Passes `COMPILER_INDEX_STORE_ENABLE=NO` to `xcodebuild` to reduce indexing work on dev builds (Release unchanged).
 
-- **`t4l build ios -p`** — Always builds for **iphoneos** (device), never the simulator. **`t4l build ios -p -i`** installs on a **connected physical device** via `xcrun devicectl` (first listed device) instead of the booted simulator. Debug **`t4l build ios -d -i`** is unchanged (simulator + `simctl`).
+- **`t4l build ios -p`** — Always builds for **iphoneos** (device), never the simulator. **`t4l build ios -p -i`** installs on a **connected physical device** via `xcrun devicectl --device <UDID>` (picker when multiple devices). Debug **`t4l build ios -d -i`** is unchanged (simulator + `simctl`).
 
 ### Fixed
+
+- **iOS CocoaPods** — `post_install` in generated Podfiles no longer calls `installer.pods_project.targets` when **`pods_project` is nil** (common with **`generate_multiple_pod_projects`**). It now applies build settings across **`installer.generated_projects`** when needed, fixing **`undefined method 'targets' for nil`** during `pod install`. **`t4l build` autolink** migrates existing **`ios/Podfile`** files that still use the old `post_install` shape (only the autolink block was rewritten before).
 
 - **`t4l build ios -p` / `-r`** — `ios link` / autolink called `syncHostIos()` with no options, which **re-applied embedded dev host Swift** after bundle had already synced release mode. Autolink now receives `{ release, includeDevClient }` so production/release builds stay on the non–dev-client `ViewController` and do not log “embedded dev mode” after “controller files”. Dev-client Lynx bundle was already skipped in release; this fixes the misleading second sync and wrong native entry UI for store builds.
 

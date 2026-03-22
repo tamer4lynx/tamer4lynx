@@ -1,0 +1,10 @@
+dist/
+gradle/
+android/.gradle/
+android/**/build/
+android/local.properties
+ios/Pods/
+ios/build/
+*.xcworkspace/xcuserdata
+*.xcodeproj/xcuserdata
+*.xcodeproj/project.xcworkspace/xcuserdata

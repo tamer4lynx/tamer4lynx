@@ -26,6 +26,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .eslintcache
 .cache
 *.tsbuildinfo
+.tamer
 
 # IntelliJ based IDEs
 .idea
@@ -36,8 +37,8 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # native
 /gradle
 packages/example/gradle
-/ios
-/android
+/ios/*
+/android/*
 src/android/gradle
 packages/*/android/.gradle
 packages/*/android/build

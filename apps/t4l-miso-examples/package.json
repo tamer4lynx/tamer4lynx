@@ -1,0 +1,8 @@
+{
+  "name": "t4l-miso-examples",
+  "private": true,
+  "description": "Tamer4Lynx host for reference/miso-lynx/examples (counter)",
+  "scripts": {
+    "build": "bash scripts/build-miso-lynx.sh"
+  }
+}

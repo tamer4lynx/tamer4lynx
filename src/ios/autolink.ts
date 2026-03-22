@@ -5,6 +5,7 @@ import { getIosElements, getIosModuleClassNames } from '../common/config';
 import { discoverModules, type DiscoveredModule } from '../common/discoverModules';
 import { getDedupedAndroidModuleClassNames } from '../common/generateExtCode';
 import { resolveHostPaths, type IosUrlSchemeConfig } from '../common/hostConfig';
+import { runTamerComponentTypesPipeline } from '../common/syncTamerComponentTypes';
 import { buildHostNativeModulesManifestJson, TAMER_HOST_NATIVE_MODULES_FILENAME } from '../common/hostNativeModulesManifest';
 import { addResourceToXcodeProject } from './syncHost';
 import syncHostIos from './syncHost';
@@ -193,6 +194,44 @@ const autolink = (syncHostOpts?: IosAutolinkSyncOpts) => {
         }
         fs.writeFileSync(podfilePath, content, 'utf8');
         console.log(`✅ Added Lynx DevTool pods (v${lynxVersion}) to Podfile`);
+    }
+
+    function ensureMultiProjectSafePostInstall(): void {
+        const podfilePath = path.join(iosProjectPath, 'Podfile');
+        if (!fs.existsSync(podfilePath)) return;
+        let content = fs.readFileSync(podfilePath, 'utf8');
+        if (content.includes('pod_xcode_projects.each do |project|')) return;
+        if (!content.includes('installer.pods_project.targets.each do |target|')) return;
+
+        const opening =
+            /post_install do \|installer\|\r?\n\s*installer\.pods_project\.targets\.each do \|target\|/;
+        if (!opening.test(content)) return;
+
+        content = content.replace(
+            opening,
+            `post_install do |installer|
+  pod_xcode_projects = if installer.pods_project
+    [installer.pods_project]
+  elsif installer.respond_to?(:generated_projects) && !installer.generated_projects.empty?
+    installer.generated_projects
+  else
+    []
+  end
+  pod_xcode_projects.each do |project|
+    project.targets.each do |target|`
+        );
+
+        const closing = /\n  end\n  Dir\.glob\(File\.join\(installer\.sandbox\.root,/;
+        if (!closing.test(content)) {
+            console.warn(
+                '⚠️ Podfile still uses installer.pods_project.targets; could not auto-fix closing `end` before Dir.glob. Edit post_install manually or regenerate ios/Podfile from a fresh `t4l ios create` template.'
+            );
+            return;
+        }
+        content = content.replace(closing, `\n  end\n  end\n  Dir.glob(File.join(installer.sandbox.root,`);
+
+        fs.writeFileSync(podfilePath, content, 'utf8');
+        console.log('✅ Migrated Podfile post_install for generate_multiple_pod_projects (nil pods_project).');
     }
 
     function ensureLynxPatchInPodfile(): void {
@@ -552,6 +591,7 @@ ${schemesXml}
         updatePodfile(packages);
         ensureXElementPod();
         ensureLynxDevToolPods(discoverModules(projectRoot));
+        ensureMultiProjectSafePostInstall();
         ensureLynxPatchInPodfile();
         ensurePodBuildSettings();
         updateLynxInitProcessor(packages);
@@ -565,12 +605,14 @@ ${schemesXml}
             if (fs.existsSync(appPodfile)) {
                 runPodInstall(appPodfile);
                 console.log('✨ Autolinking complete for iOS.');
+                runTamerComponentTypesPipeline(projectRoot);
                 return;
             }
         }
 
         runPodInstall();
         console.log('✨ Autolinking complete for iOS.');
+        runTamerComponentTypesPipeline(projectRoot);
     }
 
     function writeHostNativeModulesManifest(): void {
