@@ -70,7 +70,7 @@
         "@tamer4lynx/tamer-screen": "^0.0.2",
         "@tamer4lynx/tamer-secure-store": "^0.0.1",
         "@tamer4lynx/tamer-system-ui": "^0.0.1",
-        "@tamer4lynx/tamer-transports": "^0.0.1",
+        "@tamer4lynx/tamer-transports": "file:../tamer-transports",
         "@tamer4lynx/tamer-webview": "file:../tamer-webview",
         "react-router": "^6.28.0",
         "ws": "^8.18.3",
@@ -135,7 +135,7 @@
         "typescript": "~5.8.0",
       },
       "peerDependencies": {
-        "@tamer4lynx/tamer-transports": "^0.0.1",
+        "@tamer4lynx/tamer-transports": ">=0.0.1",
       },
     },
     "packages/tamer-biometric": {
@@ -252,7 +252,7 @@
     },
     "packages/tamer-router": {
       "name": "@tamer4lynx/tamer-router",
-      "version": "0.0.6",
+      "version": "0.0.7",
       "dependencies": {
         "@rsbuild/core": "^1.3.0",
         "@tamer4lynx/tamer-app-shell": "^0.0.1",
@@ -2184,8 +2184,6 @@
     "example/@tamer4lynx/tamer-secure-store": ["@tamer4lynx/tamer-secure-store@0.0.1", "", {}, "sha512-BUTFrlwapUxzFi6PGdjfva9Kc4obd+gk3S4fHMOoo732cu4Mclr8fjhPN+6quQ6YfKgBbMsgmTeS1oH9kfil6g=="],
 
     "example/@tamer4lynx/tamer-system-ui": ["@tamer4lynx/tamer-system-ui@0.0.1", "", { "peerDependencies": { "@lynx-js/react": ">=0.100.0", "react": "^17.0.0" } }, "sha512-obNnZPvO98i1KpvvnT3p0k11bDkkaZZDrwuGQEFK2lZSOEMtQ2PkT3YfRz8Tr6oItPLA4VhgEkNuJGO82Nf1fA=="],
-
-    "example/@tamer4lynx/tamer-transports": ["@tamer4lynx/tamer-transports@0.0.1", "", {}, "sha512-3ZVTZ/lkeE919m/qeR3+RfCM6aAxiGtdkMvlMimUoqI+0gNvm5U91ul9v6os/maLScwcWWiYlpyX4lhYZppG1A=="],
 
     "example/typescript": ["typescript@5.8.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ=="],
 

@@ -9,6 +9,7 @@ import { runTamerComponentTypesPipeline } from '../common/syncTamerComponentType
 import { buildHostNativeModulesManifestJson, TAMER_HOST_NATIVE_MODULES_FILENAME } from '../common/hostNativeModulesManifest';
 import { addResourceToXcodeProject } from './syncHost';
 import syncHostIos from './syncHost';
+import { PODFILE_POST_INSTALL_BUILD_SPEED_RUBY, patchPbxprojProjectDebugBuildSpeed } from './iosBuildSpeed';
 
 export type IosAutolinkSyncOpts = {
     release?: boolean;
@@ -299,6 +300,29 @@ const autolink = (syncHostOpts?: IosAutolinkSyncOpts) => {
         if (changed) {
             fs.writeFileSync(podfilePath, content, 'utf8');
             console.log('✅ Added Xcode compatibility build settings to Podfile post_install.');
+        }
+    }
+
+    function ensurePodfileBuildSpeedBlock(): void {
+        const podfilePath = path.join(iosProjectPath, 'Podfile');
+        if (!fs.existsSync(podfilePath)) return;
+        let content = fs.readFileSync(podfilePath, 'utf8');
+        if (content.includes('# TAMER_BUILD_SPEED_START')) return;
+        const needle = "config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'";
+        const idx = content.indexOf(needle);
+        if (idx === -1) return;
+        const insertAt = idx + needle.length;
+        content = `${content.slice(0, insertAt)}\n${PODFILE_POST_INSTALL_BUILD_SPEED_RUBY}${content.slice(insertAt)}`;
+        fs.writeFileSync(podfilePath, content, 'utf8');
+        console.log('✅ Added iOS build-speed settings to Podfile (Debug index store + optional ccache).');
+    }
+
+    function ensurePbxprojBuildSpeed(): void {
+        const appName = resolved.config.ios?.appName;
+        if (!appName) return;
+        const pbxPath = path.join(iosProjectPath, `${appName}.xcodeproj`, 'project.pbxproj');
+        if (patchPbxprojProjectDebugBuildSpeed(pbxPath)) {
+            console.log('✅ Added Debug build-speed settings to Xcode project (Swift incremental + index store).');
         }
     }
 
@@ -594,6 +618,8 @@ ${schemesXml}
         ensureMultiProjectSafePostInstall();
         ensureLynxPatchInPodfile();
         ensurePodBuildSettings();
+        ensurePodfileBuildSpeedBlock();
+        ensurePbxprojBuildSpeed();
         updateLynxInitProcessor(packages);
         writeHostNativeModulesManifest();
         syncInfoPlistPermissions(packages);

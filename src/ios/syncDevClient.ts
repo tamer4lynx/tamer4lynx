@@ -5,6 +5,7 @@ import { randomBytes } from 'crypto';
 import { resolveDevAppPaths, findDevClientPackage } from '../common/hostConfig';
 import { setupCocoaPods } from './getPod';
 import ios_autolink from './autolink';
+import { PODFILE_POST_INSTALL_BUILD_SPEED_RUBY } from './iosBuildSpeed';
 
 function readAndSubstituteTemplate(
     templatePath: string,
@@ -696,6 +697,7 @@ post_install do |installer|
         config.build_settings['CLANG_ENABLE_EXPLICIT_MODULES'] = 'NO'
         config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
         config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
+${PODFILE_POST_INSTALL_BUILD_SPEED_RUBY}
       end
 
       if target.name == 'Lynx'
@@ -1045,6 +1047,8 @@ function generatePbxproj(ids: Record<string, string>): string {
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				COMPILER_INDEX_STORE_ENABLE = NO;
+				SWIFT_COMPILATION_MODE = incremental;
 			};
 			name = Debug;
 		};

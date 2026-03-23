@@ -16,7 +16,7 @@
     "@lynx-js/react": ">=0.112.0",
     "@tamer4lynx/jiggle": "^0.0.1",
     "@tamer4lynx/tamer-icons": "^0.0.5",
-    "@tamer4lynx/tamer-transports": "^0.0.1",
+    "@tamer4lynx/tamer-transports": "file:../tamer-transports",
     "@tamer4lynx/tamer-auth": "^0.0.1",
     "@tamer4lynx/tamer-linking": "^0.0.1",
     "@tamer4lynx/tamer-display-browser": "^0.0.1",

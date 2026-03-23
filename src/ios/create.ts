@@ -5,6 +5,7 @@ import { setupCocoaPods } from "./getPod";
 import { randomBytes } from "crypto";
 import { loadHostConfig, resolveIconPaths, findTamerHostPackage } from "../common/hostConfig";
 import { applyIosAppIconAssets } from "../common/syncAppIcons";
+import { PODFILE_POST_INSTALL_BUILD_SPEED_RUBY } from "./iosBuildSpeed";
 
 function readAndSubstituteTemplate(templatePath: string, vars: Record<string, string>): string {
 	const raw = fs.readFileSync(templatePath, "utf-8");
@@ -135,6 +136,7 @@ post_install do |installer|
         config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
         config.build_settings['CLANG_ENABLE_EXPLICIT_MODULES'] = 'NO'
         config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
+${PODFILE_POST_INSTALL_BUILD_SPEED_RUBY}
       end
 
       if target.name == 'Lynx'
@@ -630,6 +632,8 @@ final class LynxInitProcessor {
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				COMPILER_INDEX_STORE_ENABLE = NO;
+				SWIFT_COMPILATION_MODE = incremental;
 			};
 			name = Debug;
 		};
