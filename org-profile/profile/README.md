@@ -4,7 +4,9 @@
 
 # Tamer4Lynx
 
-Lynx ecosystem of native extensions and tooling. Tamer packages add routing, UI, and platform APIs on top of [Lynx](https://lynxjs.org/) for iOS, Android, and web.
+**Tamer** extends [Lynx](https://lynxjs.org/) with routing, shell UI, and native modules—auth, storage, transports, and more—for **iOS, Android, and web**. **HarmonyOS** support is coming soon. You keep building with Lynx and Rspeedy; **Tamer** handles native hosts, modules, and builds.
+
+**Debug** and **production** builds take a few commands, **native modules** included—you skip the repetitive Xcode and Gradle setup.
 
 All packages are published under `@tamer4lynx` on npm.
 
