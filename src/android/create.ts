@@ -342,7 +342,10 @@ dependencies {
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".ProjectActivity" android:exported="false" android:taskAffinity="" android:launchMode="singleTask" android:documentLaunchMode="always" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ProjectActivity" android:exported="true" android:taskAffinity="" android:launchMode="singleTask" android:documentLaunchMode="always" android:windowSoftInputMode="adjustResize">
+        <!-- GENERATED DEEP LINKS START -->
+        <!-- GENERATED DEEP LINKS END -->
+        </activity>
 `
       : `
         <activity android:name=".MainActivity" android:exported="true" android:windowSoftInputMode="adjustResize">

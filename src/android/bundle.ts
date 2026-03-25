@@ -23,7 +23,7 @@ async function bundleAndDeploy(opts: { release?: boolean; production?: boolean }
     const includeDevClient = !release && !!devClientPkg;
     const destinationDir = androidAssetsDir;
 
-    android_autolink({ includeDevClient });
+    android_autolink({ includeDevClient, release });
     await android_syncDevClient({ includeDevClient });
 
     const iconPaths = resolveIconPaths(projectRoot, resolved.config);

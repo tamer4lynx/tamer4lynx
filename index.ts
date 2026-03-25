@@ -327,7 +327,8 @@ program
             return;
         }
         if (sub === 'link') {
-            android_autolink();
+            const release = opts.release === true || opts.production === true;
+            android_autolink({ release });
             return;
         }
         if (sub === 'bundle') {

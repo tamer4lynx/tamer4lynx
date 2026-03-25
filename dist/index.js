@@ -1506,7 +1506,10 @@ dependencies {
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".ProjectActivity" android:exported="false" android:taskAffinity="" android:launchMode="singleTask" android:documentLaunchMode="always" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ProjectActivity" android:exported="true" android:taskAffinity="" android:launchMode="singleTask" android:documentLaunchMode="always" android:windowSoftInputMode="adjustResize">
+        <!-- GENERATED DEEP LINKS START -->
+        <!-- GENERATED DEEP LINKS END -->
+        </activity>
 ` : `
         <activity android:name=".MainActivity" android:exported="true" android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -2425,6 +2428,24 @@ var REQUIRED_CATALOG_ENTRIES = {
     libraryLine: 'androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }'
   }
 };
+var DEV_TAMER_LINKING_SCHEME = "tamerdevapp";
+function normalizeTamerLinkingScheme(schema) {
+  let s = schema.trim();
+  const idx = s.indexOf("://");
+  if (idx !== -1) s = s.slice(0, idx);
+  return s;
+}
+function resolveDefaultTamerLinkingScheme(android, release) {
+  if (!release) return DEV_TAMER_LINKING_SCHEME;
+  const schema = android?.schema?.trim();
+  if (schema) return normalizeTamerLinkingScheme(schema);
+  const raw = android?.appName?.trim();
+  if (raw) {
+    const slug = raw.replace(/[^a-zA-Z0-9]+/g, "").toLowerCase();
+    if (slug.length > 0) return slug;
+  }
+  return DEV_TAMER_LINKING_SCHEME;
+}
 var REQUIRED_PLUGIN_ENTRIES = {
   "android.library": {
     pluginKey: "android-library",
@@ -2449,6 +2470,7 @@ var autolink = (opts) => {
   const { androidDir: appAndroidPath, config } = resolved;
   const packageName = config.android.packageName;
   const projectRoot = resolved.projectRoot;
+  const defaultTamerLinkingScheme = resolveDefaultTamerLinkingScheme(config.android, opts?.release === true);
   function updateGeneratedSection(filePath, newContent, startMarker, endMarker) {
     if (!fs12.existsSync(filePath)) {
       console.warn(`\u26A0\uFE0F File not found, skipping update: ${filePath}`);
@@ -2536,11 +2558,51 @@ ${generateActivityLifecycleKotlin(packages, projectPackage)}`;
     fs12.writeFileSync(outputPath, content);
     console.log(`\u2705 Generated activity lifecycle patches at ${outputPath}`);
   }
-  function syncDeepLinkIntentFilters() {
-    const deepLinks = config.android?.deepLinks;
+  function mergeDeepLinksForAutolink(packages) {
+    const user = config.android?.deepLinks ?? [];
+    const hasTamerLinking = packages.some(
+      (p) => p.name === "@tamer4lynx/tamer-linking" || p.name === "tamer-linking"
+    );
+    if (!hasTamerLinking) return user;
+    const hasTamerScheme = user.some((l) => l.scheme === defaultTamerLinkingScheme);
+    if (hasTamerScheme) return user;
+    console.log(
+      `\u2139\uFE0F Merged default Android deep link ${defaultTamerLinkingScheme}:// (tamer-linking / OAuth redirect).`
+    );
+    return [{ scheme: defaultTamerLinkingScheme }, ...user];
+  }
+  function ensureProjectActivityExported(openTag) {
+    if (openTag.includes("android:exported=")) {
+      return openTag.replace(/android:exported="false"/, 'android:exported="true"');
+    }
+    return openTag.replace(/>$/, ' android:exported="true">');
+  }
+  function ensureProjectActivityDeepLinkMarkers(manifestPath) {
+    let m = fs12.readFileSync(manifestPath, "utf8");
+    if (m.includes("GENERATED DEEP LINKS START")) return;
+    const re = /(<activity[^>]*\sandroid:name="\.ProjectActivity"[^>]*>)([\s\S]*?)(\n\s*<\/activity>)/;
+    const match = m.match(re);
+    if (!match) {
+      console.warn(
+        `\u26A0\uFE0F Could not find <activity android:name=".ProjectActivity"> in AndroidManifest.xml; skipping deep link markers.`
+      );
+      return;
+    }
+    const openTag = ensureProjectActivityExported(match[1]);
+    const inner = `
+        <!-- GENERATED DEEP LINKS START -->
+        <!-- GENERATED DEEP LINKS END -->
+        `;
+    m = m.replace(re, `${openTag}${inner}${match[3]}`);
+    fs12.writeFileSync(manifestPath, m);
+    console.log(`\u2705 Added deep link markers to ProjectActivity (tamer-linking OAuth redirect).`);
+  }
+  function syncDeepLinkIntentFilters(packages) {
+    const deepLinks = mergeDeepLinksForAutolink(packages);
     if (!deepLinks || deepLinks.length === 0) return;
     const manifestPath = path12.join(appAndroidPath, "app", "src", "main", "AndroidManifest.xml");
     if (!fs12.existsSync(manifestPath)) return;
+    ensureProjectActivityDeepLinkMarkers(manifestPath);
     const intentFilters = deepLinks.map((link) => {
       const dataAttrs = [
         `android:scheme="${link.scheme}"`,
@@ -2586,7 +2648,7 @@ ${generateActivityLifecycleKotlin(packages, projectPackage)}`;
     generateKotlinExtensionsFile(packages, packageName);
     generateActivityLifecycleFile(packages, packageName);
     syncManifestPermissions(packages);
-    syncDeepLinkIntentFilters();
+    syncDeepLinkIntentFilters(packages);
     syncVersionCatalog(packages);
     ensureXElementDeps();
     ensureReleaseSigning();
@@ -2916,7 +2978,7 @@ async function bundleAndDeploy(opts = {}) {
   const devClientPkg = findDevClientPackage(projectRoot);
   const includeDevClient = !release && !!devClientPkg;
   const destinationDir = androidAssetsDir;
-  autolink_default({ includeDevClient });
+  autolink_default({ includeDevClient, release });
   await syncDevClient_default({ includeDevClient });
   const iconPaths = resolveIconPaths(projectRoot, resolved.config);
   if (iconPaths) {
@@ -9037,7 +9099,8 @@ program.command("android <subcommand>").description("Android: create | link | bu
     return;
   }
   if (sub === "link") {
-    autolink_default();
+    const release = opts.release === true || opts.production === true;
+    autolink_default({ release });
     return;
   }
   if (sub === "bundle") {

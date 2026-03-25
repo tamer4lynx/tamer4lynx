@@ -203,7 +203,7 @@ Sync dev client files from tamer.config.json. Only `android` is supported (defau
 | Command | Flags | Description |
 |---------|-------|-------------|
 | `t4l add [packages...]` | — | Add @tamer4lynx packages. |
-| `t4l add-core` | — | Add core packages (app-shell, screen, router, insets, transports, system-ui, icons). |
+| `t4l add-core` | — | Add core packages (app-shell, screen, router, insets, transports, system-ui, icons, tamer-env). |
 | `t4l start` | `-v, --verbose` | Dev server with HMR. |
 | `t4l autolink-toggle` | — | Toggle `autolink` in tamer.config.json. |
 

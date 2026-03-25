@@ -89,6 +89,8 @@ export interface IosAppStoreConnectConfig {
 export interface HostConfig {
   android?: {
     appName?: string;
+    /** OAuth / deep link URL scheme for release builds (preferred over deriving from `appName`). */
+    schema?: string;
     packageName?: string;
     sdk?: string;
     deepLinks?: DeepLinkConfig[];
