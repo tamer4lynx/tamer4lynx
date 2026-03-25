@@ -7,6 +7,11 @@ export interface HostConfigPaths {
   lynxProject?: string;
   lynxBundleRoot?: string;
   lynxBundleFile?: string;
+  /**
+   * More `.lynx.bundle` outputs under the same `lynxBundleRoot` as `lynxBundleFile`.
+   * Used by `t4l start` (meta.json), `t4l bundle`, and embeddable so all listed files are expected and documented.
+   */
+  lynxAdditionalBundles?: string[];
 }
 
 export type DevMode = 'standalone' | 'embedded' | 'off';
@@ -127,6 +132,10 @@ export interface ResolvedPaths {
   lynxProjectDir: string;
   lynxBundlePath: string;
   lynxBundleFile: string;
+  /** All bundle filenames under `lynxBundleRoot` (primary `lynxBundleFile` first). */
+  lynxBundleFiles: string[];
+  /** Same as `paths.lynxBundleRoot` / discovered `dist` root under `lynxProjectDir`. */
+  lynxBundleRootRel: string;
   devMode: DevMode;
   devClientBundlePath?: string;
 }
@@ -320,6 +329,16 @@ export function resolveHostPaths(cwd: string = process.cwd()): ResolvedPaths & {
   const lynxProjectDir = discovered?.dir ?? cwd;
   const bundleRoot = paths.lynxBundleRoot ?? discovered?.bundleRoot ?? DEFAULT_BUNDLE_ROOT;
   const bundleFile = paths.lynxBundleFile ?? DEFAULT_BUNDLE_FILE;
+  const extra = Array.isArray(paths.lynxAdditionalBundles) ? paths.lynxAdditionalBundles : [];
+  const lynxBundleFiles: string[] = [];
+  const seen = new Set<string>();
+  for (const f of [bundleFile, ...extra]) {
+    const name = typeof f === 'string' ? f.trim() : '';
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    lynxBundleFiles.push(name);
+  }
+  if (lynxBundleFiles.length === 0) lynxBundleFiles.push(bundleFile);
   const lynxBundlePath = path.join(lynxProjectDir, bundleRoot, bundleFile);
 
   const androidDir = path.join(projectRoot, androidDirRel);
@@ -339,6 +358,8 @@ export function resolveHostPaths(cwd: string = process.cwd()): ResolvedPaths & {
     lynxProjectDir,
     lynxBundlePath,
     lynxBundleFile: bundleFile,
+    lynxBundleFiles,
+    lynxBundleRootRel: bundleRoot,
     devMode,
     devClientBundlePath,
     config,
@@ -521,6 +542,8 @@ export function resolveDevAppPaths(searchRoot: string): ResolvedPaths & { config
     lynxProjectDir: devClientDir,
     lynxBundlePath,
     lynxBundleFile: 'dev-client.lynx.bundle',
+    lynxBundleFiles: ['dev-client.lynx.bundle'],
+    lynxBundleRootRel: DEFAULT_BUNDLE_ROOT,
     devMode: 'embedded',
     devClientBundlePath: undefined,
     config,

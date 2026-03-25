@@ -1,6 +1,6 @@
 {
   "name": "@tamer4lynx/cli",
-  "version": "0.0.22",
+  "version": "0.0.24",
   "module": "index.ts",
   "type": "module",
   "description": "A CLI tool for managing LynxJS native modules.",
@@ -39,6 +39,7 @@
     "packages/tamer-icons",
     "packages/tamer-insets",
     "packages/tamer-plugin",
+    "packages/tamer-env",
     "packages/tamer-router",
     "packages/tamer-screen",
     "packages/tamer-system-ui",
@@ -62,7 +63,9 @@
     "docs:ci": "npm ci --ignore-scripts && npm run build --workspace=docs",
     "prepare": "node -e \"const fs=require('fs');if(!fs.existsSync('dist/index.js'))require('child_process').execSync('npm run build',{stdio:'inherit'})\"",
     "prepublishOnly": "npm run build",
-    "publish:all": "node scripts/publish-all.mjs"
+    "publish:packages": "npm run build && npm run build --workspaces --if-present && node scripts/publish-packages.mjs",
+    "publish:cli": "npm publish",
+    "publish:all": "npm run publish:packages && npm run publish:cli"
   },
   "devDependencies": {
     "@types/react": "^18.3.0",

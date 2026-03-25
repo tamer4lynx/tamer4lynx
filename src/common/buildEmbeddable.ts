@@ -92,8 +92,8 @@ function generateAndroidLibrary(
     outDir: string,
     androidDir: string,
     projectRoot: string,
-    lynxBundlePath: string,
     lynxBundleFile: string,
+    distDir: string,
     modules: { name: string; config: { android?: unknown }; packagePath: string }[],
     abiFilters: string[]
 ): void {
@@ -205,7 +205,7 @@ kotlin.code.style=official
         path.join(libSrcMain, 'AndroidManifest.xml'),
         '<?xml version="1.0" encoding="utf-8"?>\n<manifest />'
     );
-    fs.copyFileSync(lynxBundlePath, path.join(assetsDir, lynxBundleFile));
+    copyDistAssets(distDir, assetsDir, lynxBundleFile);
     fs.writeFileSync(path.join(kotlinDir, 'LynxEmbeddable.kt'), LYNX_EMBEDDABLE_KT);
     fs.writeFileSync(
         path.join(generatedDir, 'GeneratedLynxExtensions.kt'),
@@ -219,14 +219,17 @@ kotlin.code.style=official
 
 export default async function buildEmbeddable(opts: { release?: boolean } = {}) {
     const resolved = resolveHostPaths();
-    const { lynxProjectDir, lynxBundlePath, lynxBundleFile, projectRoot, config } = resolved;
+    const { lynxProjectDir, lynxBundlePath, lynxBundleFile, lynxBundleFiles, lynxBundleRootRel, projectRoot, config } = resolved;
 
     console.log('📦 Building Lynx project (release)...');
     execSync('npm run build', { stdio: 'inherit', cwd: lynxProjectDir });
 
-    if (!fs.existsSync(lynxBundlePath)) {
-        console.error(`❌ Bundle not found at ${lynxBundlePath}`);
-        process.exit(1);
+    for (const name of lynxBundleFiles) {
+        const p = path.join(lynxProjectDir, lynxBundleRootRel, name);
+        if (!fs.existsSync(p)) {
+            console.error(`❌ Bundle not found at ${p}`);
+            process.exit(1);
+        }
     }
 
     const outDir = path.join(projectRoot, EMBEDDABLE_DIR);
@@ -243,15 +246,7 @@ export default async function buildEmbeddable(opts: { release?: boolean } = {}) 
     if (fs.existsSync(androidDir)) fs.rmSync(androidDir, { recursive: true });
     fs.mkdirSync(androidDir, { recursive: true });
 
-    generateAndroidLibrary(
-        outDir,
-        androidDir,
-        projectRoot,
-        lynxBundlePath,
-        lynxBundleFile,
-        modules,
-        abiFilters
-    );
+    generateAndroidLibrary(outDir, androidDir, projectRoot, lynxBundleFile, distDir, modules, abiFilters);
 
     const gradlewPath = path.join(androidDir, 'gradlew');
     const devAppDir = findDevAppPackage(projectRoot);
@@ -309,7 +304,7 @@ export default async function buildEmbeddable(opts: { release?: boolean } = {}) 
 `;
     fs.writeFileSync(path.join(outDir, 'snippet-android.kt'), snippetAndroid);
 
-    generateIosPod(outDir, projectRoot, lynxBundlePath, lynxBundleFile, modules);
+    generateIosPod(outDir, projectRoot, lynxBundleFile, distDir, modules);
 
     const readme = `# Embeddable Lynx Bundle
 
@@ -355,8 +350,8 @@ Add the \`Podfile.snippet\` entries to your Podfile (inside your app target), th
 function generateIosPod(
     outDir: string,
     projectRoot: string,
-    lynxBundlePath: string,
     lynxBundleFile: string,
+    distDir: string,
     modules: { name: string; config: { ios?: unknown }; packagePath: string }[]
 ): void {
     const iosDir = path.join(outDir, 'ios');
@@ -364,7 +359,7 @@ function generateIosPod(
     const resourcesDir = path.join(podDir, 'Resources');
     fs.mkdirSync(resourcesDir, { recursive: true });
 
-    fs.copyFileSync(lynxBundlePath, path.join(resourcesDir, lynxBundleFile));
+    copyDistAssets(distDir, resourcesDir, lynxBundleFile);
 
     const iosModules = modules.filter((m) => m.config.ios);
     const podDeps = iosModules

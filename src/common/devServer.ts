@@ -7,6 +7,7 @@ import readline from 'readline';
 import { WebSocketServer } from 'ws';
 import { discoverNativeExtensions } from './config';
 import { resolveHostPaths, resolveIconPaths } from './hostConfig';
+import { createDebouncedSerialRebuild, WATCH_REBUILD_DEBOUNCE_MS } from './watchRebuild';
 
 const DEFAULT_PORT = 3000;
 
@@ -71,7 +72,7 @@ function getLanIp(): string {
 async function startDevServer(opts?: { verbose?: boolean }) {
   const verbose = opts?.verbose ?? false;
   const resolved = resolveHostPaths();
-  const { projectRoot, lynxProjectDir, lynxBundlePath, lynxBundleFile, config } = resolved;
+  const { projectRoot, lynxProjectDir, lynxBundlePath, lynxBundleFile, lynxBundleFiles, config } = resolved;
   const distDir = path.dirname(lynxBundlePath);
 
   let buildProcess: ReturnType<typeof spawn> | null = null;
@@ -139,11 +140,16 @@ async function startDevServer(opts?: { verbose?: boolean }) {
       const idParts = [androidPackageName?.toLowerCase(), iosBundleId?.toLowerCase()].filter(
         (x): x is string => Boolean(x)
       );
+      const bundles = lynxBundleFiles.map((file) => ({
+        file,
+        url: `http://${lanIp}:${port}${basePath}/${file.split('/').map(encodeURIComponent).join('/')}`,
+      }));
       const meta: Record<string, unknown> = {
         name: projectName,
         slug: projectName,
-        bundleUrl: `http://${lanIp}:${port}${basePath}/${lynxBundleFile}`,
+        bundleUrl: `http://${lanIp}:${port}${basePath}/${lynxBundleFile.split('/').map(encodeURIComponent).join('/')}`,
         bundleFile: lynxBundleFile,
+        bundles,
         hostUri: `http://${lanIp}:${port}${basePath}`,
         debuggerHost: `${lanIp}:${port}`,
         developer: { tool: 'tamer4lynx' },
@@ -281,6 +287,8 @@ async function startDevServer(opts?: { verbose?: boolean }) {
   }
 
   let chokidar: typeof import('chokidar') | null = null;
+  let fileWatcher: import('chokidar').FSWatcher | null = null;
+  let cancelWatchRebuild: (() => void) | null = null;
   try {
     chokidar = await import('chokidar');
   } catch {
@@ -294,8 +302,7 @@ async function startDevServer(opts?: { verbose?: boolean }) {
     ].filter((p) => fs.existsSync(p));
 
     if (watchPaths.length > 0) {
-      const watcher = chokidar.watch(watchPaths, { ignoreInitial: true });
-      watcher.on('change', async () => {
+      const watchRebuild = createDebouncedSerialRebuild(async () => {
         try {
           await runBuild();
           broadcastReload();
@@ -303,6 +310,16 @@ async function startDevServer(opts?: { verbose?: boolean }) {
         } catch (e) {
           console.error('Build failed:', (e as Error).message);
         }
+      }, WATCH_REBUILD_DEBOUNCE_MS);
+      cancelWatchRebuild = watchRebuild.cancel;
+
+      const watcher = chokidar.watch(watchPaths, {
+        ignoreInitial: true,
+        awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
+      });
+      fileWatcher = watcher;
+      watcher.on('change', () => {
+        watchRebuild.schedule();
       });
     }
   }
@@ -334,7 +351,10 @@ async function startDevServer(opts?: { verbose?: boolean }) {
     const wsUrl = `ws://${lanIp}:${port}${basePath}/__hmr`;
     console.log(`\n🚀 Tamer4Lynx dev server (${projectName})`);
     if (verbose) console.log(`   Logs: \x1b[33mverbose\x1b[0m (native + JS)`);
-    console.log(`   Bundle:  ${devUrl}/${lynxBundleFile}`);
+    for (const f of lynxBundleFiles) {
+      const enc = f.split('/').map(encodeURIComponent).join('/');
+      console.log(`   Bundle:  ${devUrl}/${enc}`);
+    }
     console.log(`   Meta:    ${devUrl}/meta.json`);
     console.log(`   HMR WS:  ${wsUrl}`);
     if (stopBonjour) console.log(`   mDNS:    _tamer._tcp (discoverable on LAN)`);
@@ -379,6 +399,8 @@ async function startDevServer(opts?: { verbose?: boolean }) {
   });
 
   const cleanup = async () => {
+    cancelWatchRebuild?.();
+    await fileWatcher?.close().catch(() => {});
     buildProcess?.kill();
     await stopBonjour?.();
     httpServer.close();

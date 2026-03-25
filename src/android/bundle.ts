@@ -18,7 +18,7 @@ async function bundleAndDeploy(opts: { release?: boolean; production?: boolean }
         process.exit(1);
     }
 
-    const { projectRoot, lynxProjectDir, lynxBundlePath, androidAssetsDir, devClientBundlePath } = resolved;
+    const { projectRoot, lynxProjectDir, lynxBundlePath, lynxBundleFiles, lynxBundleRootRel, androidAssetsDir, devClientBundlePath } = resolved;
     const devClientPkg = findDevClientPackage(projectRoot);
     const includeDevClient = !release && !!devClientPkg;
     const destinationDir = androidAssetsDir;
@@ -72,13 +72,20 @@ async function bundleAndDeploy(opts: { release?: boolean; production?: boolean }
             fs.copyFileSync(devClientBundlePath, path.join(destinationDir, 'dev-client.lynx.bundle'));
             console.log(`✨ Copied dev-client.lynx.bundle to assets`);
         }
-        if (!fs.existsSync(lynxBundlePath)) {
-            console.error(`❌ Build output not found at: ${lynxBundlePath}`);
-            process.exit(1);
+        for (const name of lynxBundleFiles) {
+            const p = path.join(lynxProjectDir, lynxBundleRootRel, name);
+            if (!fs.existsSync(p)) {
+                console.error(`❌ Build output not found at: ${p}`);
+                process.exit(1);
+            }
         }
         const distDir = path.dirname(lynxBundlePath);
         copyDistAssets(distDir, destinationDir, resolved.lynxBundleFile);
-        console.log(`✨ Copied ${resolved.lynxBundleFile} to assets`);
+        if (lynxBundleFiles.length > 1) {
+            console.log(`✨ Copied dist assets including: ${lynxBundleFiles.join(', ')}`);
+        } else {
+            console.log(`✨ Copied ${resolved.lynxBundleFile} to assets`);
+        }
     } catch (error: any) {
         console.error(`❌ Failed to copy bundle: ${error.message}`);
         process.exit(1);

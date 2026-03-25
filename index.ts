@@ -53,7 +53,7 @@ import codegen from './src/common/codegen';
 import start from './src/common/start';
 import { injectHostAndroid, injectHostIos } from './src/common/injectHost';
 import buildEmbeddable from './src/common/buildEmbeddable';
-import { add, addCore, addDev } from './src/common/add';
+import { add, addCore, addDev, updateTamerPackages } from './src/common/add';
 import signing from './src/common/signing';
 import { assertProductionSigningReady } from './src/common/productionSigning';
 
@@ -278,6 +278,13 @@ program
     .description('Add dev-app, dev-client, and their dependencies')
     .action(async () => {
         await addDev();
+    });
+
+program
+    .command('update')
+    .description('Update every @tamer4lynx/* dependency in package.json to the latest published versions')
+    .action(async () => {
+        await updateTamerPackages();
     });
 
 program

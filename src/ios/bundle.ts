@@ -25,6 +25,7 @@ function bundleAndDeploy(opts: { release?: boolean; production?: boolean } = {})
     const includeDevClient = !release && !!devClientPkg;
 
     const appName = resolved.config.ios!.appName!;
+    const { lynxProjectDir, lynxBundleFiles, lynxBundleRootRel } = resolved;
     const sourceBundlePath = resolved.lynxBundlePath;
     const destinationDir = path.join(resolved.iosDir, appName);
     const destinationBundlePath = path.join(destinationDir, resolved.lynxBundleFile);
@@ -53,9 +54,12 @@ function bundleAndDeploy(opts: { release?: boolean; production?: boolean } = {})
     }
 
     try {
-        if (!fs.existsSync(sourceBundlePath)) {
-            console.error(`❌ Build output not found at: ${sourceBundlePath}`);
-            process.exit(1);
+        for (const name of lynxBundleFiles) {
+            const p = path.join(lynxProjectDir, lynxBundleRootRel, name);
+            if (!fs.existsSync(p)) {
+                console.error(`❌ Build output not found at: ${p}`);
+                process.exit(1);
+            }
         }
 
         if (!fs.existsSync(destinationDir)) {

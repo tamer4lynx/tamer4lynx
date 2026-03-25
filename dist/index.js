@@ -317,6 +317,16 @@ function resolveHostPaths(cwd = process.cwd()) {
   const lynxProjectDir = discovered?.dir ?? cwd;
   const bundleRoot = paths.lynxBundleRoot ?? discovered?.bundleRoot ?? DEFAULT_BUNDLE_ROOT;
   const bundleFile = paths.lynxBundleFile ?? DEFAULT_BUNDLE_FILE;
+  const extra = Array.isArray(paths.lynxAdditionalBundles) ? paths.lynxAdditionalBundles : [];
+  const lynxBundleFiles = [];
+  const seen = /* @__PURE__ */ new Set();
+  for (const f of [bundleFile, ...extra]) {
+    const name = typeof f === "string" ? f.trim() : "";
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    lynxBundleFiles.push(name);
+  }
+  if (lynxBundleFiles.length === 0) lynxBundleFiles.push(bundleFile);
   const lynxBundlePath = path4.join(lynxProjectDir, bundleRoot, bundleFile);
   const androidDir = path4.join(projectRoot, androidDirRel);
   const devMode = resolveDevMode(config);
@@ -332,6 +342,8 @@ function resolveHostPaths(cwd = process.cwd()) {
     lynxProjectDir,
     lynxBundlePath,
     lynxBundleFile: bundleFile,
+    lynxBundleFiles,
+    lynxBundleRootRel: bundleRoot,
     devMode,
     devClientBundlePath,
     config
@@ -2900,7 +2912,7 @@ async function bundleAndDeploy(opts = {}) {
     console.error(`\u274C Error loading configuration: ${error.message}`);
     process.exit(1);
   }
-  const { projectRoot, lynxProjectDir, lynxBundlePath, androidAssetsDir, devClientBundlePath } = resolved;
+  const { projectRoot, lynxProjectDir, lynxBundlePath, lynxBundleFiles, lynxBundleRootRel, androidAssetsDir, devClientBundlePath } = resolved;
   const devClientPkg = findDevClientPackage(projectRoot);
   const includeDevClient = !release && !!devClientPkg;
   const destinationDir = androidAssetsDir;
@@ -2949,13 +2961,20 @@ async function bundleAndDeploy(opts = {}) {
       fs15.copyFileSync(devClientBundlePath, path15.join(destinationDir, "dev-client.lynx.bundle"));
       console.log(`\u2728 Copied dev-client.lynx.bundle to assets`);
     }
-    if (!fs15.existsSync(lynxBundlePath)) {
-      console.error(`\u274C Build output not found at: ${lynxBundlePath}`);
-      process.exit(1);
+    for (const name of lynxBundleFiles) {
+      const p = path15.join(lynxProjectDir, lynxBundleRootRel, name);
+      if (!fs15.existsSync(p)) {
+        console.error(`\u274C Build output not found at: ${p}`);
+        process.exit(1);
+      }
     }
     const distDir = path15.dirname(lynxBundlePath);
     copyDistAssets(distDir, destinationDir, resolved.lynxBundleFile);
-    console.log(`\u2728 Copied ${resolved.lynxBundleFile} to assets`);
+    if (lynxBundleFiles.length > 1) {
+      console.log(`\u2728 Copied dist assets including: ${lynxBundleFiles.join(", ")}`);
+    } else {
+      console.log(`\u2728 Copied ${resolved.lynxBundleFile} to assets`);
+    }
   } catch (error) {
     console.error(`\u274C Failed to copy bundle: ${error.message}`);
     process.exit(1);
@@ -5448,6 +5467,7 @@ function bundleAndDeploy2(opts = {}) {
   const devClientPkg = findDevClientPackage(resolved.projectRoot);
   const includeDevClient = !release && !!devClientPkg;
   const appName = resolved.config.ios.appName;
+  const { lynxProjectDir, lynxBundleFiles, lynxBundleRootRel } = resolved;
   const sourceBundlePath = resolved.lynxBundlePath;
   const destinationDir = path22.join(resolved.iosDir, appName);
   const destinationBundlePath = path22.join(destinationDir, resolved.lynxBundleFile);
@@ -5472,9 +5492,12 @@ function bundleAndDeploy2(opts = {}) {
     process.exit(1);
   }
   try {
-    if (!fs22.existsSync(sourceBundlePath)) {
-      console.error(`\u274C Build output not found at: ${sourceBundlePath}`);
-      process.exit(1);
+    for (const name of lynxBundleFiles) {
+      const p = path22.join(lynxProjectDir, lynxBundleRootRel, name);
+      if (!fs22.existsSync(p)) {
+        console.error(`\u274C Build output not found at: ${p}`);
+        process.exit(1);
+      }
     }
     if (!fs22.existsSync(destinationDir)) {
       console.error(`Destination directory not found at: ${destinationDir}`);
@@ -6825,6 +6848,31 @@ import os7 from "os";
 import path30 from "path";
 import { render as render3, useInput, useApp } from "ink";
 import { WebSocket, WebSocketServer } from "ws";
+
+// src/common/watchRebuild.ts
+function createDebouncedSerialRebuild(run4, debounceMs) {
+  let debounceTimer = null;
+  let chain = Promise.resolve();
+  const schedule = () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      debounceTimer = null;
+      chain = chain.catch(() => {
+      }).then(() => run4().catch(() => {
+      }));
+    }, debounceMs);
+  };
+  const cancel = () => {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+  };
+  return { schedule, cancel };
+}
+var WATCH_REBUILD_DEBOUNCE_MS = 400;
+
+// src/common/devServer.tsx
 import { jsx as jsx11 } from "react/jsx-runtime";
 var DEFAULT_PORT = 3e3;
 var TAMER_CLI_VERSION = getCliVersion();
@@ -7167,6 +7215,10 @@ function DevServerApp({ verbose }) {
           } catch {
           }
         };
+        const watchRebuild = createDebouncedSerialRebuild(
+          () => rebuildRef.current(),
+          WATCH_REBUILD_DEBOUNCE_MS
+        );
         httpSrv.on("upgrade", (request, socket, head) => {
           const p = (request.url || "").split("?")[0];
           if (p === `${basePath}/__hmr` || p === "/__hmr" || p.endsWith("/__hmr")) {
@@ -7213,15 +7265,16 @@ function DevServerApp({ verbose }) {
             path30.join(lynxProjectDir, "lynx.config.js")
           ].filter((p) => fs30.existsSync(p));
           if (watchPaths.length > 0) {
-            const w = chokidar.watch(watchPaths, { ignoreInitial: true });
-            w.on("change", async () => {
-              try {
-                await rebuildRef.current();
-              } catch {
-              }
+            const w = chokidar.watch(watchPaths, {
+              ignoreInitial: true,
+              awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 }
+            });
+            w.on("change", () => {
+              watchRebuild.schedule();
             });
             watcher = {
               close: async () => {
+                watchRebuild.cancel();
                 await w.close();
               }
             };
@@ -7505,7 +7558,7 @@ object LynxEmbeddable {
     }
 }
 `;
-function generateAndroidLibrary(outDir, androidDir, projectRoot, lynxBundlePath, lynxBundleFile, modules, abiFilters) {
+function generateAndroidLibrary(outDir, androidDir, projectRoot, lynxBundleFile, distDir, modules, abiFilters) {
   const libDir = path32.join(androidDir, "lib");
   const libSrcMain = path32.join(libDir, "src", "main");
   const assetsDir = path32.join(libSrcMain, "assets");
@@ -7605,7 +7658,7 @@ kotlin.code.style=official
     path32.join(libSrcMain, "AndroidManifest.xml"),
     '<?xml version="1.0" encoding="utf-8"?>\n<manifest />'
   );
-  fs32.copyFileSync(lynxBundlePath, path32.join(assetsDir, lynxBundleFile));
+  copyDistAssets(distDir, assetsDir, lynxBundleFile);
   fs32.writeFileSync(path32.join(kotlinDir, "LynxEmbeddable.kt"), LYNX_EMBEDDABLE_KT);
   fs32.writeFileSync(
     path32.join(generatedDir, "GeneratedLynxExtensions.kt"),
@@ -7618,12 +7671,15 @@ kotlin.code.style=official
 }
 async function buildEmbeddable(opts = {}) {
   const resolved = resolveHostPaths();
-  const { lynxProjectDir, lynxBundlePath, lynxBundleFile, projectRoot, config } = resolved;
+  const { lynxProjectDir, lynxBundlePath, lynxBundleFile, lynxBundleFiles, lynxBundleRootRel, projectRoot, config } = resolved;
   console.log("\u{1F4E6} Building Lynx project (release)...");
   execSync12("npm run build", { stdio: "inherit", cwd: lynxProjectDir });
-  if (!fs32.existsSync(lynxBundlePath)) {
-    console.error(`\u274C Bundle not found at ${lynxBundlePath}`);
-    process.exit(1);
+  for (const name of lynxBundleFiles) {
+    const p = path32.join(lynxProjectDir, lynxBundleRootRel, name);
+    if (!fs32.existsSync(p)) {
+      console.error(`\u274C Bundle not found at ${p}`);
+      process.exit(1);
+    }
   }
   const outDir = path32.join(projectRoot, EMBEDDABLE_DIR);
   fs32.mkdirSync(outDir, { recursive: true });
@@ -7635,15 +7691,7 @@ async function buildEmbeddable(opts = {}) {
   const androidDir = path32.join(outDir, "android");
   if (fs32.existsSync(androidDir)) fs32.rmSync(androidDir, { recursive: true });
   fs32.mkdirSync(androidDir, { recursive: true });
-  generateAndroidLibrary(
-    outDir,
-    androidDir,
-    projectRoot,
-    lynxBundlePath,
-    lynxBundleFile,
-    modules,
-    abiFilters
-  );
+  generateAndroidLibrary(outDir, androidDir, projectRoot, lynxBundleFile, distDir, modules, abiFilters);
   const gradlewPath = path32.join(androidDir, "gradlew");
   const devAppDir = findDevAppPackage(projectRoot);
   const existingGradleDirs = [
@@ -7694,7 +7742,7 @@ async function buildEmbeddable(opts = {}) {
 // val lynxView = LynxEmbeddable.buildLynxView(containerViewGroup)
 `;
   fs32.writeFileSync(path32.join(outDir, "snippet-android.kt"), snippetAndroid);
-  generateIosPod(outDir, projectRoot, lynxBundlePath, lynxBundleFile, modules);
+  generateIosPod(outDir, projectRoot, lynxBundleFile, distDir, modules);
   const readme = `# Embeddable Lynx Bundle
 
 Production-ready Lynx bundle and native artifacts to add LynxView to your existing app.
@@ -7735,12 +7783,12 @@ Add the \`Podfile.snippet\` entries to your Podfile (inside your app target), th
   console.log("   - Podfile.snippet");
   console.log("   - README.md");
 }
-function generateIosPod(outDir, projectRoot, lynxBundlePath, lynxBundleFile, modules) {
+function generateIosPod(outDir, projectRoot, lynxBundleFile, distDir, modules) {
   const iosDir = path32.join(outDir, "ios");
   const podDir = path32.join(iosDir, "TamerEmbeddable");
   const resourcesDir = path32.join(podDir, "Resources");
   fs32.mkdirSync(resourcesDir, { recursive: true });
-  fs32.copyFileSync(lynxBundlePath, path32.join(resourcesDir, lynxBundleFile));
+  copyDistAssets(distDir, resourcesDir, lynxBundleFile);
   const iosModules = modules.filter((m) => m.config.ios);
   const podDeps = iosModules.map((p) => {
     const podspecPath = p.config.ios?.podspecPath || ".";
@@ -7841,7 +7889,8 @@ var CORE_PACKAGES = [
   "@tamer4lynx/tamer-insets",
   "@tamer4lynx/tamer-transports",
   "@tamer4lynx/tamer-system-ui",
-  "@tamer4lynx/tamer-icons"
+  "@tamer4lynx/tamer-icons",
+  "@tamer4lynx/tamer-env"
 ];
 var DEV_STACK_PACKAGES = [
   "@tamer4lynx/tamer-dev-app",
@@ -7854,6 +7903,38 @@ var DEV_STACK_PACKAGES = [
   "@tamer4lynx/tamer-screen",
   "@tamer4lynx/tamer-system-ui"
 ];
+var PACKAGE_JSON_DEP_SECTIONS = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];
+function isNonRegistryTamerDep(versionSpec) {
+  const v = versionSpec.trim();
+  if (!v) return true;
+  return v.startsWith("file:") || v.startsWith("link:") || v.startsWith("portal:") || v.includes("workspace:");
+}
+function collectTamerPackagesFromPackageJson(cwd) {
+  const pkgPath = path33.join(cwd, "package.json");
+  if (!fs33.existsSync(pkgPath)) {
+    console.warn(`\u26A0\uFE0F  No package.json at ${pkgPath}`);
+    return [];
+  }
+  let pkg;
+  try {
+    pkg = JSON.parse(fs33.readFileSync(pkgPath, "utf8"));
+  } catch {
+    console.warn(`\u26A0\uFE0F  Could not parse ${pkgPath}`);
+    return [];
+  }
+  const names = /* @__PURE__ */ new Set();
+  for (const section of PACKAGE_JSON_DEP_SECTIONS) {
+    const deps = pkg[section];
+    if (!deps || typeof deps !== "object" || Array.isArray(deps)) continue;
+    for (const [name, spec] of Object.entries(deps)) {
+      if (!name.startsWith("@tamer4lynx/")) continue;
+      if (typeof spec !== "string") continue;
+      if (isNonRegistryTamerDep(spec)) continue;
+      names.add(name);
+    }
+  }
+  return [...names].sort((a, b) => a.localeCompare(b));
+}
 var PACKAGE_ALIASES = {};
 async function getHighestPublishedVersion(fullName) {
   try {
@@ -7886,8 +7967,12 @@ function detectPackageManager2(cwd) {
   return "npm";
 }
 function runInstall(cwd, packages, pm) {
-  const args = pm === "npm" ? ["install", ...packages] : ["add", ...packages];
-  const cmd = pm === "npm" ? "npm" : pm === "pnpm" ? "pnpm" : "bun";
+  if (pm === "npm") {
+    execSync13(`npm install --legacy-peer-deps ${packages.join(" ")}`, { stdio: "inherit", cwd });
+    return;
+  }
+  const args = ["add", ...packages];
+  const cmd = pm === "pnpm" ? "pnpm" : "bun";
   execSync13(`${cmd} ${args.join(" ")}`, { stdio: "inherit", cwd });
 }
 async function addCore() {
@@ -7907,6 +7992,22 @@ async function addDev() {
   console.log(`Adding dev stack (${DEV_STACK_PACKAGES.length} @tamer4lynx packages) to ${lynxProjectDir} (using ${pm})\u2026`);
   runInstall(lynxProjectDir, resolved, pm);
   console.log("\u2705 Dev stack installed. Run `t4l link` to link native modules.");
+}
+async function updateTamerPackages() {
+  const { lynxProjectDir } = resolveHostPaths();
+  const tamerPkgs = collectTamerPackagesFromPackageJson(lynxProjectDir);
+  if (tamerPkgs.length === 0) {
+    console.log(
+      "No @tamer4lynx packages to update (none found in package.json, or only file:/workspace: links). Add packages with `t4l add` first."
+    );
+    return;
+  }
+  const pm = detectPackageManager2(lynxProjectDir);
+  console.log(`Resolving latest published versions (npm)\u2026`);
+  const resolved = await Promise.all(tamerPkgs.map(normalizeTamerInstallSpec));
+  console.log(`Updating ${tamerPkgs.length} @tamer4lynx packages in ${lynxProjectDir} (using ${pm})\u2026`);
+  runInstall(lynxProjectDir, resolved, pm);
+  console.log("\u2705 Tamer packages updated. Run `t4l link` to link native modules.");
 }
 async function add(packages = []) {
   const list = Array.isArray(packages) ? packages : [];
@@ -8910,6 +9011,9 @@ program.command("add-core").description("Add core packages").action(async () => 
 });
 program.command("add-dev").description("Add dev-app, dev-client, and their dependencies").action(async () => {
   await addDev();
+});
+program.command("update").description("Update every @tamer4lynx/* dependency in package.json to the latest published versions").action(async () => {
+  await updateTamerPackages();
 });
 program.command("signing [platform]").description("Configure Android and iOS signing interactively").action(async (platform) => {
   const p = platform?.toLowerCase();

@@ -15,6 +15,7 @@ const CORE_PACKAGES = [
   '@tamer4lynx/tamer-transports',
   '@tamer4lynx/tamer-system-ui',
   '@tamer4lynx/tamer-icons',
+  '@tamer4lynx/tamer-env',
 ];
 
 /**
@@ -33,6 +34,48 @@ const DEV_STACK_PACKAGES = [
   '@tamer4lynx/tamer-screen',
   '@tamer4lynx/tamer-system-ui',
 ] as const
+
+const PACKAGE_JSON_DEP_SECTIONS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const
+
+/** Local / monorepo specs we do not rewrite to a registry version. */
+function isNonRegistryTamerDep(versionSpec: string): boolean {
+  const v = versionSpec.trim()
+  if (!v) return true
+  return (
+    v.startsWith('file:') ||
+    v.startsWith('link:') ||
+    v.startsWith('portal:') ||
+    v.includes('workspace:')
+  )
+}
+
+/** Collect `@tamer4lynx/*` package names from package.json (registry-installable entries only). */
+export function collectTamerPackagesFromPackageJson(cwd: string): string[] {
+  const pkgPath = path.join(cwd, 'package.json')
+  if (!fs.existsSync(pkgPath)) {
+    console.warn(`⚠️  No package.json at ${pkgPath}`)
+    return []
+  }
+  let pkg: Record<string, unknown>
+  try {
+    pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as Record<string, unknown>
+  } catch {
+    console.warn(`⚠️  Could not parse ${pkgPath}`)
+    return []
+  }
+  const names = new Set<string>()
+  for (const section of PACKAGE_JSON_DEP_SECTIONS) {
+    const deps = pkg[section]
+    if (!deps || typeof deps !== 'object' || Array.isArray(deps)) continue
+    for (const [name, spec] of Object.entries(deps as Record<string, unknown>)) {
+      if (!name.startsWith('@tamer4lynx/')) continue
+      if (typeof spec !== 'string') continue
+      if (isNonRegistryTamerDep(spec)) continue
+      names.add(name)
+    }
+  }
+  return [...names].sort((a, b) => a.localeCompare(b))
+}
 
 const PACKAGE_ALIASES: Record<string, string> = {};
 
@@ -71,8 +114,13 @@ function detectPackageManager(cwd: string): 'npm' | 'pnpm' | 'bun' {
 }
 
 function runInstall(cwd: string, packages: string[], pm: 'npm' | 'pnpm' | 'bun') {
-  const args = pm === 'npm' ? ['install', ...packages] : ['add', ...packages];
-  const cmd = pm === 'npm' ? 'npm' : pm === 'pnpm' ? 'pnpm' : 'bun';
+  if (pm === 'npm') {
+    // npm 7+ strict peers: @tamer4lynx/* often declare react@^17 while @tamer4lynx/cli (Ink) pulls react@18.
+    execSync(`npm install --legacy-peer-deps ${packages.join(' ')}`, { stdio: 'inherit', cwd });
+    return;
+  }
+  const args = ['add', ...packages];
+  const cmd = pm === 'pnpm' ? 'pnpm' : 'bun';
   execSync(`${cmd} ${args.join(' ')}`, { stdio: 'inherit', cwd });
 }
 
@@ -94,6 +142,24 @@ export async function addDev() {
   console.log(`Adding dev stack (${DEV_STACK_PACKAGES.length} @tamer4lynx packages) to ${lynxProjectDir} (using ${pm})…`);
   runInstall(lynxProjectDir, resolved, pm);
   console.log('✅ Dev stack installed. Run `t4l link` to link native modules.');
+}
+
+/** Resolves every `@tamer4lynx/*` listed in the project package.json (dependencies / dev / peer / optional) to the highest published semver — same as `t4l add`. Skips `file:`, `link:`, `portal:`, and `workspace:*` entries. */
+export async function updateTamerPackages() {
+  const { lynxProjectDir } = resolveHostPaths();
+  const tamerPkgs = collectTamerPackagesFromPackageJson(lynxProjectDir);
+  if (tamerPkgs.length === 0) {
+    console.log(
+      'No @tamer4lynx packages to update (none found in package.json, or only file:/workspace: links). Add packages with `t4l add` first.',
+    );
+    return;
+  }
+  const pm = detectPackageManager(lynxProjectDir);
+  console.log(`Resolving latest published versions (npm)…`);
+  const resolved = await Promise.all(tamerPkgs.map(normalizeTamerInstallSpec));
+  console.log(`Updating ${tamerPkgs.length} @tamer4lynx packages in ${lynxProjectDir} (using ${pm})…`);
+  runInstall(lynxProjectDir, resolved, pm);
+  console.log('✅ Tamer packages updated. Run `t4l link` to link native modules.');
 }
 
 export async function add(packages: string[] = []) {

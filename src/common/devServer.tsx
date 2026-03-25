@@ -11,6 +11,7 @@ import { resolveHostPaths, resolveIconPaths } from './hostConfig';
 import { getCliVersion } from './cliVersion';
 import { ServerDashboard } from './tui/components/ServerDashboard';
 import type { BuildPhase } from './tui/hooks/useServerStatus';
+import { createDebouncedSerialRebuild, WATCH_REBUILD_DEBOUNCE_MS } from './watchRebuild';
 
 const DEFAULT_PORT = 3000;
 const TAMER_CLI_VERSION = getCliVersion();
@@ -397,6 +398,11 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
           }
         };
 
+        const watchRebuild = createDebouncedSerialRebuild(
+          () => rebuildRef.current(),
+          WATCH_REBUILD_DEBOUNCE_MS,
+        );
+
         httpSrv.on('upgrade', (request, socket, head) => {
           const p = (request.url || '').split('?')[0];
           if (p === `${basePath}/__hmr` || p === '/__hmr' || p.endsWith('/__hmr')) {
@@ -448,16 +454,16 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
           ].filter((p) => fs.existsSync(p));
 
           if (watchPaths.length > 0) {
-            const w = chokidar.watch(watchPaths, { ignoreInitial: true });
-            w.on('change', async () => {
-              try {
-                await rebuildRef.current();
-              } catch {
-                /* */
-              }
+            const w = chokidar.watch(watchPaths, {
+              ignoreInitial: true,
+              awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
+            });
+            w.on('change', () => {
+              watchRebuild.schedule();
             });
             watcher = {
               close: async () => {
+                watchRebuild.cancel();
                 await w.close();
               },
             };
