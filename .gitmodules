@@ -58,3 +58,6 @@
 [submodule "packages/tamer-webview"]
 	path = packages/tamer-webview
 	url = https://github.com/tamer4lynx/tamer-webview.git
+[submodule "packages/tamer-env"]
+	path = packages/tamer-env
+	url = https://github.com/tamer4lynx/tamer-env.git
