@@ -1,5 +1,6 @@
 import { getAndroidModuleClassNames } from './config';
 import type { DiscoveredModule } from './discoverModules';
+import type { DevToolBootstrapMode } from './hostConfig';
 
 export function getDedupedAndroidModuleClassNames(packages: DiscoveredModule[]): string[] {
     const seenNames = new Set<string>();
@@ -13,9 +14,14 @@ export function getDedupedAndroidModuleClassNames(packages: DiscoveredModule[]):
         });
 }
 
-export function generateLynxExtensionsKotlin(packages: DiscoveredModule[], projectPackage: string): string {
+export function generateLynxExtensionsKotlin(
+    packages: DiscoveredModule[],
+    projectPackage: string,
+    opts?: { devToolBootstrap?: DevToolBootstrapMode },
+): string {
     const modulePackages = packages.filter((p) => getAndroidModuleClassNames(p.config.android).length > 0);
     const elementPackages = packages.filter((p) => p.config.android?.elements && Object.keys(p.config.android.elements).length > 0);
+    const behaviorPackages = packages.filter((p) => p.config.android?.behaviors && Object.keys(p.config.android.behaviors).length > 0);
 
     const allModuleClasses = getDedupedAndroidModuleClassNames(packages);
     const hasDevClient = packages.some((p) => p.name === '@tamer4lynx/tamer-dev-client');
@@ -30,6 +36,10 @@ export function generateLynxExtensionsKotlin(packages: DiscoveredModule[], proje
         .flatMap((p) => Object.values(p.config.android!.elements!).map((cls) => `import ${cls}`))
         .filter((v, i, a) => a.indexOf(v) === i)
         .join('\n');
+    const behaviorImports = behaviorPackages
+        .flatMap((p) => Object.values(p.config.android!.behaviors!).map((cls) => `import ${cls}`))
+        .filter((v, i, a) => a.indexOf(v) === i)
+        .join('\n');
 
     const moduleRegistrations = allModuleClasses
         .map((fullClassName) => {
@@ -38,7 +48,7 @@ export function generateLynxExtensionsKotlin(packages: DiscoveredModule[], proje
         })
         .join('\n');
 
-    const behaviorRegistrations = elementPackages
+    const elementBehaviorRegistrations = elementPackages
         .flatMap((p) =>
             Object.entries(p.config.android!.elements!).map(([tag, fullClassName]) => {
                 const simpleClassName = fullClassName.split('.').pop()!;
@@ -50,6 +60,15 @@ export function generateLynxExtensionsKotlin(packages: DiscoveredModule[], proje
             })
         )
         .join('\n');
+    const fullBehaviorRegistrations = behaviorPackages
+        .flatMap((p) =>
+            Object.values(p.config.android!.behaviors!).map((fullClassName) => {
+                const simpleClassName = fullClassName.split('.').pop()!;
+                return `        LynxEnv.inst().addBehavior(${simpleClassName}())`;
+            })
+        )
+        .join('\n');
+    const behaviorRegistrations = [elementBehaviorRegistrations, fullBehaviorRegistrations].filter(Boolean).join('\n');
 
     const allRegistrations = [moduleRegistrations, behaviorRegistrations].filter(Boolean).join('\n');
 
@@ -67,12 +86,17 @@ export function generateLynxExtensionsKotlin(packages: DiscoveredModule[], proje
             ? `\n    fun onHostViewChanged(view: android.view.View?) {\n${hostViewLines}\n    }`
             : '\n    fun onHostViewChanged(view: android.view.View?) {}\n';
 
-    const devToolBootstrapPrefix = hasDevClient
-        ? '        com.nanofuxion.tamerdevclient.LynxDevToolBootstrap.configure(context)\n'
-        : '';
-    const devToolBootstrapSuffix = hasDevClient
-        ? '        com.nanofuxion.tamerdevclient.LynxDevToolBootstrap.enableLynxDebugFlags()\n'
-        : '';
+    const devToolMode: DevToolBootstrapMode = opts?.devToolBootstrap ?? 'always';
+    const devToolBootstrapPrefix =
+        hasDevClient && devToolMode === 'always'
+            ? '        com.nanofuxion.tamerdevclient.LynxDevToolBootstrap.configure(context)\n'
+            : hasDevClient && devToolMode === 'projectHostOnly'
+              ? '        com.nanofuxion.tamerdevclient.LynxDevToolBootstrap.initLynxEnvForLauncher(context)\n'
+              : '';
+    const devToolBootstrapSuffix =
+        hasDevClient && devToolMode === 'always'
+            ? '        com.nanofuxion.tamerdevclient.LynxDevToolBootstrap.enableLynxDebugFlags()\n'
+            : '';
 
     return `package ${projectPackage}.generated
 
@@ -82,6 +106,7 @@ import com.lynx.tasm.LynxViewBuilder
 import com.lynx.xelement.XElementBehaviors
 ${moduleImports}
 ${elementImports}
+${behaviorImports}
 
 object GeneratedLynxExtensions {
     fun register(context: Context) {

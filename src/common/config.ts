@@ -21,6 +21,7 @@ export interface ExtensionPlatformConfig {
   sourceDir?: string;
   podspecPath?: string;
   elements?: Record<string, string>;
+  behaviors?: Record<string, string>;
   permissions?: string[];
   iosPermissions?: Record<string, string>;
   attachHostView?: boolean;
@@ -52,6 +53,7 @@ export interface NormalizedExtensionConfig {
     moduleClassNames?: string[];
     sourceDir: string;
     elements?: Record<string, string>;
+    behaviors?: Record<string, string>;
     permissions?: string[];
     attachHostView?: boolean;
     activityPatches?: ActivityPatchConfig;
@@ -103,17 +105,19 @@ export function loadExtensionConfig(packagePath: string): NormalizedExtensionCon
     const moduleClassName = a?.moduleClassName ?? (raw.android as any)?.moduleClassName;
     const moduleClassNames = a?.moduleClassNames ?? (raw.android as any)?.moduleClassNames;
     const elements = a?.elements ?? (raw.android as any)?.elements;
+    const behaviors = (a as any)?.behaviors ?? (raw.android as any)?.behaviors;
     const permissions = a?.permissions ?? (raw.android as any)?.permissions;
     const attachHostView = (a as any)?.attachHostView ?? (raw.android as any)?.attachHostView;
     const activityPatches = (a as any)?.activityPatches ?? (raw.android as any)?.activityPatches;
     const classes = Array.isArray(moduleClassNames) && moduleClassNames.length > 0
       ? moduleClassNames
       : moduleClassName ? [moduleClassName] : [];
-    if (classes.length > 0 || elements || permissions || attachHostView || activityPatches) {
+    if (classes.length > 0 || elements || behaviors || permissions || attachHostView || activityPatches) {
       normalized.android = {
         ...(classes.length === 1 ? { moduleClassName: classes[0] } : classes.length > 1 ? { moduleClassNames: classes } : {}),
         sourceDir: a?.sourceDir ?? (raw.android as any)?.sourceDir ?? 'android',
         ...(elements && Object.keys(elements).length > 0 && { elements }),
+        ...(behaviors && Object.keys(behaviors).length > 0 && { behaviors }),
         ...(permissions && Array.isArray(permissions) && permissions.length > 0 && { permissions }),
         ...(attachHostView && { attachHostView: true }),
         ...(activityPatches && { activityPatches }),

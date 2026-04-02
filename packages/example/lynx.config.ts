@@ -6,22 +6,30 @@ import { pluginReactLynx } from '@lynx-js/react-rsbuild-plugin'
 import { pluginTypeCheck } from '@rsbuild/plugin-type-check'
 import { pluginTamer } from '@tamer4lynx/tamer-plugin'
 import { pluginTamerEnv } from '@tamer4lynx/tamer-env'
+import { tamerRouterPlugin } from '@tamer4lynx/tamer-router/plugin'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export default {
-  source: {
+  resolve: {
     alias: {
       '@tamer4lynx/tamer-app-shell': path.resolve(__dirname, '../tamer-app-shell/src/index.tsx'),
       '@tamer4lynx/tamer-screen': path.resolve(__dirname, '../tamer-screen/src/index.tsx'),
       '@tamer4lynx/tamer-icons': path.resolve(__dirname, '../tamer-icons/src/index.tsx'),
       '@tamer4lynx/tamer-auth': path.resolve(__dirname, '../tamer-auth/src/index.ts'),
       '@tamer4lynx/tamer-linking': path.resolve(__dirname, '../tamer-linking/src/index.ts'),
+      '@tamer4lynx/tamer-stack': path.resolve(__dirname, '../tamer-stack/src/index.ts'),
       '@tamer4lynx/tamer-display-browser': path.resolve(__dirname, '../tamer-display-browser/src/index.ts'),
     },
   },
   plugins: [
     pluginTamer({
+      tamerRouter: tamerRouterPlugin({
+        root: './src/pages',
+        layoutFilename: '_layout.tsx',
+        // lazyRoutes: true,
+        globalStyleImports: ['./src/App.css'],
+      }),
       tamerEnv: pluginTamerEnv({
         root: __dirname,
         defineFromEnv: {

@@ -30,6 +30,7 @@
     "@tamer4lynx/tamer-plugin": "^0.0.4",
     "@tamer4lynx/tamer-env": "file:../tamer-env",
     "@tamer4lynx/tamer-router": "^0.0.10",
+    "@tamer4lynx/tamer-stack": "file:../tamer-stack",
     "@tamer4lynx/tamer-local-storage": "file:../tamer-local-storage",
     "@tamer4lynx/tamer-secure-store": "^0.0.3",
     "@tamer4lynx/tamer-biometric": "^0.0.2",
