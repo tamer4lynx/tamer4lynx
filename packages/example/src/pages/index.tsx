@@ -3,11 +3,13 @@ import { useTamerRouter } from '@tamer4lynx/tamer-router'
 import '@tamer4lynx/tamer-icons'
 
 import '../App.css'
-import lynxLogo from '../assets/lynx-logo.png'
-import reactLynxLogo from '../assets/react-logo.png'
-import tamerLogo from '../assets/tamer-logo.png'
+import { useExamplePalette } from '../examplePalette.js'
+import lynxLogo from '../assets/lynx-logo.png?inline'
+import reactLynxLogo from '../assets/react-logo.png?inline'
+import tamerLogo from '../assets/tamer-logo.png?inline'
 
 export default function Home() {
+  const p = useExamplePalette()
   const [alterLogo, setAlterLogo] = useState(0)
   // const [messages, setMessages] = useState<Array<{ id: string; text: string }>>([])
   // const [ws, setWs] = useState<WebSocket | null>(null)
@@ -35,7 +37,7 @@ export default function Home() {
   }, [push /*, ws*/])
 
   return (
-      <view className="App">
+      <view className="App" style={{ backgroundColor: p.surface }}>
         <view className="Background" />
         <view className="Banner">
           <view className="Logo" bindtap={onTap}>
@@ -47,9 +49,9 @@ export default function Home() {
               <image src={tamerLogo} className="Logo--tamer" />
             )}
           </view>
-          <text className="Title">React</text>
-          <text className="Subtitle">on Tamer</text>
-          <text className="Subtitle">on Lynx</text>
+          <text className="Title" style={{ color: p.onSurface }}>React</text>
+          <text className="Subtitle" style={{ color: p.onSurface }}>on Tamer</text>
+          <text className="Subtitle" style={{ color: p.onSurface }}>on Lynx</text>
         </view>
         {/* <view className="Content" style={{ flexDirection: 'column' }}>
           <text className="Description">Server Messages:</text>
@@ -58,6 +60,9 @@ export default function Home() {
           ))}
         </view> */}
         <view className="Content">
+          <view className="Button" style={{ flex: "100%" }} bindtap={() => push('/m3')}>
+            <text className="ButtonText">M3 Components (app shell)</text>
+          </view>
           <view className="Button" style={{ flex: "100%" }} bindtap={() => push('/insets')}>
             <text className="ButtonText">Test Insets & Keyboard</text>
           </view>

@@ -4,10 +4,13 @@ import { authenticateAsync, type AuthenticateResult } from '@tamer4lynx/tamer-bi
 
 import '../App.css'
 
+import { useExamplePalette } from '../examplePalette.js'
+
 const FLAG_KEY = 'secure-number-exists'
 const NUMBER_KEY = 'secure-number'
 
 export default function SecurePage() {
+  const p = useExamplePalette()
   const [hasNumber, setHasNumber] = useState<boolean | null>(null)
   const [displayValue, setDisplayValue] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -86,25 +89,25 @@ export default function SecurePage() {
   }, [])
 
   return (
-    <view style={{ padding: 24, flex: 1, display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <text className="Description" style={{ marginBottom: 16 }}>
+    <view style={{ padding: 24, flex: 1, display: 'flex', flexDirection: 'column', gap: 24, backgroundColor: p.surface }}>
+      <text className="Description" style={{ marginBottom: 16, color: p.onSurface }}>
         Store a random number with biometric protection.
       </text>
 
-      {loading && <text className="Description">Loading...</text>}
+      {loading && <text className="Description" style={{ color: p.onSurface }}>Loading...</text>}
       {error && (
-        <view style={{ padding: 16, backgroundColor: '#fee', borderRadius: 8 }}>
-          <text className="Description" style={{ color: '#c00' }}>{error}</text>
+        <view style={{ padding: 16, backgroundColor: 'rgba(239,68,68,0.15)', borderRadius: 8 }}>
+          <text className="Description" style={{ color: '#f87171' }}>{error}</text>
         </view>
       )}
 
       {hasNumber === null && !loading && (
-        <text className="Description">Checking...</text>
+        <text className="Description" style={{ color: p.onSurface }}>Checking...</text>
       )}
 
       {hasNumber === false && (
         <view style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <text className="Description" style={{ marginBottom: 8 }}>No number saved yet.</text>
+          <text className="Description" style={{ marginBottom: 8, color: p.onSurface }}>No number saved yet.</text>
           <view className="Button" bindtap={handleSetNumber}>
             <text className="ButtonText">Set random number</text>
           </view>
@@ -116,7 +119,7 @@ export default function SecurePage() {
           <view
             style={{
               padding: "4px 24px",
-              backgroundColor: '#555',
+              backgroundColor: p.surfaceContainer,
               borderRadius: "8px",
               display: 'flex',
               flexDirection: 'column',
@@ -124,7 +127,7 @@ export default function SecurePage() {
               height: "48px",
             }}
           >
-            <text className="Title">
+            <text className="Title" style={{ color: p.onSurface }}>
               {displayValue ?? '••••••'}
             </text>
           </view>

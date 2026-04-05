@@ -70,7 +70,6 @@
         "@tamer4lynx/tamer-router": "^0.0.10",
         "@tamer4lynx/tamer-screen": "^0.0.4",
         "@tamer4lynx/tamer-secure-store": "^0.0.3",
-        "@tamer4lynx/tamer-stack": "file:../tamer-stack",
         "@tamer4lynx/tamer-system-ui": "^0.0.3",
         "@tamer4lynx/tamer-transports": "file:../tamer-transports",
         "@tamer4lynx/tamer-webview": "file:../tamer-webview",
@@ -321,22 +320,6 @@
       "version": "0.0.3",
       "devDependencies": {
         "typescript": "~5.8.0",
-      },
-    },
-    "packages/tamer-stack": {
-      "name": "@tamer4lynx/tamer-stack",
-      "version": "0.0.1",
-      "devDependencies": {
-        "@lynx-js/react": "^0.112.1",
-        "@lynx-js/types": "3.3.0",
-        "@types/react": "^17.0.0",
-        "react": "^17.0.2",
-        "typescript": "~5.8.0",
-      },
-      "peerDependencies": {
-        "@lynx-js/react": ">=0.100.0",
-        "@lynx-js/types": ">=3.3.0",
-        "react": "^17.0.0",
       },
     },
     "packages/tamer-system-ui": {
@@ -748,8 +731,6 @@
     "@tamer4lynx/tamer-screen": ["@tamer4lynx/tamer-screen@workspace:packages/tamer-screen"],
 
     "@tamer4lynx/tamer-secure-store": ["@tamer4lynx/tamer-secure-store@workspace:packages/tamer-secure-store"],
-
-    "@tamer4lynx/tamer-stack": ["@tamer4lynx/tamer-stack@workspace:packages/tamer-stack"],
 
     "@tamer4lynx/tamer-system-ui": ["@tamer4lynx/tamer-system-ui@workspace:packages/tamer-system-ui"],
 
@@ -2173,14 +2154,6 @@
 
     "@tamer4lynx/tamer-secure-store/typescript": ["typescript@5.8.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ=="],
 
-    "@tamer4lynx/tamer-stack/@lynx-js/react": ["@lynx-js/react@0.112.6", "", { "dependencies": { "preact": "npm:@hongzhiyuan/preact@10.24.0-00213bad" }, "peerDependencies": { "@lynx-js/types": "*", "@types/react": "^18" }, "optionalPeers": ["@lynx-js/types"] }, "sha512-HBzWidMk8/1EdMi6Ej5f1onT5xt2tG8CL1+scsZ0ArURemcqiWKSSktb4zrvIl2u/Ele0Np3m7fy8Cm9YWXAjA=="],
-
-    "@tamer4lynx/tamer-stack/@types/react": ["@types/react@17.0.91", "", { "dependencies": { "@types/prop-types": "*", "@types/scheduler": "^0.16", "csstype": "^3.2.2" } }, "sha512-xauZca6qMeCU3Moy0KxCM9jtf1vyk6qRYK39Ryf3afUqwgNUjRIGoDdS9BcGWgAMGSg1hvP4XcmlYrM66PtqeA=="],
-
-    "@tamer4lynx/tamer-stack/react": ["react@17.0.2", "", { "dependencies": { "loose-envify": "^1.1.0", "object-assign": "^4.1.1" } }, "sha512-gnhPt75i/dq/z3/6q/0asP78D0u592D5L1pd7M8P+dck6Fu/jJeL6iVVK23fptSUZj8Vjf++7wXA8UNclGQcbA=="],
-
-    "@tamer4lynx/tamer-stack/typescript": ["typescript@5.8.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ=="],
-
     "@tamer4lynx/tamer-system-ui/@types/react": ["@types/react@17.0.91", "", { "dependencies": { "@types/prop-types": "*", "@types/scheduler": "^0.16", "csstype": "^3.2.2" } }, "sha512-xauZca6qMeCU3Moy0KxCM9jtf1vyk6qRYK39Ryf3afUqwgNUjRIGoDdS9BcGWgAMGSg1hvP4XcmlYrM66PtqeA=="],
 
     "@tamer4lynx/tamer-system-ui/react": ["react@17.0.2", "", { "dependencies": { "loose-envify": "^1.1.0", "object-assign": "^4.1.1" } }, "sha512-gnhPt75i/dq/z3/6q/0asP78D0u592D5L1pd7M8P+dck6Fu/jJeL6iVVK23fptSUZj8Vjf++7wXA8UNclGQcbA=="],
@@ -2318,10 +2291,6 @@
     "@tamer4lynx/tamer-screen/@lynx-js/react/@types/react": ["@types/react@18.3.28", "", { "dependencies": { "@types/prop-types": "*", "csstype": "^3.2.2" } }, "sha512-z9VXpC7MWrhfWipitjNdgCauoMLRdIILQsAEV+ZesIzBq/oUlxk0m3ApZuMFCXdnS4U7KrI+l3WRUEGQ8K1QKw=="],
 
     "@tamer4lynx/tamer-screen/@lynx-js/react/preact": ["@hongzhiyuan/preact@10.24.0-00213bad", "", {}, "sha512-bHWp4ZDK5ZimcY+bTWw3S3xGiB8eROpZj0RK3FClNIaTOajb0b11CsT3K+pdeakgPgq1jWN3T2e2rfrPm40JsQ=="],
-
-    "@tamer4lynx/tamer-stack/@lynx-js/react/@types/react": ["@types/react@18.3.28", "", { "dependencies": { "@types/prop-types": "*", "csstype": "^3.2.2" } }, "sha512-z9VXpC7MWrhfWipitjNdgCauoMLRdIILQsAEV+ZesIzBq/oUlxk0m3ApZuMFCXdnS4U7KrI+l3WRUEGQ8K1QKw=="],
-
-    "@tamer4lynx/tamer-stack/@lynx-js/react/preact": ["@hongzhiyuan/preact@10.24.0-00213bad", "", {}, "sha512-bHWp4ZDK5ZimcY+bTWw3S3xGiB8eROpZj0RK3FClNIaTOajb0b11CsT3K+pdeakgPgq1jWN3T2e2rfrPm40JsQ=="],
 
     "@tamer4lynx/tamer-webview/@lynx-js/react/@types/react": ["@types/react@18.3.28", "", { "dependencies": { "@types/prop-types": "*", "csstype": "^3.2.2" } }, "sha512-z9VXpC7MWrhfWipitjNdgCauoMLRdIILQsAEV+ZesIzBq/oUlxk0m3ApZuMFCXdnS4U7KrI+l3WRUEGQ8K1QKw=="],
 

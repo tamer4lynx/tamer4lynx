@@ -1,8 +1,17 @@
 import { useCallback, useState } from '@lynx-js/react'
-import '@tamer4lynx/tamer-stack'
+
+const overlay = {
+  position: 'fixed' as const,
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  zIndex: 100,
+}
 
 export default function StackTest() {
   const [detailVisible, setDetailVisible] = useState(false)
+  const [modalVisible, setModalVisible] = useState(false)
 
   const openDetail = useCallback(() => {
     'background only'
@@ -14,72 +23,95 @@ export default function StackTest() {
     setDetailVisible(false)
   }, [])
 
+  const openModal = useCallback(() => {
+    'background only'
+    setModalVisible(true)
+  }, [])
+
+  const closeModal = useCallback(() => {
+    'background only'
+    setModalVisible(false)
+  }, [])
+
   return (
     <view style={{ flex: 1, backgroundColor: '#f5f5f5' }}>
       <view style={{ padding: 24 }}>
         <text style={{ fontSize: 24, fontWeight: 'bold', color: '#1a1a1a', marginBottom: 16 }}>
-          Stack Screen Test
+          Navigation Test
         </text>
         <text style={{ fontSize: 14, color: '#666', marginBottom: 24 }}>
-          Tap the button to push a native stack screen. No bitmap is captured.
+          Tap buttons below. Overlays use plain views (install @tamer4lynx/tamer-navigation for native
+          nav-screen transitions).
         </text>
+
         <view
           bindtap={openDetail}
-          style={{
-            backgroundColor: '#6200EE',
-            borderRadius: 8,
-            padding: 16,
-            alignItems: 'center',
-          }}
+          style={{ backgroundColor: '#6200EE', borderRadius: 8, padding: 16, alignItems: 'center', marginBottom: 12 }}
         >
           <text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
-            Push Detail Screen
+            Push (slide-right)
+          </text>
+        </view>
+
+        <view
+          bindtap={openModal}
+          style={{ backgroundColor: '#018786', borderRadius: 8, padding: 16, alignItems: 'center' }}
+        >
+          <text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
+            Modal (slide-up)
           </text>
         </view>
       </view>
 
-      {'stack-screen' in globalThis ? null : (
-        <view style={{ padding: 16 }}>
-          <text style={{ color: '#999', fontSize: 12 }}>
-            (stack-screen element registered via TamerStackModule)
-          </text>
-        </view>
-      )}
-
-      <stack-screen screen-id="stack-test-detail" visible={detailVisible}>
-        <view style={{ flex: 1, backgroundColor: '#fff' }}>
-          <view
-            style={{
-              backgroundColor: '#6200EE',
-              padding: 16,
-              paddingTop: 48,
-              flexDirection: 'row',
-              alignItems: 'center',
-            }}
-          >
+      {detailVisible ? (
+        <view style={overlay}>
+          <view style={{ flex: 1, backgroundColor: '#fff' }}>
             <view
-              bindtap={closeDetail}
-              style={{ marginRight: 16, padding: 8 }}
+              style={{
+                backgroundColor: '#6200EE',
+                padding: 16,
+                paddingTop: 48,
+                flexDirection: 'row',
+                alignItems: 'center',
+              }}
             >
-              <text style={{ color: '#fff', fontSize: 16 }}>← Back</text>
+              <view bindtap={closeDetail} style={{ marginRight: 16, padding: 8 }}>
+                <text style={{ color: '#fff', fontSize: 16 }}>← Back</text>
+              </view>
+              <text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>Detail Screen</text>
             </view>
-            <text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>
-              Detail Screen
-            </text>
-          </view>
-          <view style={{ padding: 24 }}>
-            <text style={{ fontSize: 20, fontWeight: 'bold', color: '#1a1a1a', marginBottom: 12 }}>
-              Native Stack Navigation
-            </text>
-            <text style={{ fontSize: 14, color: '#444', lineHeight: 22 }}>
-              This screen is rendered in a FrameLayout sibling to the LynxView.
-              The push/pop animations run on live views — zero bitmap allocation.
-              React context, state, and hooks all work normally since this is
-              the same JS tree as the main bundle.
-            </text>
+            <view style={{ padding: 24 }}>
+              <text style={{ fontSize: 20, fontWeight: 'bold', color: '#1a1a1a', marginBottom: 12 }}>
+                slide-right transition
+              </text>
+              <text style={{ fontSize: 14, color: '#444', lineHeight: 22 }}>
+                Overlay demo — add tamer-navigation for native transitions.
+              </text>
+            </view>
           </view>
         </view>
-      </stack-screen>
+      ) : null}
+
+      {modalVisible ? (
+        <view style={overlay}>
+          <view style={{ flex: 1, backgroundColor: '#fff', borderRadius: 16 }}>
+            <view style={{ padding: 24, paddingTop: 48 }}>
+              <text style={{ fontSize: 22, fontWeight: 'bold', color: '#1a1a1a', marginBottom: 12 }}>
+                Modal Sheet
+              </text>
+              <text style={{ fontSize: 14, color: '#444', lineHeight: 22, marginBottom: 32 }}>
+                Overlay demo — add tamer-navigation for native sheet behavior.
+              </text>
+              <view
+                bindtap={closeModal}
+                style={{ backgroundColor: '#018786', borderRadius: 8, padding: 16, alignItems: 'center' }}
+              >
+                <text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Dismiss</text>
+              </view>
+            </view>
+          </view>
+        </view>
+      ) : null}
     </view>
   )
 }

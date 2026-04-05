@@ -1,34 +1,34 @@
-import { useCallback } from '@lynx-js/react';
-import { px } from '@tamer4lynx/tamer-app-shell';
-import { useTamerRouter } from '@tamer4lynx/tamer-router';
+import { useCallback } from '@lynx-js/react'
+import { useTamerNavigate } from '@tamer4lynx/tamer-router'
+import { px } from '@tamer4lynx/tamer-app-shell'
 
 export default function DevIndex() {
-  const { push } = useTamerRouter();
+  const { push } = useTamerNavigate()
 
   const goLinking = useCallback(() => {
-    'background only';
-    push('/native/linking');
-  }, [push]);
+    'background only'
+    push('/native/linking')
+  }, [push])
   const goBrowser = useCallback(() => {
-    'background only';
-    push('/native/browser');
-  }, [push]);
+    'background only'
+    push('/native/browser')
+  }, [push])
   const goAuth = useCallback(() => {
-    'background only';
-    push('/native/auth');
-  }, [push]);
+    'background only'
+    push('/native/auth')
+  }, [push])
   const goStorage = useCallback(() => {
-    'background only';
-    push('/native/storage');
-  }, [push]);
+    'background only'
+    push('/native/storage')
+  }, [push])
   const goWebView = useCallback(() => {
-    'background only';
-    push('/native/webview');
-  }, [push]);
+    'background only'
+    push('/native/webview')
+  }, [push])
   const goTransports = useCallback(() => {
-    'background only';
-    push('/native/transports');
-  }, [push]);
+    'background only'
+    push('/native/transports')
+  }, [push])
 
   return (
     <view
@@ -134,5 +134,5 @@ export default function DevIndex() {
         </text>
       </view>
     </view>
-  );
+  )
 }

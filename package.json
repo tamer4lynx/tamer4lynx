@@ -41,7 +41,6 @@
     "packages/tamer-plugin",
     "packages/tamer-env",
     "packages/tamer-router",
-    "packages/tamer-stack",
     "packages/tamer-screen",
     "packages/tamer-system-ui",
     "packages/tamer-app-shell",

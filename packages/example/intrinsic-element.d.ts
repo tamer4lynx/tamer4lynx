@@ -2,6 +2,17 @@ import * as Lynx from "@lynx-js/types";
 
 declare module "@lynx-js/types" {
   interface IntrinsicElements extends Lynx.IntrinsicElements {
+    "nav-screen": Lynx.ViewProps & {
+      "screen-id": string;
+      visible?: boolean;
+      "nav-transition"?:
+        | "slide-right"
+        | "slide-left"
+        | "slide-up"
+        | "slide-down"
+        | "fade"
+        | "none";
+    };
     svg: {
       content?: string;
       src?: string;

@@ -1,0 +1,13 @@
+{
+  "platforms": {
+    "android": {
+      "packageName": "com.nanofuxion.tamercrypto",
+      "moduleClassName": "com.nanofuxion.tamercrypto.TamerCryptoModule",
+      "sourceDir": "android"
+    },
+    "ios": {
+      "podspecPath": "ios/tamercrypto",
+      "moduleClassName": "TamerCryptoModule"
+    }
+  }
+}
