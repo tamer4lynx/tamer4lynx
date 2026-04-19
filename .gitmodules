@@ -61,3 +61,6 @@
 [submodule "packages/tamer-env"]
 	path = packages/tamer-env
 	url = https://github.com/tamer4lynx/tamer-env.git
+[submodule "packages/tamer-navigation"]
+	path = packages/tamer-navigation
+	url = https://github.com/tamer4lynx/tamer-navigation.git
