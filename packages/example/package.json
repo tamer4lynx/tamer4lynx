@@ -23,6 +23,7 @@
     "@tamer4lynx/tamer-dev-client": "file:../tamer-dev-client",
     "@tamer4lynx/tamer-insets": "^0.0.4",
     "@tamer4lynx/tamer-app-shell": "^0.0.5",
+    "@tamer4lynx/tamer-navigation": "file:../tamer-navigation",
     "@tamer4lynx/tamer-screen": "^0.0.4",
     "@tamer4lynx/tamer-system-ui": "^0.0.3",
     "@tamer4lynx/tamer-webview": "file:../tamer-webview",

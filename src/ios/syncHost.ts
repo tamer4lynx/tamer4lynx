@@ -3,6 +3,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { resolveHostPaths, findDevClientPackage } from '../common/hostConfig';
 import { resolveDevelopmentTeamFromIdentity, listCodeSigningIdentities } from '../common/iosSigningDiscovery';
+import { getProjectViewControllerSwift } from './syncDevClient';
 
 function deterministicUUID(seed: string): string {
     return crypto.createHash('sha256').update(seed).digest('hex').substring(0, 24).toUpperCase();
@@ -51,13 +52,62 @@ function getLaunchScreenStoryboard(): string {
 `;
 }
 
+function ensurePbxVariantGroupSection(content: string): string {
+    if (content.includes('/* Begin PBXVariantGroup section */')) return content;
+    return content.replace(
+        '/* Begin XCBuildConfiguration section */',
+        `/* Begin PBXVariantGroup section */\n/* End PBXVariantGroup section */\n\n/* Begin XCBuildConfiguration section */`
+    );
+}
+
+function repairLaunchScreenVariantGroup(content: string): { content: string; repaired: boolean } {
+    const hasLaunchScreenVariantGroup = /isa = PBXVariantGroup;[\s\S]*?name = LaunchScreen\.storyboard;/.test(content);
+    if (hasLaunchScreenVariantGroup || !content.includes('LaunchScreen.storyboard')) {
+        return { content, repaired: false };
+    }
+
+    const baseFileRefMatch = content.match(
+        /([A-F0-9]{24}) \/\* Base \*\/ = \{isa = PBXFileReference; lastKnownFileType = file\.storyboard; name = Base; path = Base\.lproj\/LaunchScreen\.storyboard; sourceTree = "<group>"; \};/
+    );
+    const buildFileMatch = content.match(
+        /([A-F0-9]{24}) \/\* LaunchScreen\.storyboard in Resources \*\/ = \{isa = PBXBuildFile; fileRef = ([A-F0-9]{24}) \/\* LaunchScreen\.storyboard \*\/; \};/
+    );
+
+    if (!baseFileRefMatch || !buildFileMatch) {
+        return { content, repaired: false };
+    }
+
+    const baseFileRefUUID = baseFileRefMatch[1];
+    const variantGroupUUID = buildFileMatch[2];
+    content = ensurePbxVariantGroupSection(content);
+
+    if (!content.includes(`${variantGroupUUID} /* LaunchScreen.storyboard */ = {`)) {
+        content = content.replace(
+            '/* End PBXVariantGroup section */',
+            `\t\t${variantGroupUUID} /* LaunchScreen.storyboard */ = {\n\t\t\tisa = PBXVariantGroup;\n\t\t\tchildren = (\n\t\t\t\t${baseFileRefUUID} /* Base */,\n\t\t\t);\n\t\t\tname = LaunchScreen.storyboard;\n\t\t\tsourceTree = "<group>";\n\t\t};\n/* End PBXVariantGroup section */`
+        );
+    }
+
+    return { content, repaired: true };
+}
+
 function addLaunchScreenToXcodeProject(pbxprojPath: string, appName: string): void {
     let content = fs.readFileSync(pbxprojPath, 'utf8');
-    if (content.includes('LaunchScreen.storyboard')) return;
+    const repaired = repairLaunchScreenVariantGroup(content);
+    content = repaired.content;
+    if (repaired.repaired) {
+        fs.writeFileSync(pbxprojPath, content, 'utf8');
+        console.log('✅ Repaired LaunchScreen.storyboard PBXVariantGroup in Xcode project');
+        return;
+    }
+
+    const hasLaunchScreenVariantGroup = /isa = PBXVariantGroup;[\s\S]*?name = LaunchScreen\.storyboard;/.test(content);
+    if (hasLaunchScreenVariantGroup) return;
 
     const baseFileRefUUID = deterministicUUID(`launchScreenBase:${appName}`);
     const variantGroupUUID = deterministicUUID(`launchScreenGroup:${appName}`);
     const buildFileUUID = deterministicUUID(`launchScreenBuild:${appName}`);
+    content = ensurePbxVariantGroupSection(content);
 
     content = content.replace(
         '/* End PBXFileReference section */',
@@ -161,6 +211,7 @@ function writeFile(filePath: string, content: string): void {
 
 function getAppDelegateSwift(): string {
     return `import UIKit
+import tamerlinking
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -169,6 +220,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
         LynxInitProcessor.shared.setupEnvironment()
+        if let url = launchOptions?[.url] as? URL {
+            let s = url.absoluteString
+            LinkingModule.setInitialUrl(s)
+            LinkingModule.onUrlReceived(s)
+        }
         return true
     }
 
@@ -179,12 +235,20 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     ) -> UISceneConfiguration {
         return UISceneConfiguration(name: "Default Configuration", sessionRole: connectingSceneSession.role)
     }
+
+    func application(_ application: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        let s = url.absoluteString
+        LinkingModule.setInitialUrl(s)
+        LinkingModule.onUrlReceived(s)
+        return true
+    }
 }
 `;
 }
 
 function getSceneDelegateSwift(): string {
     return `import UIKit
+import tamerlinking
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
@@ -195,9 +259,21 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         options connectionOptions: UIScene.ConnectionOptions
     ) {
         guard let windowScene = scene as? UIWindowScene else { return }
+        if let url = connectionOptions.urlContexts.first?.url {
+            let s = url.absoluteString
+            LinkingModule.setInitialUrl(s)
+            LinkingModule.onUrlReceived(s)
+        }
         window = UIWindow(windowScene: windowScene)
         window?.rootViewController = ViewController()
         window?.makeKeyAndVisible()
+    }
+
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        guard let url = URLContexts.first?.url else { return }
+        let s = url.absoluteString
+        LinkingModule.setInitialUrl(s)
+        LinkingModule.onUrlReceived(s)
     }
 }
 `;
@@ -207,6 +283,9 @@ function getViewControllerSwift(): string {
     return `import UIKit
 import Lynx
 import tamerinsets
+#if canImport(tamernavigation)
+import tamernavigation
+#endif
 
 class ViewController: UIViewController {
     private var lynxView: LynxView?
@@ -259,6 +338,9 @@ class ViewController: UIViewController {
         let lv = buildLynxView()
         view.addSubview(lv)
         TamerInsetsModule.attachHostView(lv)
+#if canImport(tamernavigation)
+        TamerNavHost.attachRoot(lv, presenter: self)
+#endif
         lv.loadTemplate(fromURL: "main.lynx.bundle", initData: nil)
         self.lynxView = lv
     }
@@ -284,6 +366,9 @@ import Lynx
 import tamerdevclient
 import tamerinsets
 import tamersystemui
+#if canImport(tamernavigation)
+import tamernavigation
+#endif
 
 class ViewController: UIViewController {
     private var lynxView: LynxView?
@@ -330,6 +415,9 @@ class ViewController: UIViewController {
         view.addSubview(lv)
         applyFullscreenLayout(to: lv)
         TamerInsetsModule.attachHostView(lv)
+#if canImport(tamernavigation)
+        TamerNavHost.attachRoot(lv, presenter: self)
+#endif
         lv.loadTemplate(fromURL: "dev-client.lynx.bundle", initData: nil)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self, weak lv] in
             guard let self, let lv else { return }
@@ -532,8 +620,8 @@ function syncHostIos(opts?: { release?: boolean; includeDevClient?: boolean }): 
     if (!fs.existsSync(launchScreenPath)) {
         fs.mkdirSync(baseLprojDir, { recursive: true });
         writeFile(launchScreenPath, getLaunchScreenStoryboard());
-        addLaunchScreenToXcodeProject(pbxprojPath, appName);
     }
+    addLaunchScreenToXcodeProject(pbxprojPath, appName);
 
     addSwiftSourceToXcodeProject(pbxprojPath, appName, 'SceneDelegate.swift');
 
@@ -557,10 +645,16 @@ function syncHostIos(opts?: { release?: boolean; includeDevClient?: boolean }): 
         }
 
         // ProjectViewController – loads main.lynx.bundle with HMR
-        const projectVCContent = readTemplateOrFallback(devClientPkg, 'ProjectViewController.swift', '', tplVars);
+        const projectVCContent = getProjectViewControllerSwift();
         if (projectVCContent) {
             writeFile(path.join(projectDir, 'ProjectViewController.swift'), projectVCContent);
             addSwiftSourceToXcodeProject(pbxprojPath, appName, 'ProjectViewController.swift');
+        }
+
+        const pushVCContent = readTemplateOrFallback(devClientPkg, 'LynxPushViewController.swift', '', tplVars);
+        if (pushVCContent) {
+            writeFile(path.join(projectDir, 'LynxPushViewController.swift'), pushVCContent);
+            addSwiftSourceToXcodeProject(pbxprojPath, appName, 'LynxPushViewController.swift');
         }
 
         // DevClientManager – WebSocket HMR manager
@@ -577,7 +671,7 @@ function syncHostIos(opts?: { release?: boolean; includeDevClient?: boolean }): 
             addSwiftSourceToXcodeProject(pbxprojPath, appName, 'QRScannerViewController.swift');
         }
 
-        console.log('✅ Synced iOS host app (embedded dev mode) — ViewController, DevTemplateProvider, ProjectViewController, DevClientManager, QRScannerViewController');
+        console.log('✅ Synced iOS host app (embedded dev mode) — ViewController, DevTemplateProvider, ProjectViewController, LynxPushViewController, DevClientManager, QRScannerViewController');
     } else {
         // Release or non-embedded: plain ViewController + LynxProvider
         writeFile(path.join(projectDir, 'ViewController.swift'), getViewControllerSwift());

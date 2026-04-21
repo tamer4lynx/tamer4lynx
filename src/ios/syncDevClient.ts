@@ -33,6 +33,7 @@ function writeFile(filePath: string, content: string): void {
 
 function getAppDelegateSwift(): string {
     return `import UIKit
+import tamerlinking
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -43,6 +44,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
         LynxInitProcessor.shared.setupEnvironment()
+        if let url = launchOptions?[.url] as? URL {
+            let s = url.absoluteString
+            LinkingModule.setInitialUrl(s)
+            LinkingModule.onUrlReceived(s)
+        }
 
         window = UIWindow(frame: UIScreen.main.bounds)
         window?.rootViewController = DevLauncherViewController()
@@ -52,6 +58,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ app: UIApplication, open url: URL,
                      options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        let s = url.absoluteString
+        LinkingModule.setInitialUrl(s)
+        LinkingModule.onUrlReceived(s)
         if url.scheme == "tamerdevapp", let host = url.host, host == "project" {
             presentProjectViewController()
         }
@@ -178,19 +187,46 @@ class DevLauncherViewController: UIViewController {
 `;
 }
 
-function getProjectViewControllerSwift(): string {
+export function getProjectViewControllerSwift(): string {
     return `import UIKit
 import Lynx
 import tamerdevclient
 import tamerinsets
 import tamersystemui
+#if canImport(tamernavigation)
+import tamernavigation
+#endif
+
+private func tamer_project_disableLynxLongPressMenuIfAvailable() {
+    guard let cls = NSClassFromString("LynxDevtoolEnv") else { return }
+    let sel = NSSelectorFromString("sharedInstance")
+    guard let env = (cls as AnyObject).perform(sel)?.takeUnretainedValue() as? NSObject else { return }
+    env.setValue(false, forKey: "longPressMenuEnabled")
+}
 
 class ProjectViewController: UIViewController {
     private var lynxView: LynxView?
+    private var devMenuView: LynxView?
     private var devClientManager: DevClientManager?
+    private var previousReloadProjectHandler: (() -> Void)?
+    private var previousDismissTamerDebugPanelHandler: (() -> Void)?
+    private lazy var projectDevMenuGesture: UILongPressGestureRecognizer = {
+        let gesture = UILongPressGestureRecognizer(target: self, action: #selector(handleProjectDevMenuGesture(_:)))
+        gesture.minimumPressDuration = 0.52
+        gesture.numberOfTouchesRequired = 3
+        gesture.cancelsTouchesInView = false
+        return gesture
+    }()
 
     override func viewDidLoad() {
         super.viewDidLoad()
+#if DEBUG
+        let env = LynxEnv.sharedInstance()
+        env.lynxDebugEnabled = true
+        env.devtoolEnabled = true
+        env.logBoxEnabled = true
+#endif
+        tamer_project_disableLynxLongPressMenuIfAvailable()
         view.backgroundColor = .black
         edgesForExtendedLayout = .all
         extendedLayoutIncludesOpaqueBars = true
@@ -201,17 +237,53 @@ class ProjectViewController: UIViewController {
             viewRespectsSystemMinimumLayoutMargins = false
         }
         setupLynxView()
-        TamerRelogLogService.connect()
         devClientManager = DevClientManager(onReload: { [weak self] in
             self?.reloadLynxView()
         })
         devClientManager?.connect()
+#if DEBUG
+        view.addGestureRecognizer(projectDevMenuGesture)
+#endif
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+#if DEBUG
+        previousReloadProjectHandler = DevClientModule.reloadProjectHandler
+        DevClientModule.reloadProjectHandler = { [weak self] in
+            self?.dismissProjectDevMenu()
+            self?.reloadLynxView()
+        }
+        previousDismissTamerDebugPanelHandler = DevClientModule.dismissTamerDebugPanelHandler
+        DevClientModule.dismissTamerDebugPanelHandler = { [weak self] in
+            self?.dismissProjectDevMenu()
+        }
+#endif
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+#if DEBUG
+        LynxDebugGestureSuppressor.suppressDebugEntryGestureIfPossible()
+#endif
+    }
+
+    override func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
+#if DEBUG
+        ShakeDetector.handleMotionEnded(motion) { [weak self] in
+            self?.showProjectDevMenu()
+        }
+#endif
+        super.motionEnded(motion, with: event)
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         if let lynxView = lynxView {
             applyFullscreenLayout(to: lynxView)
+        }
+        if let devMenuView = devMenuView {
+            applyFullscreenLayout(to: devMenuView)
         }
     }
 
@@ -240,6 +312,9 @@ class ProjectViewController: UIViewController {
         let lv = buildLynxView()
         view.addSubview(lv)
         TamerInsetsModule.attachHostView(lv)
+#if canImport(tamernavigation)
+        TamerNavHost.attachRoot(lv, presenter: self)
+#endif
         lv.loadTemplate(fromURL: "main.lynx.bundle", initData: DevServerPrefs.getProjectInitTemplateData())
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self, weak lv] in
             guard let self, let lv else { return }
@@ -250,10 +325,57 @@ class ProjectViewController: UIViewController {
     }
 
     private func reloadLynxView() {
+        dismissProjectDevMenu()
         TamerInsetsModule.attachHostView(nil)
+#if canImport(tamernavigation)
+        TamerNavHost.attachRoot(nil, presenter: self)
+#endif
         lynxView?.removeFromSuperview()
         lynxView = nil
         setupLynxView()
+    }
+
+    @objc private func handleProjectDevMenuGesture(_ gesture: UILongPressGestureRecognizer) {
+        #if DEBUG
+        if gesture.state == .began {
+            showProjectDevMenu()
+        }
+        #endif
+    }
+
+    private func buildDevMenuView() -> LynxView {
+        let size = fullscreenBounds().size
+        let lv = LynxView { builder in
+            builder.config = LynxConfig(provider: DevTemplateProvider())
+            builder.screenSize = size
+            builder.fontScale = 1.0
+        }
+        lv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        lv.insetsLayoutMarginsFromSafeArea = false
+        lv.preservesSuperviewLayoutMargins = false
+        lv.backgroundColor = .clear
+        applyFullscreenLayout(to: lv)
+        return lv
+    }
+
+    private func showProjectDevMenu() {
+        #if DEBUG
+        guard devMenuView == nil else { return }
+        let lv = buildDevMenuView()
+        view.addSubview(lv)
+        lv.loadTemplate(fromURL: "tamer-debug.lynx.bundle", initData: nil)
+        devMenuView = lv
+        #endif
+    }
+
+    private func dismissProjectDevMenu() {
+        devMenuView?.removeFromSuperview()
+        devMenuView = nil
+    }
+
+    private func closeProjectView() {
+        dismissProjectDevMenu()
+        dismiss(animated: true)
     }
 
     private func applyFullscreenLayout(to lynxView: LynxView) {
@@ -287,8 +409,15 @@ class ProjectViewController: UIViewController {
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         if isBeingDismissed || isMovingFromParent {
+            dismissProjectDevMenu()
             devClientManager?.disconnect()
-            TamerRelogLogService.disconnect()
+#if canImport(tamernavigation)
+            TamerNavHost.attachRoot(nil, presenter: self)
+#endif
+#if DEBUG
+            DevClientModule.reloadProjectHandler = previousReloadProjectHandler
+            DevClientModule.dismissTamerDebugPanelHandler = previousDismissTamerDebugPanelHandler
+#endif
         }
     }
 }
@@ -302,9 +431,14 @@ import tamerdevclient
 
 class DevTemplateProvider: NSObject, LynxTemplateProvider {
     private static let devClientBundle = "dev-client.lynx.bundle"
+    private static let tamerDebugBundle = "tamer-debug.lynx.bundle"
 
     func loadTemplate(withUrl url: String!, onComplete callback: LynxTemplateLoadBlock!) {
         DispatchQueue.global(qos: .background).async {
+            if url == Self.tamerDebugBundle || url?.hasSuffix("/" + Self.tamerDebugBundle) == true {
+                self.loadFromBundle(url: Self.tamerDebugBundle, callback: callback)
+                return
+            }
             // dev-client.lynx.bundle always loads from the embedded asset
             if url == Self.devClientBundle || url?.hasSuffix("/" + Self.devClientBundle) == true {
                 self.loadFromBundle(url: Self.devClientBundle, callback: callback)
@@ -544,11 +678,53 @@ function getLynxInitProcessorSwift(): string {
 // LICENSE file in the root directory of this source tree.
 
 import Foundation
+import UIKit
 
 // GENERATED IMPORTS START
 // This section is automatically generated by Tamer4Lynx.
 // Manual edits will be overwritten.
 // GENERATED IMPORTS END
+
+#if DEBUG
+/// Suppresses Lynx devtool long-press/gesture entry on debug builds so app gestures
+/// aren't hijacked. Safe no-op if devtool internals are unavailable.
+enum LynxDebugGestureSuppressor {
+    private static var applied = false
+
+    static func apply() {
+        guard !applied else { return }
+        applied = true
+        disableLongPressMenu()
+    }
+
+    static func suppressDebugEntryGestureIfPossible() {
+        disableLongPressMenu()
+        stripDevtoolGestureRecognizersFromKeyWindow()
+    }
+
+    private static func disableLongPressMenu() {
+        guard let cls = NSClassFromString("LynxDevtoolEnv") else { return }
+        let sel = NSSelectorFromString("sharedInstance")
+        guard let env = (cls as AnyObject).perform(sel)?.takeUnretainedValue() as? NSObject else { return }
+        env.setValue(false, forKey: "longPressMenuEnabled")
+    }
+
+    private static func stripDevtoolGestureRecognizersFromKeyWindow() {
+        let windows: [UIWindow] = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+        for window in windows {
+            guard let recognizers = window.gestureRecognizers else { continue }
+            for recognizer in recognizers {
+                let typeName = String(describing: type(of: recognizer))
+                if typeName.contains("Devtool") || typeName.contains("LynxDebug") {
+                    window.removeGestureRecognizer(recognizer)
+                }
+            }
+        }
+    }
+}
+#endif
 
 final class LynxInitProcessor {
     static let shared = LynxInitProcessor()
@@ -562,6 +738,19 @@ final class LynxInitProcessor {
 
     private func setupLynxEnv() {
         let env = LynxEnv.sharedInstance()
+#if DEBUG
+#if canImport(tamerdevclient)
+        if TamerLynxDevToolPolicy.attachDevToolWithInitialLynxSetup {
+            env.lynxDebugEnabled = true
+            env.logBoxEnabled = true
+            LynxDebugGestureSuppressor.apply()
+        }
+#else
+        env.lynxDebugEnabled = true
+        env.logBoxEnabled = true
+        LynxDebugGestureSuppressor.apply()
+#endif
+#endif
         let globalConfig = LynxConfig(provider: env.config.templateProvider)
 
         // GENERATED AUTOLINK START
@@ -655,7 +844,7 @@ function getPodfile(): string {
 
 install! 'cocoapods', :incremental_installation => true, :generate_multiple_pod_projects => true
 
-platform :ios, '13.0'
+platform :ios, '14.0'
 
 target '${APP_NAME}' do
   pod 'Lynx', '3.6.0', :subspecs => [
@@ -693,7 +882,7 @@ post_install do |installer|
     project.targets.each do |target|
       target.build_configurations.each do |config|
         config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
-        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
         config.build_settings['CLANG_ENABLE_EXPLICIT_MODULES'] = 'NO'
         config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
         config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
@@ -1043,7 +1232,7 @@ function generatePbxproj(ids: Record<string, string>): string {
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -1064,7 +1253,7 @@ function generatePbxproj(ids: Record<string, string>): string {
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
@@ -1166,6 +1355,7 @@ async function createDevAppProject(iosDir: string, repoRoot: string): Promise<vo
     const templateFiles = [
         'DevLauncherViewController.swift',
         'ProjectViewController.swift',
+        'LynxPushViewController.swift',
         'DevTemplateProvider.swift',
         'DevClientManager.swift',
         'QRScannerViewController.swift',
@@ -1173,13 +1363,14 @@ async function createDevAppProject(iosDir: string, repoRoot: string): Promise<vo
     ];
     for (const f of templateFiles) {
         const src = templateDir ? path.join(templateDir, f) : null;
-        if (src && fs.existsSync(src)) {
+        if (f !== 'ProjectViewController.swift' && src && fs.existsSync(src)) {
             writeFile(path.join(projectDir, f), readAndSubstituteTemplate(src, templateVars));
         } else {
             const fallback = (() => {
                 switch (f) {
                     case 'DevLauncherViewController.swift': return getDevLauncherViewControllerSwift();
                     case 'ProjectViewController.swift': return getProjectViewControllerSwift();
+                    case 'LynxPushViewController.swift': return '';
                     case 'DevTemplateProvider.swift': return getDevTemplateProviderSwift();
                     case 'DevClientManager.swift': return getDevClientManagerSwift();
                     case 'QRScannerViewController.swift': return getQRScannerViewControllerSwift();
@@ -1221,6 +1412,7 @@ function syncDevAppSourceFiles(iosDir: string, repoRoot: string): void {
     const templateFiles = [
         'DevLauncherViewController.swift',
         'ProjectViewController.swift',
+        'LynxPushViewController.swift',
         'DevTemplateProvider.swift',
         'DevClientManager.swift',
         'QRScannerViewController.swift',
@@ -1231,7 +1423,7 @@ function syncDevAppSourceFiles(iosDir: string, repoRoot: string): void {
     writeFile(path.join(projectDir, 'AppDelegate.swift'), getAppDelegateSwift());
     for (const f of templateFiles) {
         const src = templateDir ? path.join(templateDir, f) : null;
-        if (src && fs.existsSync(src)) {
+        if (f !== 'ProjectViewController.swift' && src && fs.existsSync(src)) {
             writeFile(path.join(projectDir, f), readAndSubstituteTemplate(src, templateVars));
             continue;
         }
@@ -1239,6 +1431,7 @@ function syncDevAppSourceFiles(iosDir: string, repoRoot: string): void {
             switch (f) {
                 case 'DevLauncherViewController.swift': return getDevLauncherViewControllerSwift();
                 case 'ProjectViewController.swift': return getProjectViewControllerSwift();
+                case 'LynxPushViewController.swift': return '';
                 case 'DevTemplateProvider.swift': return getDevTemplateProviderSwift();
                 case 'DevClientManager.swift': return getDevClientManagerSwift();
                 case 'QRScannerViewController.swift': return getQRScannerViewControllerSwift();
@@ -1296,13 +1489,15 @@ async function syncDevClientIos(): Promise<void> {
     execSync('npm run build', { stdio: 'inherit', cwd: devClientDir });
 
     // Copy bundle into iOS project
-    const bundleSrc = resolved.lynxBundlePath;
-    const bundleDst = path.join(iosDir, APP_NAME, 'dev-client.lynx.bundle');
-    if (fs.existsSync(bundleSrc)) {
-        fs.copyFileSync(bundleSrc, bundleDst);
-        console.log(`✨ Copied dev-client.lynx.bundle to iOS project`);
-    } else {
-        console.warn(`⚠️  Bundle not found at ${bundleSrc}`);
+    for (const bundleName of resolved.lynxBundleFiles) {
+        const bundleSrc = path.join(devClientDir, resolved.lynxBundleRootRel, bundleName);
+        const bundleDst = path.join(iosDir, APP_NAME, bundleName);
+        if (fs.existsSync(bundleSrc)) {
+            fs.copyFileSync(bundleSrc, bundleDst);
+            console.log(`✨ Copied ${bundleName} to iOS project`);
+        } else {
+            console.warn(`⚠️  Bundle not found at ${bundleSrc}`);
+        }
     }
 }
 

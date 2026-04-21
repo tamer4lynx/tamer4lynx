@@ -10,6 +10,7 @@ import {
   getDevClientManager,
   getProjectActivity,
   getStandaloneMainActivity,
+  getTamerDevAppProjectActivity,
 } from "../explorer/patches";
 import { getDevServerPrefs } from "../explorer/devLauncher";
 
@@ -435,13 +436,20 @@ object GeneratedLynxExtensions {
         if (devClientPkg) {
           const templateDir = path.join(devClientPkg, "android", "templates");
           for (const [src, dst] of [
-            ["ProjectActivity.kt", path.join(kotlinDir, "ProjectActivity.kt")],
             ["DevClientManager.kt", path.join(kotlinDir, "DevClientManager.kt")],
             ["DevServerPrefs.kt", path.join(kotlinDir, "DevServerPrefs.kt")],
           ] as [string, string][]) {
             const srcPath = path.join(templateDir, src);
             if (fs.existsSync(srcPath)) {
               writeFile(dst, readAndSubstituteTemplate(srcPath, templateVars));
+            }
+          }
+          if (opts.target === "dev-app") {
+            writeFile(path.join(kotlinDir, "ProjectActivity.kt"), getTamerDevAppProjectActivity(packageName));
+          } else {
+            const paSrc = path.join(templateDir, "ProjectActivity.kt");
+            if (fs.existsSync(paSrc)) {
+              writeFile(path.join(kotlinDir, "ProjectActivity.kt"), readAndSubstituteTemplate(paSrc, templateVars));
             }
           }
         } else {

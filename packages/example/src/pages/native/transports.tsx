@@ -1,5 +1,7 @@
 import { useCallback, useState } from '@lynx-js/react';
-import { px } from '@tamer4lynx/tamer-app-shell';
+import { Button, px } from '@tamer4lynx/tamer-app-shell';
+
+import { pageShellStyle, useExamplePalette } from '../../examplePalette.js';
 
 const JSON_PLACEHOLDER = 'https://jsonplaceholder.typicode.com/todos/1';
 const WS_ECHO = 'wss://echo.websocket.org';
@@ -13,6 +15,7 @@ async function responseToJson(r: Response): Promise<unknown> {
 }
 
 export default function TransportsPage() {
+  const p = useExamplePalette();
   const [fetchLog, setFetchLog] = useState('');
   const [wsLog, setWsLog] = useState('');
   const [sseLog, setSseLog] = useState('');
@@ -127,8 +130,6 @@ export default function TransportsPage() {
       style={{
         flex: 1,
         padding: px(32),
-        display: 'flex',
-        flexDirection: 'column',
         gap: px(20),
       }}
     >
@@ -138,22 +139,20 @@ export default function TransportsPage() {
         package here so the bundle does not load a second copy of its index.
       </text>
 
-      <view
+      <Button
+        label={`fetch GET\n${JSON_PLACEHOLDER}`}
+        onTap={runFetch}
+        variant="filled"
+        size="sm"
+        shape="square"
+        colors={{ container: '#555', label: '#e8e8e8' }}
         style={{
-          padding: px(8),
-          backgroundColor: '#555',
-          borderRadius: px(6),
-          display: 'flex',
-          flexDirection: 'column',
-          gap: px(8),
+          width: '100%',
+          alignSelf: 'stretch',
+          minHeight: px(80),
+          height: 'auto',
         }}
-        bindtap={runFetch}
-      >
-        <text style={{ fontSize: px(18) }}>fetch GET</text>
-        <text style={{ fontSize: px(14), color: '#aaa' }}>
-          {JSON_PLACEHOLDER}
-        </text>
-      </view>
+      />
       {fetchLog ? (
         <text
           style={{ fontSize: px(14), color: '#ccc', wordBreak: 'break-all' }}
@@ -162,20 +161,20 @@ export default function TransportsPage() {
         </text>
       ) : null}
 
-      <view
+      <Button
+        label={`WebSocket echo\n${WS_ECHO}`}
+        onTap={runWs}
+        variant="filled"
+        size="sm"
+        shape="square"
+        colors={{ container: '#555', label: '#e8e8e8' }}
         style={{
-          padding: px(8),
-          backgroundColor: '#555',
-          borderRadius: px(6),
-          display: 'flex',
-          flexDirection: 'column',
-          gap: px(8),
+          width: '100%',
+          alignSelf: 'stretch',
+          minHeight: px(80),
+          height: 'auto',
         }}
-        bindtap={runWs}
-      >
-        <text style={{ fontSize: px(18) }}>WebSocket echo</text>
-        <text style={{ fontSize: px(14), color: '#aaa' }}>{WS_ECHO}</text>
-      </view>
+      />
       {wsLog ? (
         <text
           style={{ fontSize: px(14), color: '#ccc', wordBreak: 'break-all' }}
@@ -184,20 +183,20 @@ export default function TransportsPage() {
         </text>
       ) : null}
 
-      <view
+      <Button
+        label={`EventSource (SSE)\n${SSE_WIKI}`}
+        onTap={runSse}
+        variant="filled"
+        size="sm"
+        shape="square"
+        colors={{ container: '#555', label: '#e8e8e8' }}
         style={{
-          padding: px(8),
-          backgroundColor: '#555',
-          borderRadius: px(6),
-          display: 'flex',
-          flexDirection: 'column',
-          gap: px(8),
+          width: '100%',
+          alignSelf: 'stretch',
+          minHeight: px(96),
+          height: 'auto',
         }}
-        bindtap={runSse}
-      >
-        <text style={{ fontSize: px(18) }}>EventSource (SSE)</text>
-        <text style={{ fontSize: px(14), color: '#aaa' }}>{SSE_WIKI}</text>
-      </view>
+      />
       {sseLog ? (
         <text
           style={{ fontSize: px(14), color: '#ccc', wordBreak: 'break-all' }}

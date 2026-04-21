@@ -29,9 +29,6 @@ test('App', async () => {
     <page>
       <view>
         <view
-          class="Background"
-        />
-        <view
           class="App"
         >
           <view
@@ -42,7 +39,7 @@ test('App', async () => {
             >
               <image
                 class="Logo--lynx"
-                src="data:image/png;base64,V9OPG+n2crqN5DZNt..."
+                src="/src/assets/lynx-logo.png"
               />
             </view>
             <text

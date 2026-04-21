@@ -12,6 +12,7 @@ const PUBLISH_ORDER = [
   'packages/tamer-transports',
   'packages/tamer-linking',
   'packages/tamer-secure-store',
+  'packages/tamer-crypto',
   'packages/tamer-biometric',
   'packages/tamer-display-browser',
   'packages/tamer-insets',

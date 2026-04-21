@@ -2,29 +2,46 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 import { copyDistAssets } from '../common/copyDistAssets';
-import { resolveHostPaths, findDevClientPackage, resolveIconPaths } from '../common/hostConfig';
+import { resolveAndroidPaths, findDevClientPackage, resolveIconPaths, isDevAppProject } from '../common/hostConfig';
 import { fixTsconfigReferencesForBuild } from '../common/tsconfigUtils';
 import { applyAndroidLauncherIcons, ensureAndroidManifestLauncherIcon } from '../common/syncAppIcons';
 import android_autolink from './autolink';
 import android_syncDevClient from './syncDevClient';
+import { getTamerDevAppProjectActivity } from '../explorer/patches';
 
 async function bundleAndDeploy(opts: { release?: boolean; production?: boolean } = {}) {
     const release = opts.release === true || opts.production === true;
-    let resolved: ReturnType<typeof resolveHostPaths>;
+    let resolved: ReturnType<typeof resolveAndroidPaths>;
     try {
-        resolved = resolveHostPaths();
+        resolved = resolveAndroidPaths(process.cwd());
     } catch (error: any) {
         console.error(`❌ Error loading configuration: ${error.message}`);
         process.exit(1);
     }
 
-    const { projectRoot, lynxProjectDir, lynxBundlePath, lynxBundleFiles, lynxBundleRootRel, androidAssetsDir, devClientBundlePath } = resolved;
+    const { projectRoot, lynxProjectDir, lynxBundlePath, lynxBundleFiles, lynxBundleRootRel, androidAssetsDir, devClientBundlePath, devClientBundleFiles } = resolved;
+    const isDevApp = isDevAppProject(projectRoot);
+
+    if (isDevApp) {
+        console.log('📱 Resolving paths for Tamer Dev App (@tamer4lynx/tamer-dev-app)');
+    }
+
     const devClientPkg = findDevClientPackage(projectRoot);
     const includeDevClient = !release && !!devClientPkg;
     const destinationDir = androidAssetsDir;
 
     android_autolink({ includeDevClient, release });
-    await android_syncDevClient({ includeDevClient });
+    if (!isDevApp) {
+        await android_syncDevClient({ includeDevClient });
+    } else {
+        const pkg = resolved.config.android?.packageName ?? 'com.nanofuxion.tamerdevapp';
+        const projectActivityPath = path.join(resolved.androidKotlinDir, 'ProjectActivity.kt');
+        fs.mkdirSync(path.dirname(projectActivityPath), { recursive: true });
+        fs.writeFileSync(projectActivityPath, getTamerDevAppProjectActivity(pkg));
+        console.log(
+            '✅ Wrote packages/tamer-dev-app ProjectActivity.kt from getTamerDevAppProjectActivity() (full template sync skipped for dev-app).',
+        );
+    }
 
     const iconPaths = resolveIconPaths(projectRoot, resolved.config);
     if (iconPaths) {
@@ -48,7 +65,7 @@ async function bundleAndDeploy(opts: { release?: boolean; production?: boolean }
         process.exit(1);
     }
 
-    if (includeDevClient && devClientBundlePath && !fs.existsSync(devClientBundlePath)) {
+    if (includeDevClient && devClientBundlePath) {
         const devClientDir = path.dirname(path.dirname(devClientBundlePath));
         try {
             console.log('📦 Building dev launcher (tamer-dev-client)...');
@@ -63,14 +80,24 @@ async function bundleAndDeploy(opts: { release?: boolean; production?: boolean }
     try {
         fs.mkdirSync(destinationDir, { recursive: true });
         if (release) {
-            const devClientAsset = path.join(destinationDir, 'dev-client.lynx.bundle');
-            if (fs.existsSync(devClientAsset)) {
-                fs.rmSync(devClientAsset);
-                console.log(`✨ Removed dev-client.lynx.bundle from assets (production build)`);
+            for (const bundleName of devClientBundleFiles ?? ['dev-client.lynx.bundle']) {
+                const devClientAsset = path.join(destinationDir, bundleName);
+                if (fs.existsSync(devClientAsset)) {
+                    fs.rmSync(devClientAsset);
+                    console.log(`✨ Removed ${bundleName} from assets (production build)`);
+                }
             }
-        } else if (includeDevClient && devClientBundlePath && fs.existsSync(devClientBundlePath)) {
-            fs.copyFileSync(devClientBundlePath, path.join(destinationDir, 'dev-client.lynx.bundle'));
-            console.log(`✨ Copied dev-client.lynx.bundle to assets`);
+        } else if (includeDevClient && devClientBundlePath) {
+            const devClientDir = path.dirname(path.dirname(devClientBundlePath));
+            for (const bundleName of devClientBundleFiles ?? ['dev-client.lynx.bundle']) {
+                const builtBundle = path.join(devClientDir, 'dist', bundleName);
+                if (!fs.existsSync(builtBundle)) {
+                    console.error(`❌ Dev client build output not found at: ${builtBundle}`);
+                    process.exit(1);
+                }
+                fs.copyFileSync(builtBundle, path.join(destinationDir, bundleName));
+                console.log(`✨ Copied ${bundleName} to assets`);
+            }
         }
         for (const name of lynxBundleFiles) {
             const p = path.join(lynxProjectDir, lynxBundleRootRel, name);

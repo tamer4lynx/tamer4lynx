@@ -82,20 +82,24 @@ function bundleAndDeploy(opts: { release?: boolean; production?: boolean } = {})
         }
 
         if (includeDevClient && devClientPkg) {
-            const devClientBundle = path.join(destinationDir, 'dev-client.lynx.bundle');
             console.log('📦 Building dev-client bundle...');
             try {
                 execSync('npm run build', { stdio: 'inherit', cwd: devClientPkg });
             } catch {
                 console.warn('⚠️  dev-client build failed; skipping dev-client bundle');
             }
-            const builtBundle = path.join(devClientPkg, 'dist', 'dev-client.lynx.bundle');
-            if (fs.existsSync(builtBundle)) {
-                fs.copyFileSync(builtBundle, devClientBundle);
-                console.log('✨ Copied dev-client.lynx.bundle to iOS project');
-                const pbxprojPath = path.join(resolved.iosDir, `${appName}.xcodeproj`, 'project.pbxproj');
+            const pbxprojPath = path.join(resolved.iosDir, `${appName}.xcodeproj`, 'project.pbxproj');
+            for (const bundleName of resolved.devClientBundleFiles ?? ['dev-client.lynx.bundle']) {
+                const builtBundle = path.join(devClientPkg, 'dist', bundleName);
+                const destinationBundle = path.join(destinationDir, bundleName);
+                if (!fs.existsSync(builtBundle)) {
+                    console.warn(`⚠️  ${bundleName} build output missing; skipping`);
+                    continue;
+                }
+                fs.copyFileSync(builtBundle, destinationBundle);
+                console.log(`✨ Copied ${bundleName} to iOS project`);
                 if (fs.existsSync(pbxprojPath)) {
-                    addResourceToXcodeProject(pbxprojPath, appName, 'dev-client.lynx.bundle');
+                    addResourceToXcodeProject(pbxprojPath, appName, bundleName);
                 }
             }
         }

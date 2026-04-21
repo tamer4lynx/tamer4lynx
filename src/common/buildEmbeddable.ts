@@ -5,6 +5,8 @@ import {
     resolveHostPaths,
     resolveAbiFilters,
     findDevAppPackage,
+    resolveDevToolBootstrap,
+    type HostConfig,
 } from './hostConfig';
 import { copyDistAssets } from './copyDistAssets';
 import { discoverModules } from './discoverModules';
@@ -95,7 +97,8 @@ function generateAndroidLibrary(
     lynxBundleFile: string,
     distDir: string,
     modules: { name: string; config: { android?: unknown }; packagePath: string }[],
-    abiFilters: string[]
+    abiFilters: string[],
+    hostConfig: HostConfig,
 ): void {
     const libDir = path.join(androidDir, 'lib');
     const libSrcMain = path.join(libDir, 'src', 'main');
@@ -209,7 +212,7 @@ kotlin.code.style=official
     fs.writeFileSync(path.join(kotlinDir, 'LynxEmbeddable.kt'), LYNX_EMBEDDABLE_KT);
     fs.writeFileSync(
         path.join(generatedDir, 'GeneratedLynxExtensions.kt'),
-        generateLynxExtensionsKotlin(modules, LIB_PACKAGE)
+        generateLynxExtensionsKotlin(modules, LIB_PACKAGE, { devToolBootstrap: resolveDevToolBootstrap(hostConfig) })
     );
     fs.writeFileSync(
         path.join(generatedDir, 'GeneratedActivityLifecycle.kt'),
@@ -246,7 +249,7 @@ export default async function buildEmbeddable(opts: { release?: boolean } = {}) 
     if (fs.existsSync(androidDir)) fs.rmSync(androidDir, { recursive: true });
     fs.mkdirSync(androidDir, { recursive: true });
 
-    generateAndroidLibrary(outDir, androidDir, projectRoot, lynxBundleFile, distDir, modules, abiFilters);
+    generateAndroidLibrary(outDir, androidDir, projectRoot, lynxBundleFile, distDir, modules, abiFilters, config);
 
     const gradlewPath = path.join(androidDir, 'gradlew');
     const devAppDir = findDevAppPackage(projectRoot);

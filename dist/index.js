@@ -265,6 +265,16 @@ function findRepoRoot(start2) {
   }
   return start2;
 }
+function isDevAppProject(projectRoot) {
+  const packageJsonPath = path4.join(projectRoot, "package.json");
+  if (!fs4.existsSync(packageJsonPath)) return false;
+  try {
+    const pkg = JSON.parse(fs4.readFileSync(packageJsonPath, "utf8"));
+    return pkg.name === "@tamer4lynx/tamer-dev-app";
+  } catch {
+    return false;
+  }
+}
 function findDevAppPackage(projectRoot) {
   const candidates = [
     path4.join(projectRoot, "node_modules", "@tamer4lynx", "tamer-dev-app"),
@@ -344,7 +354,7 @@ function resolveHostPaths(cwd = process.cwd()) {
   const androidDir = path4.join(projectRoot, androidDirRel);
   const devMode = resolveDevMode(config);
   const devClientPkg = findDevClientPackage(projectRoot);
-  const devClientBundleFiles = devClientPkg ? ["dev-client.lynx.bundle"] : void 0;
+  const devClientBundleFiles = devClientPkg ? ["dev-client.lynx.bundle", "tamer-debug.lynx.bundle"] : void 0;
   const devClientBundlePath = devClientPkg ? path4.join(devClientPkg, DEFAULT_BUNDLE_ROOT, "dev-client.lynx.bundle") : void 0;
   return {
     projectRoot,
@@ -479,10 +489,56 @@ function resolveIconPaths(projectRoot, config) {
   }
   return Object.keys(out).length ? out : null;
 }
+function resolveDevAppPaths(searchRoot) {
+  const devAppDir = findDevAppPackage(searchRoot) ?? findDevAppPackage(findRepoRoot(searchRoot));
+  if (!devAppDir) {
+    throw new Error("tamer-dev-app not found. Add @tamer4lynx/tamer-dev-app to dependencies, or run from the tamer4lynx monorepo.");
+  }
+  const configPath = path4.join(devAppDir, "tamer.config.json");
+  if (!fs4.existsSync(configPath)) {
+    throw new Error(`tamer.config.json not found in ${devAppDir}`);
+  }
+  const config = JSON.parse(fs4.readFileSync(configPath, "utf8"));
+  const packageName = config.android?.packageName ?? "com.nanofuxion.tamerdevapp";
+  const androidDirRel = config.paths?.androidDir ?? "android";
+  const androidDir = path4.join(devAppDir, androidDirRel);
+  const inDevAppScoped = path4.join(devAppDir, "node_modules", "@tamer4lynx", "tamer-dev-client");
+  const inDevAppFlat = path4.join(devAppDir, "node_modules", "tamer-dev-client");
+  const devClientDir = findDevClientPackage(searchRoot) ?? findDevClientPackage(findRepoRoot(searchRoot)) ?? (fs4.existsSync(path4.join(inDevAppScoped, "package.json")) ? inDevAppScoped : null) ?? (fs4.existsSync(path4.join(inDevAppFlat, "package.json")) ? inDevAppFlat : null);
+  if (!devClientDir || !fs4.existsSync(devClientDir)) {
+    throw new Error("tamer-dev-client not found. Add @tamer4lynx/tamer-dev-client (or tamer-dev-app pulls it in).");
+  }
+  const lynxBundlePath = path4.join(devClientDir, DEFAULT_BUNDLE_ROOT, "dev-client.lynx.bundle");
+  return {
+    projectRoot: devAppDir,
+    androidDir,
+    iosDir: path4.join(devAppDir, "ios"),
+    androidAppDir: path4.join(androidDir, "app"),
+    androidAssetsDir: path4.join(androidDir, "app", "src", "main", "assets"),
+    androidKotlinDir: path4.join(androidDir, "app", "src", "main", "kotlin", packageName.replace(/\./g, "/")),
+    lynxProjectDir: devClientDir,
+    lynxBundlePath,
+    lynxBundleFile: "dev-client.lynx.bundle",
+    lynxBundleFiles: ["dev-client.lynx.bundle"],
+    lynxBundleRootRel: DEFAULT_BUNDLE_ROOT,
+    devMode: "embedded",
+    devClientBundlePath: void 0,
+    devClientBundleFiles: void 0,
+    config
+  };
+}
+function resolveAndroidPaths(cwd = process.cwd()) {
+  const projectRoot = findProjectRoot(cwd);
+  if (isDevAppProject(projectRoot)) {
+    return resolveDevAppPaths(cwd);
+  }
+  return resolveHostPaths(cwd);
+}
 
 // src/common/syncAppIcons.ts
 import fs5 from "fs";
 import path5 from "path";
+import { execFileSync } from "child_process";
 function purgeAdaptiveForegroundArtifacts(drawableDir) {
   for (const base of ["ic_launcher_fg_src", "ic_launcher_fg_bm", "ic_launcher_fg_sc"]) {
     for (const ext of [".png", ".webp", ".jpg", ".jpeg", ".xml"]) {
@@ -651,9 +707,15 @@ function applyIosAppIconAssets(appIconDir, iconPaths) {
     return true;
   }
   if (iconPaths.source) {
-    const ext = path5.extname(iconPaths.source) || ".png";
-    const icon1024 = `Icon-1024${ext}`;
-    fs5.copyFileSync(iconPaths.source, path5.join(appIconDir, icon1024));
+    const icon1024 = "Icon-1024.png";
+    const outputPath = path5.join(appIconDir, icon1024);
+    try {
+      execFileSync("sips", ["-s", "format", "png", "-z", "1024", "1024", iconPaths.source, "--out", outputPath], {
+        stdio: "ignore"
+      });
+    } catch {
+      fs5.copyFileSync(iconPaths.source, outputPath);
+    }
     fs5.writeFileSync(
       path5.join(appIconDir, "Contents.json"),
       JSON.stringify(
@@ -761,15 +823,17 @@ function getLoadTemplateBody(vars) {
     }`;
   }
   return `    private static final String DEV_CLIENT_BUNDLE = "dev-client.lynx.bundle";
+    private static final String TAMER_DEBUG_BUNDLE = "tamer-debug.lynx.bundle";
     private static final String PROJECT_BUNDLE_SEGMENT = "${projectSegment}";
 
     @Override
     public void loadTemplate(String url, final Callback callback) {
         new Thread(() -> {
-            if (url != null && (url.equals(DEV_CLIENT_BUNDLE) || url.endsWith("/" + DEV_CLIENT_BUNDLE) || url.contains(DEV_CLIENT_BUNDLE))) {
+            if (url != null && (url.equals(DEV_CLIENT_BUNDLE) || url.endsWith("/" + DEV_CLIENT_BUNDLE) || url.contains(DEV_CLIENT_BUNDLE) || url.equals(TAMER_DEBUG_BUNDLE) || url.endsWith("/" + TAMER_DEBUG_BUNDLE) || url.contains(TAMER_DEBUG_BUNDLE))) {
+                String bundleName = url.contains(TAMER_DEBUG_BUNDLE) ? TAMER_DEBUG_BUNDLE : DEV_CLIENT_BUNDLE;
                 try {
                     java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-                    try (java.io.InputStream is = context.getAssets().open(DEV_CLIENT_BUNDLE)) {
+                    try (java.io.InputStream is = context.getAssets().open(bundleName)) {
                         byte[] buf = new byte[1024];
                         int n;
                         while ((n = is.read(buf)) != -1) baos.write(buf, 0, n);
@@ -942,21 +1006,24 @@ class DevClientManager(private val context: Context, private val onReload: Runna
 function getProjectActivity(vars) {
   const hasDevClient = vars.devMode === "embedded";
   const devClientInit = hasDevClient ? `
-        TamerRelogLogService.init(this)
-        TamerRelogLogService.connect()
+        DevClientModule.attachHostActivity(this)
+        DevClientModule.attachLynxView(lynxView)
+        DevClientModule.attachReloadProjectLauncher { reloadProjectView() }
         devClientManager = DevClientManager(this) { reloadProjectView() }
         devClientManager?.connect()
 ` : "";
   const devClientField = hasDevClient ? `    private var devClientManager: DevClientManager? = null
 ` : "";
   const devClientCleanup = hasDevClient ? `
+        DevClientModule.attachHostActivity(null)
+        DevClientModule.attachLynxView(null)
+        DevClientModule.attachReloadProjectLauncher(null)
         devClientManager?.disconnect()
-        TamerRelogLogService.disconnect()
 ` : "";
   const devClientImports = hasDevClient ? `
 import ${vars.packageName}.DevClientManager
-import com.nanofuxion.tamerdevclient.DevClientModule
-import com.nanofuxion.tamerdevclient.TamerRelogLogService` : "";
+import com.nanofuxion.tamerdevclient.DevClientDebugPanel
+import com.nanofuxion.tamerdevclient.DevClientModule` : "";
   const projectInstallNativeStack = "";
   const reloadMethod = hasDevClient ? `
     private fun reloadProjectView() {
@@ -970,6 +1037,7 @@ import com.nanofuxion.tamerdevclient.TamerRelogLogService` : "";
         GeneratedActivityLifecycle.onViewAttached(nextView)
         GeneratedLynxExtensions.onHostViewChanged(nextView)
         nextView.renderTemplateUrl("main.lynx.bundle", DevClientModule.getProjectInitDataJson(this))
+        DevClientModule.attachLynxView(nextView)
         GeneratedActivityLifecycle.onCreateDelayed(handler)
     }
 ` : "";
@@ -979,6 +1047,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -990,6 +1059,17 @@ import ${vars.packageName}.generated.GeneratedActivityLifecycle
 class ProjectActivity : AppCompatActivity() {
     private var lynxView: LynxView? = null
 ${devClientField}    private val handler = Handler(Looper.getMainLooper())
+    private val backCallback = object : OnBackPressedCallback(true) {
+        override fun handleOnBackPressed() {
+            GeneratedActivityLifecycle.onBackPressed { consumed ->
+                if (!consumed) {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
+                }
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -1003,6 +1083,7 @@ ${devClientField}    private val handler = Handler(Looper.getMainLooper())
         GeneratedLynxExtensions.onHostViewChanged(lynxView)
         lynxView?.renderTemplateUrl("main.lynx.bundle", ${hasDevClient ? "DevClientModule.getProjectInitDataJson(this)" : '""'})${devClientInit}
         GeneratedActivityLifecycle.onCreateDelayed(handler)
+        onBackPressedDispatcher.addCallback(this, backCallback)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -1012,22 +1093,17 @@ ${devClientField}    private val handler = Handler(Looper.getMainLooper())
 ${reloadMethod}
     override fun onResume() {
         super.onResume()
-        GeneratedActivityLifecycle.onResume()
+        ${hasDevClient ? "DevClientModule.startShakeDetection(this) { DevClientDebugPanel.show(this) }\n        " : ""}GeneratedActivityLifecycle.onResume()
+    }
+
+    override fun onPause() {
+        ${hasDevClient ? "DevClientModule.stopShakeDetection()\n        " : ""}super.onPause()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         GeneratedActivityLifecycle.onNewIntent(intent)
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        GeneratedActivityLifecycle.onBackPressed { consumed ->
-            if (!consumed) {
-                runOnUiThread { super.onBackPressed() }
-            }
-        }
     }
 
     override fun onDestroy() {
@@ -1039,6 +1115,122 @@ ${reloadMethod}
     }
 
 ${projectInstallNativeStack}    private fun buildLynxView(): LynxView {
+        val viewBuilder = LynxViewBuilder()
+        viewBuilder.setTemplateProvider(TemplateProvider(this))
+        GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
+        return viewBuilder.build(this)
+    }
+}
+`;
+}
+function getTamerDevAppProjectActivity(packageName) {
+  return `package ${packageName}
+
+import android.content.Intent
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import com.lynx.tasm.LynxView
+import com.lynx.tasm.LynxViewBuilder
+import ${packageName}.DevClientManager
+import com.nanofuxion.tamerdevclient.DevClientModule
+import com.nanofuxion.tamerdevclient.LynxDevToolBootstrap
+import ${packageName}.generated.GeneratedLynxExtensions
+import ${packageName}.generated.GeneratedActivityLifecycle
+import com.nanofuxion.tamerdevclient.DevClientDebugPanel
+
+class ProjectActivity : AppCompatActivity() {
+    private var lynxView: LynxView? = null
+    private var devClientManager: DevClientManager? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private val backCallback = object : OnBackPressedCallback(true) {
+        override fun handleOnBackPressed() {
+            GeneratedActivityLifecycle.onBackPressed { consumed ->
+                if (!consumed) {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
+                }
+            }
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        LynxDevToolBootstrap.bootstrapDevToolForProjectHost(this)
+        GeneratedLynxExtensions.register(this)
+        GeneratedActivityLifecycle.onCreate(intent)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
+        lynxView = buildLynxView()
+        setContentView(lynxView)
+        GeneratedActivityLifecycle.onViewAttached(lynxView)
+        GeneratedLynxExtensions.onHostViewChanged(lynxView)
+        lynxView?.renderTemplateUrl("main.lynx.bundle", "")
+        DevClientModule.attachHostActivity(this)
+        DevClientModule.attachLynxView(lynxView)
+        DevClientModule.attachReloadProjectLauncher { reloadProjectView() }
+        val bundleUrl = intent.getStringExtra("bundleUrl")
+        devClientManager = DevClientManager(this, bundleUrl) { reloadProjectView() }
+        devClientManager?.connect()
+        GeneratedActivityLifecycle.onCreateDelayed(handler)
+        onBackPressedDispatcher.addCallback(this, backCallback)
+    }
+
+    override fun onPause() {
+        DevClientModule.stopShakeDetection()
+        super.onPause()
+    }
+
+    private fun reloadProjectView() {
+        GeneratedActivityLifecycle.onViewDetached()
+        GeneratedLynxExtensions.onHostViewChanged(null)
+        lynxView?.destroy()
+
+        val nextView = buildLynxView()
+        lynxView = nextView
+        setContentView(nextView)
+        GeneratedActivityLifecycle.onViewAttached(nextView)
+        GeneratedLynxExtensions.onHostViewChanged(nextView)
+        nextView.renderTemplateUrl("main.lynx.bundle", "")
+        DevClientModule.attachLynxView(nextView)
+        GeneratedActivityLifecycle.onCreateDelayed(handler)
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        GeneratedActivityLifecycle.onWindowFocusChanged(hasFocus)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        DevClientModule.startShakeDetection(this) { DevClientDebugPanel.show(this) }
+        GeneratedActivityLifecycle.onResume()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        GeneratedActivityLifecycle.onNewIntent(intent)
+    }
+
+    override fun onDestroy() {
+        DevClientModule.attachHostActivity(null)
+        DevClientModule.attachLynxView(null)
+        DevClientModule.attachReloadProjectLauncher(null)
+        GeneratedActivityLifecycle.onViewDetached()
+        GeneratedLynxExtensions.onHostViewChanged(null)
+        lynxView?.destroy()
+        lynxView = null
+        devClientManager?.disconnect()
+        super.onDestroy()
+    }
+
+    private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
         viewBuilder.setTemplateProvider(TemplateProvider(this))
         GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
@@ -1737,13 +1929,20 @@ object GeneratedLynxExtensions {
       if (devClientPkg) {
         const templateDir = path6.join(devClientPkg, "android", "templates");
         for (const [src, dst] of [
-          ["ProjectActivity.kt", path6.join(kotlinDir, "ProjectActivity.kt")],
           ["DevClientManager.kt", path6.join(kotlinDir, "DevClientManager.kt")],
           ["DevServerPrefs.kt", path6.join(kotlinDir, "DevServerPrefs.kt")]
         ]) {
           const srcPath = path6.join(templateDir, src);
           if (fs6.existsSync(srcPath)) {
             writeFile2(dst, readAndSubstituteTemplate(srcPath, templateVars));
+          }
+        }
+        if (opts.target === "dev-app") {
+          writeFile2(path6.join(kotlinDir, "ProjectActivity.kt"), getTamerDevAppProjectActivity(packageName));
+        } else {
+          const paSrc = path6.join(templateDir, "ProjectActivity.kt");
+          if (fs6.existsSync(paSrc)) {
+            writeFile2(path6.join(kotlinDir, "ProjectActivity.kt"), readAndSubstituteTemplate(paSrc, templateVars));
           }
         }
       } else {
@@ -2107,8 +2306,9 @@ ${allModuleClasses.map((c) => `            "${c.replace(/\\/g, "\\\\").replace(/
 ${hostViewLines}
     }` : "\n    fun onHostViewChanged(view: android.view.View?) {}\n";
   const devToolMode = opts?.devToolBootstrap ?? "always";
-  const devToolBootstrapPrefix = hasDevClient && devToolMode === "always" ? "        com.nanofuxion.tamerdevclient.LynxDevToolBootstrap.configure(context)\n" : hasDevClient && devToolMode === "projectHostOnly" ? "        com.nanofuxion.tamerdevclient.LynxDevToolBootstrap.initLynxEnvForLauncher(context)\n" : "";
-  const devToolBootstrapSuffix = hasDevClient && devToolMode === "always" ? "        com.nanofuxion.tamerdevclient.LynxDevToolBootstrap.enableLynxDebugFlags()\n" : "";
+  const disableLauncherDevToolBootstrap = hasDevClient && (devToolMode === "always" || devToolMode === "projectHostOnly");
+  const devToolBootstrapPrefix = disableLauncherDevToolBootstrap ? "" : "";
+  const devToolBootstrapSuffix = "";
   return `package ${projectPackage}.generated
 
 import android.content.Context
@@ -2621,7 +2821,7 @@ var REQUIRED_PLUGIN_ENTRIES = {
 var autolink = (opts) => {
   let resolved;
   try {
-    resolved = resolveHostPaths();
+    resolved = resolveAndroidPaths(process.cwd());
     if (!resolved.config.android?.packageName) {
       throw new Error('"android.packageName" must be defined in tamer.config.json');
     }
@@ -3194,17 +3394,31 @@ async function bundleAndDeploy(opts = {}) {
   const release = opts.release === true || opts.production === true;
   let resolved;
   try {
-    resolved = resolveHostPaths();
+    resolved = resolveAndroidPaths(process.cwd());
   } catch (error) {
     console.error(`\u274C Error loading configuration: ${error.message}`);
     process.exit(1);
   }
   const { projectRoot, lynxProjectDir, lynxBundlePath, lynxBundleFiles, lynxBundleRootRel, androidAssetsDir, devClientBundlePath, devClientBundleFiles } = resolved;
+  const isDevApp = isDevAppProject(projectRoot);
+  if (isDevApp) {
+    console.log("\u{1F4F1} Resolving paths for Tamer Dev App (@tamer4lynx/tamer-dev-app)");
+  }
   const devClientPkg = findDevClientPackage(projectRoot);
   const includeDevClient = !release && !!devClientPkg;
   const destinationDir = androidAssetsDir;
   autolink_default({ includeDevClient, release });
-  await syncDevClient_default({ includeDevClient });
+  if (!isDevApp) {
+    await syncDevClient_default({ includeDevClient });
+  } else {
+    const pkg = resolved.config.android?.packageName ?? "com.nanofuxion.tamerdevapp";
+    const projectActivityPath = path15.join(resolved.androidKotlinDir, "ProjectActivity.kt");
+    fs15.mkdirSync(path15.dirname(projectActivityPath), { recursive: true });
+    fs15.writeFileSync(projectActivityPath, getTamerDevAppProjectActivity(pkg));
+    console.log(
+      "\u2705 Wrote packages/tamer-dev-app ProjectActivity.kt from getTamerDevAppProjectActivity() (full template sync skipped for dev-app)."
+    );
+  }
   const iconPaths = resolveIconPaths(projectRoot, resolved.config);
   if (iconPaths) {
     const resDir = path15.join(resolved.androidAppDir, "src", "main", "res");
@@ -3456,6 +3670,8 @@ function ServerDashboard({
   buildPhase,
   buildError,
   wsConnections,
+  statusProbeCount,
+  metaProbeCount,
   logLines,
   qrLines,
   phase,
@@ -3522,6 +3738,14 @@ function ServerDashboard({
               /* @__PURE__ */ jsxs8(Text8, { dimColor: true, children: [
                 "WebSocket clients: ",
                 wsConnections
+              ] }),
+              /* @__PURE__ */ jsxs8(Text8, { dimColor: true, children: [
+                "Status probes: ",
+                statusProbeCount
+              ] }),
+              /* @__PURE__ */ jsxs8(Text8, { dimColor: true, children: [
+                "Meta probes: ",
+                metaProbeCount
               ] })
             ] })
           ]
@@ -3622,14 +3846,14 @@ async function resolveAdbSerial() {
   );
 }
 async function buildApk(opts = {}) {
+  const release = opts.release === true || opts.production === true;
+  await bundle_default({ release, production: opts.production });
   let resolved;
   try {
-    resolved = resolveHostPaths();
+    resolved = resolveAndroidPaths(process.cwd());
   } catch (error) {
     throw error;
   }
-  const release = opts.release === true || opts.production === true;
-  await bundle_default({ release, production: opts.production });
   const { androidDir, projectRoot } = resolved;
   cleanTamerAndroidLibBuildsIfVersionsChanged(projectRoot);
   const gradlew = path16.join(androidDir, process.platform === "win32" ? "gradlew.bat" : "gradlew");
@@ -3838,7 +4062,7 @@ source 'https://cdn.cocoapods.org/'
 
 install! 'cocoapods', :incremental_installation => true, :generate_multiple_pod_projects => true
 
-platform :ios, '13.0'
+platform :ios, '14.0'
 
 target '${appName}' do
   pod 'Lynx', '3.6.0', :subspecs => [
@@ -3875,7 +4099,7 @@ post_install do |installer|
     project.targets.each do |target|
       target.build_configurations.each do |config|
         config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
-        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
         config.build_settings['CLANG_ENABLE_EXPLICIT_MODULES'] = 'NO'
         config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
 ${PODFILE_POST_INSTALL_BUILD_SPEED_RUBY}
@@ -4365,7 +4589,7 @@ final class LynxInitProcessor {
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -4399,7 +4623,7 @@ final class LynxInitProcessor {
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -4653,12 +4877,64 @@ function getLaunchScreenStoryboard() {
 </document>
 `;
 }
+function ensurePbxVariantGroupSection(content) {
+  if (content.includes("/* Begin PBXVariantGroup section */")) return content;
+  return content.replace(
+    "/* Begin XCBuildConfiguration section */",
+    `/* Begin PBXVariantGroup section */
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */`
+  );
+}
+function repairLaunchScreenVariantGroup(content) {
+  const hasLaunchScreenVariantGroup = /isa = PBXVariantGroup;[\s\S]*?name = LaunchScreen\.storyboard;/.test(content);
+  if (hasLaunchScreenVariantGroup || !content.includes("LaunchScreen.storyboard")) {
+    return { content, repaired: false };
+  }
+  const baseFileRefMatch = content.match(
+    /([A-F0-9]{24}) \/\* Base \*\/ = \{isa = PBXFileReference; lastKnownFileType = file\.storyboard; name = Base; path = Base\.lproj\/LaunchScreen\.storyboard; sourceTree = "<group>"; \};/
+  );
+  const buildFileMatch = content.match(
+    /([A-F0-9]{24}) \/\* LaunchScreen\.storyboard in Resources \*\/ = \{isa = PBXBuildFile; fileRef = ([A-F0-9]{24}) \/\* LaunchScreen\.storyboard \*\/; \};/
+  );
+  if (!baseFileRefMatch || !buildFileMatch) {
+    return { content, repaired: false };
+  }
+  const baseFileRefUUID = baseFileRefMatch[1];
+  const variantGroupUUID = buildFileMatch[2];
+  content = ensurePbxVariantGroupSection(content);
+  if (!content.includes(`${variantGroupUUID} /* LaunchScreen.storyboard */ = {`)) {
+    content = content.replace(
+      "/* End PBXVariantGroup section */",
+      `		${variantGroupUUID} /* LaunchScreen.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				${baseFileRefUUID} /* Base */,
+			);
+			name = LaunchScreen.storyboard;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */`
+    );
+  }
+  return { content, repaired: true };
+}
 function addLaunchScreenToXcodeProject(pbxprojPath, appName) {
   let content = fs20.readFileSync(pbxprojPath, "utf8");
-  if (content.includes("LaunchScreen.storyboard")) return;
+  const repaired = repairLaunchScreenVariantGroup(content);
+  content = repaired.content;
+  if (repaired.repaired) {
+    fs20.writeFileSync(pbxprojPath, content, "utf8");
+    console.log("\u2705 Repaired LaunchScreen.storyboard PBXVariantGroup in Xcode project");
+    return;
+  }
+  const hasLaunchScreenVariantGroup = /isa = PBXVariantGroup;[\s\S]*?name = LaunchScreen\.storyboard;/.test(content);
+  if (hasLaunchScreenVariantGroup) return;
   const baseFileRefUUID = deterministicUUID(`launchScreenBase:${appName}`);
   const variantGroupUUID = deterministicUUID(`launchScreenGroup:${appName}`);
   const buildFileUUID = deterministicUUID(`launchScreenBuild:${appName}`);
+  content = ensurePbxVariantGroupSection(content);
   content = content.replace(
     "/* End PBXFileReference section */",
     `		${baseFileRefUUID} /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -5138,8 +5414,8 @@ function syncHostIos(opts) {
   if (!fs20.existsSync(launchScreenPath)) {
     fs20.mkdirSync(baseLprojDir, { recursive: true });
     writeFile(launchScreenPath, getLaunchScreenStoryboard());
-    addLaunchScreenToXcodeProject(pbxprojPath, appName);
   }
+  addLaunchScreenToXcodeProject(pbxprojPath, appName);
   addSwiftSourceToXcodeProject(pbxprojPath, appName, "SceneDelegate.swift");
   if (useDevClient) {
     const devClientPkg2 = findDevClientPackage(resolved.projectRoot);
@@ -7282,9 +7558,19 @@ var initialUi = () => ({
   verbose: false,
   buildPhase: "idle",
   wsConnections: 0,
+  statusProbeCount: 0,
+  metaProbeCount: 0,
   logLines: [],
   qrLines: []
 });
+function probeKindFromRequest(req, reqPath) {
+  const probeHeader = req.headers["x-tamer-probe"];
+  const probeValue = Array.isArray(probeHeader) ? probeHeader[0] : probeHeader;
+  if (typeof probeValue !== "string" || probeValue.trim() === "") return null;
+  if (reqPath.endsWith("/status") || reqPath === "/status") return "status";
+  if (reqPath.endsWith("/meta.json") || reqPath === "/meta.json") return "meta";
+  return null;
+}
 function DevServerApp({ verbose }) {
   const { exit } = useApp();
   const [ui, setUi] = useState5(() => {
@@ -7411,6 +7697,12 @@ function DevServerApp({ verbose }) {
         };
         const httpSrv = http.createServer((req, res) => {
           let reqPath = (req.url || "/").split("?")[0];
+          const probeKind = probeKindFromRequest(req, reqPath);
+          if (probeKind === "status") {
+            setUi((s) => ({ ...s, statusProbeCount: s.statusProbeCount + 1 }));
+          } else if (probeKind === "meta") {
+            setUi((s) => ({ ...s, metaProbeCount: s.metaProbeCount + 1 }));
+          }
           if (reqPath === `${basePath}/status`) {
             res.setHeader("Content-Type", "text/plain");
             res.setHeader("Access-Control-Allow-Origin", "*");
@@ -7649,7 +7941,8 @@ function DevServerApp({ verbose }) {
         }));
         void import("qrcode-terminal").then((mod) => {
           const qrcode = mod.default ?? mod;
-          qrcode.generate(devUrl, { small: true }, (qr) => {
+          const deepLinkUrl = `tamerdevapp://${devUrl.replace(/^https?:\/\//, "")}`;
+          qrcode.generate(deepLinkUrl, { small: true }, (qr) => {
             if (!alive) return;
             setUi((s) => ({ ...s, qrLines: qr.split("\n").filter(Boolean) }));
           });
@@ -7693,6 +7986,8 @@ function DevServerApp({ verbose }) {
       buildPhase: ui.buildPhase,
       buildError: ui.buildError,
       wsConnections: ui.wsConnections,
+      statusProbeCount: ui.statusProbeCount,
+      metaProbeCount: ui.metaProbeCount,
       logLines: ui.logLines,
       qrLines: ui.qrLines,
       phase: ui.phase,
@@ -8372,7 +8667,7 @@ import fs36 from "fs";
 import path36 from "path";
 
 // src/common/androidKeystore.ts
-import { execFileSync } from "child_process";
+import { execFileSync as execFileSync2 } from "child_process";
 import fs34 from "fs";
 import path34 from "path";
 function normalizeJavaHome(raw) {
@@ -8383,7 +8678,7 @@ function normalizeJavaHome(raw) {
 function discoverJavaHomeMacOs() {
   if (process.platform !== "darwin") return void 0;
   try {
-    const out = execFileSync("/usr/libexec/java_home", [], {
+    const out = execFileSync2("/usr/libexec/java_home", [], {
       encoding: "utf8",
       stdio: ["pipe", "pipe", "pipe"]
     }).trim().split("\n")[0]?.trim();
@@ -8410,7 +8705,7 @@ function resolveKeytoolPath() {
 function keytoolAvailable() {
   const tryRun = (cmd) => {
     try {
-      execFileSync(cmd, ["-help"], { stdio: "pipe" });
+      execFileSync2(cmd, ["-help"], { stdio: "pipe" });
       return true;
     } catch {
       return false;
@@ -8456,7 +8751,7 @@ function generateReleaseKeystore(opts) {
     opts.dname
   ];
   try {
-    execFileSync(keytool, args, { stdio: ["pipe", "pipe", "pipe"] });
+    execFileSync2(keytool, args, { stdio: ["pipe", "pipe", "pipe"] });
   } catch (e) {
     const err = e;
     const fromKeytool = [err.stdout, err.stderr].filter(Boolean).map((b) => Buffer.from(b).toString("utf8")).join("\n").trim();
@@ -9263,7 +9558,12 @@ program.command("build <platform>").description("Build app. Platform: ios | andr
     assertProductionSigningReady(p);
   }
   if (p === "android") {
-    await build_default({ install: opts.install, release, production, clean: opts.clean });
+    await build_default({
+      install: opts.install,
+      release,
+      production,
+      clean: opts.clean
+    });
   } else {
     await build_default2({
       install: opts.install,
@@ -9300,7 +9600,8 @@ program.command("bundle [platform]").description("Build Lynx bundle and copy to 
   const release = opts.release === true || opts.production === true;
   const production = opts.production === true;
   const p = parsePlatform(platform ?? "both") ?? "both";
-  if (p === "android" || p === "all") await bundle_default({ release, production });
+  if (p === "android" || p === "all")
+    await bundle_default({ release, production });
   if (p === "ios" || p === "all") bundle_default2({ release, production });
 });
 program.command("inject <platform>").description("Inject host templates into an existing project. Platform: ios | android").option("-f, --force", "Overwrite existing files").action(async (platform, opts) => {
@@ -9327,7 +9628,7 @@ program.command("sync [platform]").description("Sync dev client. Platform: andro
 program.command("start").option("-v, --verbose", "Show all logs (native + JS); default shows JS only").description("Start dev server with HMR and WebSocket support (Expo-like)").action(async (opts) => {
   await start_default({ verbose: opts.verbose });
 });
-program.command("build-dev-app").option("-p, --platform <platform>", "Platform: android, ios, or all (default)", "all").option("-i, --install", "Install APK to connected device and launch app after building").description("Build with dev client embedded (same as t4l build -d)").action(async (opts) => {
+program.command("build-dev-app").option("-p, --platform <platform>", "Platform: android, ios, or all (default)", "all").option("-i, --install", "Install APK to connected device and launch app after building").description("Build the Tamer Dev App package (detected automatically when building from tamer-dev-app directory)").action(async (opts) => {
   const p = parsePlatform(opts.platform ?? "all") ?? "all";
   if (p === "android" || p === "all") {
     await build_default({ install: opts.install, release: false });

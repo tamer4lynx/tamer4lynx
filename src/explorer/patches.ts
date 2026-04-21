@@ -110,15 +110,17 @@ function getLoadTemplateBody(vars: PatchVars): string {
     }`;
   }
   return `    private static final String DEV_CLIENT_BUNDLE = "dev-client.lynx.bundle";
+    private static final String TAMER_DEBUG_BUNDLE = "tamer-debug.lynx.bundle";
     private static final String PROJECT_BUNDLE_SEGMENT = "${projectSegment}";
 
     @Override
     public void loadTemplate(String url, final Callback callback) {
         new Thread(() -> {
-            if (url != null && (url.equals(DEV_CLIENT_BUNDLE) || url.endsWith("/" + DEV_CLIENT_BUNDLE) || url.contains(DEV_CLIENT_BUNDLE))) {
+            if (url != null && (url.equals(DEV_CLIENT_BUNDLE) || url.endsWith("/" + DEV_CLIENT_BUNDLE) || url.contains(DEV_CLIENT_BUNDLE) || url.equals(TAMER_DEBUG_BUNDLE) || url.endsWith("/" + TAMER_DEBUG_BUNDLE) || url.contains(TAMER_DEBUG_BUNDLE))) {
+                String bundleName = url.contains(TAMER_DEBUG_BUNDLE) ? TAMER_DEBUG_BUNDLE : DEV_CLIENT_BUNDLE;
                 try {
                     java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-                    try (java.io.InputStream is = context.getAssets().open(DEV_CLIENT_BUNDLE)) {
+                    try (java.io.InputStream is = context.getAssets().open(bundleName)) {
                         byte[] buf = new byte[1024];
                         int n;
                         while ((n = is.read(buf)) != -1) baos.write(buf, 0, n);
@@ -129,39 +131,47 @@ function getLoadTemplateBody(vars: PatchVars): string {
                 }
                 return;
             }
-            if (BuildConfig.DEBUG) {
-                String devUrl = DevServerPrefs.INSTANCE.getUrl(context);
-                if (devUrl != null && !devUrl.isEmpty()) {
-                    try {
-                        java.net.URL u = new java.net.URL(devUrl);
-                        String origin = u.getProtocol() + "://" + u.getHost() + (u.getPort() > 0 ? ":" + u.getPort() : ":3000");
-                        String configuredPath = u.getPath() != null ? u.getPath() : "";
-                        configuredPath = configuredPath.replaceAll("/+$", "");
+            String devUrl = DevServerPrefs.INSTANCE.getUrl(context);
+            if (devUrl != null && !devUrl.isEmpty()) {
+                try {
+                    java.net.URL u = new java.net.URL(devUrl.trim());
+                    int port = u.getPort();
+                    String host = u.getHost() != null ? u.getHost() : "127.0.0.1";
+                    String scheme = u.getProtocol() != null ? u.getProtocol() : "http";
+                    String origin;
+                    if (port > 0) {
+                        origin = scheme + "://" + host + ":" + port;
+                    } else if ("http".equalsIgnoreCase(scheme)) {
+                        origin = scheme + "://" + host + ":3000";
+                    } else {
+                        origin = scheme + "://" + host;
+                    }
+                    String configuredPath = u.getPath() != null ? u.getPath() : "";
+                    configuredPath = configuredPath.replaceAll("/+$", "");
 
-                        java.util.ArrayList<String> candidatePaths = new java.util.ArrayList<>();
-                        if (!configuredPath.isEmpty()) candidatePaths.add(configuredPath + "/" + url);
-                        if (PROJECT_BUNDLE_SEGMENT != null && !PROJECT_BUNDLE_SEGMENT.isEmpty()) candidatePaths.add("/" + PROJECT_BUNDLE_SEGMENT + "/" + url);
-                        candidatePaths.add("/" + url);
+                    java.util.ArrayList<String> candidatePaths = new java.util.ArrayList<>();
+                    if (!configuredPath.isEmpty()) candidatePaths.add(configuredPath + "/" + url);
+                    if (PROJECT_BUNDLE_SEGMENT != null && !PROJECT_BUNDLE_SEGMENT.isEmpty()) candidatePaths.add("/" + PROJECT_BUNDLE_SEGMENT + "/" + url);
+                    candidatePaths.add("/" + url);
 
-                        okhttp3.OkHttpClient client = new okhttp3.OkHttpClient.Builder()
-                            .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
-                            .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
-                            .build();
-                        for (String candidatePath : candidatePaths) {
-                            String fetchUrl = origin + (candidatePath.startsWith("/") ? candidatePath : "/" + candidatePath);
-                            okhttp3.Request request = new okhttp3.Request.Builder().url(fetchUrl).build();
-                            try (okhttp3.Response response = client.newCall(request).execute()) {
-                                if (response.isSuccessful() && response.body() != null) {
-                                    callback.onSuccess(response.body().bytes());
-                                    return;
-                                }
+                    okhttp3.OkHttpClient client = new okhttp3.OkHttpClient.Builder()
+                        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                        .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                        .build();
+                    for (String candidatePath : candidatePaths) {
+                        String fetchUrl = origin + (candidatePath.startsWith("/") ? candidatePath : "/" + candidatePath);
+                        okhttp3.Request request = new okhttp3.Request.Builder().url(fetchUrl).build();
+                        try (okhttp3.Response response = client.newCall(request).execute()) {
+                            if (response.isSuccessful() && response.body() != null) {
+                                callback.onSuccess(response.body().bytes());
+                                return;
                             }
                         }
-                        callback.onFailed("HTTP fetch failed for " + url + " via " + devUrl);
-                    } catch (Exception e) {
-                        callback.onFailed("Fetch failed: " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
-                        return;
                     }
+                    callback.onFailed("HTTP fetch failed for " + url + " via " + devUrl);
+                } catch (Exception e) {
+                    callback.onFailed("Fetch failed: " + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
+                    return;
                 }
             }
             try {
@@ -300,8 +310,9 @@ export function getProjectActivity(vars: PatchVars): string {
 
   const devClientInit = hasDevClient
     ? `
-        TamerRelogLogService.init(this)
-        TamerRelogLogService.connect()
+        DevClientModule.attachHostActivity(this)
+        DevClientModule.attachLynxView(lynxView)
+        DevClientModule.attachReloadProjectLauncher { reloadProjectView() }
         devClientManager = DevClientManager(this) { reloadProjectView() }
         devClientManager?.connect()
 `
@@ -310,16 +321,29 @@ export function getProjectActivity(vars: PatchVars): string {
 ` : "";
   const devClientCleanup = hasDevClient
     ? `
+        DevClientModule.attachHostActivity(null)
+        DevClientModule.attachLynxView(null)
+        DevClientModule.attachReloadProjectLauncher(null)
         devClientManager?.disconnect()
-        TamerRelogLogService.disconnect()
 `
     : "";
   const devClientImports = hasDevClient
     ? `
 import ${vars.packageName}.DevClientManager
-import com.nanofuxion.tamerdevclient.DevClientModule
-import com.nanofuxion.tamerdevclient.TamerRelogLogService`
+import com.nanofuxion.tamerdevclient.DevClientDebugPanel
+import com.nanofuxion.tamerdevclient.DevClientModule`
     : "";
+
+  const projectInstallNativeStack = `    private fun installNativeNavHost() {
+        com.nanofuxion.tamernavigation.stack.TamerNavHost.spokeBuilder = { ctx ->
+            val viewBuilder = LynxViewBuilder()
+            viewBuilder.setTemplateProvider(TemplateProvider(ctx))
+            GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
+            viewBuilder.build(ctx)
+        }
+    }
+
+`;
 
   const reloadMethod = hasDevClient
     ? `
@@ -334,6 +358,7 @@ import com.nanofuxion.tamerdevclient.TamerRelogLogService`
         GeneratedActivityLifecycle.onViewAttached(nextView)
         GeneratedLynxExtensions.onHostViewChanged(nextView)
         nextView.renderTemplateUrl("main.lynx.bundle", DevClientModule.getProjectInitDataJson(this))
+        DevClientModule.attachLynxView(nextView)
         GeneratedActivityLifecycle.onCreateDelayed(handler)
     }
 `
@@ -345,6 +370,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -356,18 +382,32 @@ import ${vars.packageName}.generated.GeneratedActivityLifecycle
 class ProjectActivity : AppCompatActivity() {
     private var lynxView: LynxView? = null
 ${devClientField}    private val handler = Handler(Looper.getMainLooper())
+    private val backCallback = object : OnBackPressedCallback(true) {
+        override fun handleOnBackPressed() {
+            GeneratedActivityLifecycle.onBackPressed { consumed ->
+                if (!consumed) {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
+                }
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ${hasDevClient ? "com.nanofuxion.tamerdevclient.LynxDevToolBootstrap.bootstrapDevToolForProjectHost(this)\n        GeneratedLynxExtensions.register(this)" : ""}
         GeneratedActivityLifecycle.onCreate(intent)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
+        installNativeNavHost()
         lynxView = buildLynxView()
         setContentView(lynxView)
         GeneratedActivityLifecycle.onViewAttached(lynxView)
         GeneratedLynxExtensions.onHostViewChanged(lynxView)
         lynxView?.renderTemplateUrl("main.lynx.bundle", ${hasDevClient ? "DevClientModule.getProjectInitDataJson(this)" : '""'})${devClientInit}
         GeneratedActivityLifecycle.onCreateDelayed(handler)
+        onBackPressedDispatcher.addCallback(this, backCallback)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -377,6 +417,131 @@ ${devClientField}    private val handler = Handler(Looper.getMainLooper())
 ${reloadMethod}
     override fun onResume() {
         super.onResume()
+        ${hasDevClient ? "DevClientModule.startShakeDetection(this) { DevClientDebugPanel.show(this) }\n        " : ""}GeneratedActivityLifecycle.onResume()
+    }
+
+    override fun onPause() {
+        ${hasDevClient ? "DevClientModule.stopShakeDetection()\n        " : ""}super.onPause()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        GeneratedActivityLifecycle.onNewIntent(intent)
+    }
+
+    override fun onDestroy() {
+        GeneratedActivityLifecycle.onViewDetached()
+        GeneratedLynxExtensions.onHostViewChanged(null)
+        lynxView?.destroy()
+        lynxView = null${devClientCleanup}
+        super.onDestroy()
+    }
+
+${projectInstallNativeStack}    private fun buildLynxView(): LynxView {
+        val viewBuilder = LynxViewBuilder()
+        viewBuilder.setTemplateProvider(TemplateProvider(this))
+        GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
+        return viewBuilder.build(this)
+    }
+}
+`;
+}
+
+/**
+ * tamer-dev-app uses a ProjectActivity that differs from the generic tamer-dev-client template
+ * (GeneratedLynxExtensions, LynxDevToolBootstrap, bundleUrl, etc.).
+ * Emitted by `tamer android bundle` (dev-app) and `tamer android create --target dev-app`.
+ * Do not edit ProjectActivity.kt by hand in the dev-app package — change this generator instead.
+ */
+export function getTamerDevAppProjectActivity(packageName: string): string {
+  return `package ${packageName}
+
+import android.content.Intent
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import com.lynx.tasm.LynxView
+import com.lynx.tasm.LynxViewBuilder
+import ${packageName}.DevClientManager
+import com.nanofuxion.tamerdevclient.DevClientModule
+import com.nanofuxion.tamerdevclient.LynxDevToolBootstrap
+import com.nanofuxion.tamernavigation.stack.TamerNavHost
+import ${packageName}.generated.GeneratedLynxExtensions
+import ${packageName}.generated.GeneratedActivityLifecycle
+import com.nanofuxion.tamerdevclient.DevClientDebugPanel
+
+class ProjectActivity : AppCompatActivity() {
+    private var lynxView: LynxView? = null
+    private var devClientManager: DevClientManager? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private val backCallback = object : OnBackPressedCallback(true) {
+        override fun handleOnBackPressed() {
+            GeneratedActivityLifecycle.onBackPressed { consumed ->
+                if (!consumed) {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
+                }
+            }
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        LynxDevToolBootstrap.bootstrapDevToolForProjectHost(this)
+        GeneratedLynxExtensions.register(this)
+        GeneratedActivityLifecycle.onCreate(intent)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
+        installNativeNavHost()
+        lynxView = buildLynxView()
+        setContentView(lynxView)
+        GeneratedActivityLifecycle.onViewAttached(lynxView)
+        GeneratedLynxExtensions.onHostViewChanged(lynxView)
+        lynxView?.renderTemplateUrl("main.lynx.bundle", "")
+        DevClientModule.attachHostActivity(this)
+        DevClientModule.attachLynxView(lynxView)
+        DevClientModule.attachReloadProjectLauncher { reloadProjectView() }
+        val bundleUrl = intent.getStringExtra("bundleUrl")
+        devClientManager = DevClientManager(this, bundleUrl) { reloadProjectView() }
+        devClientManager?.connect()
+        GeneratedActivityLifecycle.onCreateDelayed(handler)
+        onBackPressedDispatcher.addCallback(this, backCallback)
+    }
+
+    override fun onPause() {
+        DevClientModule.stopShakeDetection()
+        super.onPause()
+    }
+
+    private fun reloadProjectView() {
+        GeneratedActivityLifecycle.onViewDetached()
+        GeneratedLynxExtensions.onHostViewChanged(null)
+        lynxView?.destroy()
+
+        val nextView = buildLynxView()
+        lynxView = nextView
+        setContentView(nextView)
+        GeneratedActivityLifecycle.onViewAttached(nextView)
+        GeneratedLynxExtensions.onHostViewChanged(nextView)
+        nextView.renderTemplateUrl("main.lynx.bundle", "")
+        DevClientModule.attachLynxView(nextView)
+        GeneratedActivityLifecycle.onCreateDelayed(handler)
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        GeneratedActivityLifecycle.onWindowFocusChanged(hasFocus)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        DevClientModule.startShakeDetection(this) { DevClientDebugPanel.show(this) }
         GeneratedActivityLifecycle.onResume()
     }
 
@@ -386,21 +551,25 @@ ${reloadMethod}
         GeneratedActivityLifecycle.onNewIntent(intent)
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        GeneratedActivityLifecycle.onBackPressed { consumed ->
-            if (!consumed) {
-                runOnUiThread { super.onBackPressed() }
-            }
-        }
-    }
-
     override fun onDestroy() {
+        DevClientModule.attachHostActivity(null)
+        DevClientModule.attachLynxView(null)
+        DevClientModule.attachReloadProjectLauncher(null)
         GeneratedActivityLifecycle.onViewDetached()
         GeneratedLynxExtensions.onHostViewChanged(null)
         lynxView?.destroy()
-        lynxView = null${devClientCleanup}
+        lynxView = null
+        devClientManager?.disconnect()
         super.onDestroy()
+    }
+
+    private fun installNativeNavHost() {
+        TamerNavHost.spokeBuilder = { ctx ->
+            val viewBuilder = LynxViewBuilder()
+            viewBuilder.setTemplateProvider(TemplateProvider(ctx))
+            GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
+            viewBuilder.build(ctx)
+        }
     }
 
     private fun buildLynxView(): LynxView {
@@ -431,12 +600,23 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Handler
+import android.os.Looper
 import androidx.activity.result.contract.ActivityResultContracts
 import com.google.zxing.integration.android.IntentIntegrator
-import com.google.zxing.integration.android.IntentResult
 import com.nanofuxion.tamerdevclient.DevClientModule
 `
     : "";
+  const mainInstallNativeStack = `    private fun installNativeNavHost() {
+        com.nanofuxion.tamernavigation.stack.TamerNavHost.spokeBuilder = { ctx ->
+            val viewBuilder = LynxViewBuilder()
+            viewBuilder.setTemplateProvider(TemplateProvider(ctx))
+            GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
+            viewBuilder.build(ctx)
+        }
+    }
+
+`;
   const devClientInit = hasDevClient
     ? `
         DevClientModule.attachHostActivity(this)
@@ -452,6 +632,12 @@ import com.nanofuxion.tamerdevclient.DevClientModule
             startActivity(Intent(this@MainActivity, ProjectActivity::class.java).addFlags(
                 Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             ))
+        }
+        DevClientModule.attachOpenProjectDirectLauncher { bundleUrl ->
+            startActivity(Intent(this@MainActivity, ProjectActivity::class.java).apply {
+                putExtra("bundleUrl", bundleUrl)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            })
         }
         reloadReceiver = object : BroadcastReceiver() {
             override fun onReceive(ctx: Context, intent: Intent) {
@@ -473,6 +659,7 @@ import com.nanofuxion.tamerdevclient.DevClientModule
     : "";
   const devClientField = hasDevClient
     ? `    private var reloadReceiver: BroadcastReceiver? = null
+    private val handler = Handler(Looper.getMainLooper())
     private val currentUri = "dev-client.lynx.bundle"
     private var pendingScanOnPermissionGranted: Runnable? = null
     private val cameraPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -495,14 +682,15 @@ import com.nanofuxion.tamerdevclient.DevClientModule
         lynxView?.destroy()
         lynxView = null
         DevClientModule.attachReloadProjectLauncher(null)
+        DevClientModule.attachOpenProjectDirectLauncher(null)
+        DevClientModule.attachHostActivity(null)
         DevClientModule.attachLynxView(null)
         super.onDestroy()
     }
 `
     : "";
 
-  const standaloneLifecycle = !hasDevClient
-    ? `
+  const windowFocusAndNewIntent = `
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         GeneratedActivityLifecycle.onWindowFocusChanged(hasFocus)
@@ -513,7 +701,10 @@ import com.nanofuxion.tamerdevclient.DevClientModule
         setIntent(intent)
         GeneratedActivityLifecycle.onNewIntent(intent)
     }
+`;
 
+  const standaloneLifecycle = !hasDevClient
+    ? `${windowFocusAndNewIntent}
     override fun onDestroy() {
         GeneratedActivityLifecycle.onViewDetached()
         GeneratedLynxExtensions.onHostViewChanged(null)
@@ -541,13 +732,21 @@ ${devClientField}    private var lynxView: LynxView? = null${!hasDevClient ? '\n
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        ${!hasDevClient ? 'GeneratedActivityLifecycle.onCreate(intent)\n        ' : ''}WindowCompat.setDecorFitsSystemWindows(window, false)
+        GeneratedLynxExtensions.register(this)
+        GeneratedActivityLifecycle.onCreate(intent)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
+        installNativeNavHost()
         lynxView = buildLynxView()
         setContentView(lynxView)
         GeneratedActivityLifecycle.onViewAttached(lynxView)
         GeneratedLynxExtensions.onHostViewChanged(lynxView)
-        lynxView?.renderTemplateUrl(${hasDevClient ? 'currentUri' : '"main.lynx.bundle"'}, "")${devClientInit}${!hasDevClient ? '\n        GeneratedActivityLifecycle.onCreateDelayed(handler)' : ''}
+        ${
+          hasDevClient
+            ? `lynxView?.renderTemplateUrl(currentUri, "")`
+            : `lynxView?.renderTemplateUrl("main.lynx.bundle", "")`
+        }${devClientInit}
+        GeneratedActivityLifecycle.onCreateDelayed(handler)
     }
 
     override fun onPause() {
@@ -557,7 +756,10 @@ ${devClientField}    private var lynxView: LynxView? = null${!hasDevClient ? '\n
 
     override fun onResume() {
         super.onResume()
-        GeneratedActivityLifecycle.onResume()
+        GeneratedActivityLifecycle.onResume()${hasDevClient ? `
+        DevClientModule.attachHostActivity(this)
+        DevClientModule.attachLynxView(lynxView)
+        GeneratedLynxExtensions.onHostViewChanged(lynxView)` : ""}
     }
 
     @Deprecated("Deprecated in Java")
@@ -569,12 +771,134 @@ ${devClientField}    private var lynxView: LynxView? = null${!hasDevClient ? '\n
         }
     }
 
+${mainInstallNativeStack}    private fun buildLynxView(): LynxView {
+        val viewBuilder = LynxViewBuilder()
+        viewBuilder.setTemplateProvider(TemplateProvider(this))
+        GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
+        return viewBuilder.build(this)
+    }${hasDevClient ? windowFocusAndNewIntent : standaloneLifecycle}${devClientCleanup}
+}
+`;
+}
+
+/** Second Activity: optional extra Lynx surface (e.g. initData from intent extras). */
+export function getLynxPushActivity(vars: PatchVars): string {
+  return `package ${vars.packageName}
+
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import com.lynx.tasm.LynxView
+import com.lynx.tasm.LynxViewBuilder
+import com.nanofuxion.tamerdevclient.DevClientModule
+import com.nanofuxion.tamerrouter.TamerRouterNativeModule
+import org.json.JSONObject
+import ${vars.packageName}.generated.GeneratedLynxExtensions
+import ${vars.packageName}.generated.GeneratedActivityLifecycle
+
+class LynxPushActivity : AppCompatActivity() {
+    private var lynxView: LynxView? = null
+    private val handler = Handler(Looper.getMainLooper())
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        GeneratedLynxExtensions.register(this)
+        GeneratedActivityLifecycle.onCreate(intent)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
+        installNativeNavHost()
+        val initDataJson = intent.getStringExtra(EXTRA_INIT_DATA) ?: ""
+        val launchUrl = intent.getStringExtra(EXTRA_LAUNCH_URL)
+        if (!launchUrl.isNullOrBlank()) {
+            com.nanofuxion.tamerlinking.LinkingModule.setInitialUrl(launchUrl)
+        }
+        val bundleUrl = resolveBundleUrl(initDataJson)
+        lynxView = buildLynxView()
+        setContentView(lynxView)
+        GeneratedActivityLifecycle.onViewAttached(lynxView)
+        GeneratedLynxExtensions.onHostViewChanged(lynxView)
+        lynxView?.renderTemplateUrl(bundleUrl, initDataJson)
+        TamerRouterNativeModule.attachHostView(lynxView)
+        DevClientModule.attachHostActivity(this)
+        DevClientModule.attachLynxView(lynxView)
+        GeneratedActivityLifecycle.onCreateDelayed(handler)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        GeneratedActivityLifecycle.onResume()
+        DevClientModule.attachHostActivity(this)
+        DevClientModule.attachLynxView(lynxView)
+        GeneratedLynxExtensions.onHostViewChanged(lynxView)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        GeneratedActivityLifecycle.onPause()
+    }
+
+    override fun onDestroy() {
+        GeneratedActivityLifecycle.onViewDetached()
+        GeneratedLynxExtensions.onHostViewChanged(null)
+        TamerRouterNativeModule.attachHostView(null)
+        lynxView?.destroy()
+        lynxView = null
+        DevClientModule.attachHostActivity(null)
+        DevClientModule.attachLynxView(null)
+        super.onDestroy()
+    }
+
+    override fun finish() {
+        super.finish()
+        overridePendingTransition(R.anim.tamer_stack_pop_enter, R.anim.tamer_stack_pop_exit)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        GeneratedActivityLifecycle.onBackPressed { consumed ->
+            if (!consumed) {
+                runOnUiThread { super.onBackPressed() }
+            }
+        }
+    }
+
+    private fun installNativeNavHost() {
+        com.nanofuxion.tamernavigation.stack.TamerNavHost.spokeBuilder = { ctx ->
+            val viewBuilder = LynxViewBuilder()
+            viewBuilder.setTemplateProvider(TemplateProvider(ctx))
+            GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
+            viewBuilder.build(ctx)
+        }
+    }
+
     private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
         viewBuilder.setTemplateProvider(TemplateProvider(this))
         GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
-    }${standaloneLifecycle}${devClientCleanup}
+    }
+
+    private fun resolveBundleUrl(initDataJson: String): String {
+        val fromExtra = intent.getStringExtra(EXTRA_BUNDLE)
+        if (!fromExtra.isNullOrBlank()) return fromExtra
+        if (initDataJson.isNotBlank()) {
+            try {
+                val u = JSONObject(initDataJson).optString("bundleUrl")
+                if (u.isNotBlank()) return u
+            } catch (_: Exception) { }
+        }
+        return BUNDLE_DEV_CLIENT
+    }
+
+    companion object {
+        const val EXTRA_INIT_DATA = "tamer_init_data_json"
+        const val EXTRA_LAUNCH_URL = "tamer_launch_url"
+        const val EXTRA_BUNDLE = "tamer_bundle_url"
+        private const val BUNDLE_DEV_CLIENT = "dev-client.lynx.bundle"
+    }
 }
 `;
 }

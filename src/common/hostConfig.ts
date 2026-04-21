@@ -16,6 +16,12 @@ export interface HostConfigPaths {
 
 export type DevMode = 'standalone' | 'embedded' | 'off';
 
+/**
+ * Legacy DevTool bootstrap policy. Launcher hosts no longer bootstrap Lynx DevTool when
+ * `tamer-dev-client` is linked; project-host-specific setup is handled separately.
+ */
+export type DevToolBootstrapMode = 'always' | 'projectHostOnly';
+
 export interface AdaptiveForegroundPadding {
   left?: number | string;
   top?: number | string;
@@ -111,6 +117,8 @@ export interface HostConfig {
   lynxProject?: string;
   dev?: {
     mode?: DevMode;
+    /** @default 'always' */
+    devToolBootstrap?: DevToolBootstrapMode;
   };
   devServer?: {
     host?: string;
@@ -140,6 +148,7 @@ export interface ResolvedPaths {
   lynxBundleRootRel: string;
   devMode: DevMode;
   devClientBundlePath?: string;
+  devClientBundleFiles?: string[];
 }
 
 const TAMER_CONFIG = 'tamer.config.json';
@@ -275,6 +284,20 @@ export function findRepoRoot(start: string): string {
   return start;
 }
 
+/**
+ * Check if the current project IS the tamer-dev-app by examining its package.json.
+ */
+export function isDevAppProject(projectRoot: string): boolean {
+  const packageJsonPath = path.join(projectRoot, 'package.json');
+  if (!fs.existsSync(packageJsonPath)) return false;
+  try {
+    const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    return pkg.name === '@tamer4lynx/tamer-dev-app';
+  } catch {
+    return false;
+  }
+}
+
 export function findDevAppPackage(projectRoot: string): string | null {
   const candidates = [
     path.join(projectRoot, 'node_modules', '@tamer4lynx', 'tamer-dev-app'),
@@ -343,9 +366,28 @@ export function resolveHostPaths(cwd: string = process.cwd()): ResolvedPaths & {
   if (lynxBundleFiles.length === 0) lynxBundleFiles.push(bundleFile);
   const lynxBundlePath = path.join(lynxProjectDir, bundleRoot, bundleFile);
 
+  // Automatically discover nativeStack bundles from tamer-router if they exist
+  const routerManifestPath = path.join(lynxProjectDir, 'node_modules', '.tamer-router', '_route_bundles.json');
+  if (fs.existsSync(routerManifestPath)) {
+    try {
+      const manifest = JSON.parse(fs.readFileSync(routerManifestPath, 'utf8'));
+      for (const b of Object.values(manifest)) {
+        if (typeof b === 'string' && !seen.has(b)) {
+          seen.add(b);
+          lynxBundleFiles.push(b);
+        }
+      }
+    } catch {
+      /* ignore malformed manifest */
+    }
+  }
+
   const androidDir = path.join(projectRoot, androidDirRel);
   const devMode = resolveDevMode(config);
   const devClientPkg = findDevClientPackage(projectRoot);
+  const devClientBundleFiles = devClientPkg
+    ? ['dev-client.lynx.bundle', 'tamer-debug.lynx.bundle']
+    : undefined;
   const devClientBundlePath = devClientPkg
     ? path.join(devClientPkg, DEFAULT_BUNDLE_ROOT, 'dev-client.lynx.bundle')
     : undefined;
@@ -364,6 +406,7 @@ export function resolveHostPaths(cwd: string = process.cwd()): ResolvedPaths & {
     lynxBundleRootRel: bundleRoot,
     devMode,
     devClientBundlePath,
+    devClientBundleFiles,
     config,
   };
 }
@@ -381,6 +424,10 @@ export function resolveDevMode(config: HostConfig): DevMode {
   if (explicit) return explicit;
   if (config.devServer) return 'embedded';
   return 'off';
+}
+
+export function resolveDevToolBootstrap(config: HostConfig): DevToolBootstrapMode {
+  return config.dev?.devToolBootstrap ?? 'always';
 }
 
 export function loadHostConfig(cwd: string = process.cwd()): HostConfig {
@@ -548,6 +595,19 @@ export function resolveDevAppPaths(searchRoot: string): ResolvedPaths & { config
     lynxBundleRootRel: DEFAULT_BUNDLE_ROOT,
     devMode: 'embedded',
     devClientBundlePath: undefined,
+    devClientBundleFiles: undefined,
     config,
   };
+}
+
+/**
+ * Resolve Android paths, automatically detecting if the current project is tamer-dev-app.
+ * No need to specify `devApp: true` — detection is automatic.
+ */
+export function resolveAndroidPaths(cwd: string = process.cwd()): ResolvedPaths & { config: HostConfig } {
+  const projectRoot = findProjectRoot(cwd);
+  if (isDevAppProject(projectRoot)) {
+    return resolveDevAppPaths(cwd);
+  }
+  return resolveHostPaths(cwd);
 }

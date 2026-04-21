@@ -96,7 +96,7 @@ source 'https://cdn.cocoapods.org/'
 
 install! 'cocoapods', :incremental_installation => true, :generate_multiple_pod_projects => true
 
-platform :ios, '13.0'
+platform :ios, '14.0'
 
 target '${appName}' do
   pod 'Lynx', '3.6.0', :subspecs => [
@@ -133,7 +133,7 @@ post_install do |installer|
     project.targets.each do |target|
       target.build_configurations.each do |config|
         config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
-        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
         config.build_settings['CLANG_ENABLE_EXPLICIT_MODULES'] = 'NO'
         config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
 ${PODFILE_POST_INSTALL_BUILD_SPEED_RUBY}
@@ -230,6 +230,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 import UIKit
 import Lynx
 import tamerinsets
+#if canImport(tamernavigation)
+import tamernavigation
+#endif
 
 class ViewController: UIViewController {
   private var lynxView: LynxView?
@@ -282,6 +285,9 @@ class ViewController: UIViewController {
 	let lv = buildLynxView()
 	view.addSubview(lv)
 	TamerInsetsModule.attachHostView(lv)
+#if canImport(tamernavigation)
+	TamerNavHost.attachRoot(lv, presenter: self)
+#endif
 	lv.loadTemplate(fromURL: "main.lynx.bundle", initData: nil)
 	self.lynxView = lv
   }
@@ -627,7 +633,7 @@ final class LynxInitProcessor {
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -661,7 +667,7 @@ final class LynxInitProcessor {
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;

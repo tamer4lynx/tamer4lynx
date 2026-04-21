@@ -1,6 +1,6 @@
 import path from 'path';
 import { execSync } from 'child_process';
-import { resolveHostPaths } from '../common/hostConfig';
+import { resolveAndroidPaths } from '../common/hostConfig';
 import { pickOne, isInteractive } from '../common/pickOne';
 import android_bundle from './bundle';
 import { cleanTamerAndroidLibBuildsIfVersionsChanged } from './cleanTamerAndroidCaches.ts';
@@ -51,15 +51,15 @@ async function resolveAdbSerial(): Promise<string> {
 async function buildApk(
     opts: { install?: boolean; release?: boolean; production?: boolean; clean?: boolean } = {}
 ) {
-    let resolved: ReturnType<typeof resolveHostPaths>;
+    const release = opts.release === true || opts.production === true;
+    await android_bundle({ release, production: opts.production });
+
+    let resolved: ReturnType<typeof resolveAndroidPaths>;
     try {
-        resolved = resolveHostPaths();
+        resolved = resolveAndroidPaths(process.cwd());
     } catch (error: unknown) {
         throw error;
     }
-
-    const release = opts.release === true || opts.production === true;
-    await android_bundle({ release, production: opts.production });
 
     const { androidDir, projectRoot } = resolved;
     cleanTamerAndroidLibBuildsIfVersionsChanged(projectRoot);

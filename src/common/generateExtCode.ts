@@ -87,16 +87,9 @@ export function generateLynxExtensionsKotlin(
             : '\n    fun onHostViewChanged(view: android.view.View?) {}\n';
 
     const devToolMode: DevToolBootstrapMode = opts?.devToolBootstrap ?? 'always';
-    const devToolBootstrapPrefix =
-        hasDevClient && devToolMode === 'always'
-            ? '        com.nanofuxion.tamerdevclient.LynxDevToolBootstrap.configure(context)\n'
-            : hasDevClient && devToolMode === 'projectHostOnly'
-              ? '        com.nanofuxion.tamerdevclient.LynxDevToolBootstrap.initLynxEnvForLauncher(context)\n'
-              : '';
-    const devToolBootstrapSuffix =
-        hasDevClient && devToolMode === 'always'
-            ? '        com.nanofuxion.tamerdevclient.LynxDevToolBootstrap.enableLynxDebugFlags()\n'
-            : '';
+    const disableLauncherDevToolBootstrap = hasDevClient && (devToolMode === 'always' || devToolMode === 'projectHostOnly');
+    const devToolBootstrapPrefix = disableLauncherDevToolBootstrap ? '' : '';
+    const devToolBootstrapSuffix = '';
 
     return `package ${projectPackage}.generated
 

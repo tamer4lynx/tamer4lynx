@@ -1,11 +1,7 @@
 {
-    "mcpServers": {
-      "lynx-docs": {
-        "command": "bunx",
-        "args": [
-          "-y",
-          "@lynx-js/docs-mcp-server@latest"
-        ]
-      }
+  "mcpServers": {
+    "gitmcp": {
+      "url": "https://gitmcp.io/expo/expo"
     }
   }
+}

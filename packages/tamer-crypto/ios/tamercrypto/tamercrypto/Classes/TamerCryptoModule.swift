@@ -107,7 +107,6 @@ public final class TamerCryptoModule: NSObject, LynxModule {
         let key = try b64Decode(obj["key"] as? String ?? "")
         let iv = try b64Decode(obj["iv"] as? String ?? "")
         let plaintext = try b64Decode(obj["plaintext"] as? String ?? "")
-        let tagBits = (obj["tagLength"] as? Int) ?? 128
         let aad: Data? = try {
             if let s = obj["additionalData"] as? String, !s.isEmpty { return try b64Decode(s) }
             return nil
@@ -298,7 +297,12 @@ public final class TamerCryptoModule: NSObject, LynxModule {
     private func opEcdsaP256Sign(_ obj: [String: Any]) throws -> [String: Any] {
         let pkcs8 = try b64Decode(obj["privateKeyPkcs8"] as? String ?? "")
         let data = try b64Decode(obj["data"] as? String ?? "")
-        let priv = try P256.Signing.PrivateKey(derRepresentation: pkcs8)
+        let priv: P256.Signing.PrivateKey
+        if #available(iOS 14.0, *) {
+            priv = try P256.Signing.PrivateKey(derRepresentation: pkcs8)
+        } else {
+            priv = try P256.Signing.PrivateKey(rawRepresentation: p256PrivateKeyRawFromPkcs8(pkcs8))
+        }
         let sig = try priv.signature(for: data)
         return ["signature": sig.derRepresentation.base64EncodedString()]
     }
@@ -307,7 +311,12 @@ public final class TamerCryptoModule: NSObject, LynxModule {
         let spki = try b64Decode(obj["publicKeySpki"] as? String ?? "")
         let data = try b64Decode(obj["data"] as? String ?? "")
         let sigData = try b64Decode(obj["signature"] as? String ?? "")
-        let pub = try P256.Signing.PublicKey(derRepresentation: spki)
+        let pub: P256.Signing.PublicKey
+        if #available(iOS 14.0, *) {
+            pub = try P256.Signing.PublicKey(derRepresentation: spki)
+        } else {
+            pub = try P256.Signing.PublicKey(x963Representation: p256PublicKeyX963FromSpki(spki))
+        }
         let sig = try P256.Signing.ECDSASignature(derRepresentation: sigData)
         let ok = pub.isValidSignature(sig, for: data)
         return ["valid": ok]
@@ -334,9 +343,18 @@ public final class TamerCryptoModule: NSObject, LynxModule {
     private func opGenerateKeyEcdsaP256(_ obj: [String: Any]) throws -> [String: Any] {
         let priv = P256.Signing.PrivateKey()
         let pub = priv.publicKey
+        let privateKeyPkcs8: Data
+        let publicKeySpki: Data
+        if #available(iOS 14.0, *) {
+            privateKeyPkcs8 = priv.derRepresentation
+            publicKeySpki = pub.derRepresentation
+        } else {
+            privateKeyPkcs8 = p256PrivateKeyRawToPkcs8(priv.rawRepresentation, publicKeyX963: pub.x963Representation)
+            publicKeySpki = p256PublicKeyX963ToSpki(pub.x963Representation)
+        }
         return [
-            "privateKeyPkcs8": priv.derRepresentation.base64EncodedString(),
-            "publicKeySpki": pub.derRepresentation.base64EncodedString()
+            "privateKeyPkcs8": privateKeyPkcs8.base64EncodedString(),
+            "publicKeySpki": publicKeySpki.base64EncodedString()
         ]
     }
 

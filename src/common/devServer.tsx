@@ -97,6 +97,8 @@ type DevUiState = {
   buildPhase: BuildPhase;
   buildError?: string;
   wsConnections: number;
+  statusProbeCount: number;
+  metaProbeCount: number;
   logLines: string[];
   qrLines: string[];
 };
@@ -113,9 +115,20 @@ const initialUi = (): DevUiState => ({
   verbose: false,
   buildPhase: 'idle',
   wsConnections: 0,
+  statusProbeCount: 0,
+  metaProbeCount: 0,
   logLines: [],
   qrLines: [],
 });
+
+function probeKindFromRequest(req: http.IncomingMessage, reqPath: string): 'status' | 'meta' | null {
+  const probeHeader = req.headers['x-tamer-probe']
+  const probeValue = Array.isArray(probeHeader) ? probeHeader[0] : probeHeader
+  if (typeof probeValue !== 'string' || probeValue.trim() === '') return null
+  if (reqPath.endsWith('/status') || reqPath === '/status') return 'status'
+  if (reqPath.endsWith('/meta.json') || reqPath === '/meta.json') return 'meta'
+  return null
+}
 
 function DevServerApp({ verbose }: { verbose: boolean }) {
   const { exit } = useApp();
@@ -256,6 +269,12 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
 
         const httpSrv = http.createServer((req, res) => {
           let reqPath = (req.url || '/').split('?')[0];
+          const probeKind = probeKindFromRequest(req, reqPath)
+          if (probeKind === 'status') {
+            setUi((s) => ({ ...s, statusProbeCount: s.statusProbeCount + 1 }))
+          } else if (probeKind === 'meta') {
+            setUi((s) => ({ ...s, metaProbeCount: s.metaProbeCount + 1 }))
+          }
           if (reqPath === `${basePath}/status`) {
             res.setHeader('Content-Type', 'text/plain');
             res.setHeader('Access-Control-Allow-Origin', '*');
@@ -514,7 +533,8 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
         void import('qrcode-terminal')
           .then((mod) => {
             const qrcode = mod.default ?? mod;
-            qrcode.generate(devUrl, { small: true }, (qr: string) => {
+            const deepLinkUrl = `tamerdevapp://${devUrl.replace(/^https?:\/\//, '')}`;
+            qrcode.generate(deepLinkUrl, { small: true }, (qr: string) => {
               if (!alive) return;
               setUi((s) => ({ ...s, qrLines: qr.split('\n').filter(Boolean) }));
             });
@@ -560,6 +580,8 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
       buildPhase={ui.buildPhase}
       buildError={ui.buildError}
       wsConnections={ui.wsConnections}
+      statusProbeCount={ui.statusProbeCount}
+      metaProbeCount={ui.metaProbeCount}
       logLines={ui.logLines}
       qrLines={ui.qrLines}
       phase={ui.phase}

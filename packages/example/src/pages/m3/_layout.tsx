@@ -1,32 +1,30 @@
-import { useEffect, useMemo } from '@lynx-js/react'
-import { Stack } from '@tamer4lynx/tamer-router'
-import { useSystemUI } from '@tamer4lynx/tamer-system-ui'
+import { Stack } from '@tamer4lynx/tamer-router';
+import { useSystemUI } from '@tamer4lynx/tamer-system-ui';
 
-import { useExamplePalette } from '../../examplePalette.js'
+import { useExamplePalette } from '../../examplePalette.js';
+import { useSyncNavigationChrome } from '../../useSyncNavigationChrome.js';
 
 export default function M3Layout() {
-  const { setStatusBar, setNavigationBar } = useSystemUI()
-  const p = useExamplePalette()
-
-  useEffect(() => {
-    const dark = p.theme?.isDark !== false
-    setStatusBar({ color: p.barBackground, style: dark ? 'light' : 'dark' })
-    setNavigationBar({ color: p.barBackground, style: dark ? 'light' : 'dark' })
-  }, [p.barBackground, p.theme?.isDark, setStatusBar, setNavigationBar])
-
-  const screenOptions = useMemo(
-    () => ({
-      headerStyle: { backgroundColor: p.barBackground },
-      headerForegroundColor: p.barForeground,
-      contentStyle: { backgroundColor: p.surface },
-    }),
-    [p.barBackground, p.barForeground, p.surface],
-  )
+  const { setStatusBar, setNavigationBar } = useSystemUI();
+  const p = useExamplePalette();
+  const dark = p.theme?.isDark !== false;
+  useSyncNavigationChrome(
+    setStatusBar,
+    setNavigationBar,
+    p.barBackground,
+    dark,
+  );
 
   return (
-    <Stack screenOptions={screenOptions}>
-      <Stack.Screen name="index" path="/m3" options={{ title: 'M3 Components' }} />
-      <Stack.Screen name="nav" path="/m3/nav" options={{ title: 'Navigation' }} />
+    <Stack>
+      <Stack.Screen
+        name="index"
+        options={{ title: 'M3 Components' }}
+      />
+      <Stack.Screen
+        name="nav"
+        options={{ title: 'Navigation' }}
+      />
     </Stack>
-  )
+  );
 }

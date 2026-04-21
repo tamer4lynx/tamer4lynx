@@ -1,138 +1,134 @@
-import { useCallback } from '@lynx-js/react'
-import { useTamerNavigate } from '@tamer4lynx/tamer-router'
-import { px } from '@tamer4lynx/tamer-app-shell'
+import { useCallback } from '@lynx-js/react';
+import { px } from '@tamer4lynx/tamer-app-shell';
+import { useTamerNavigate } from '@tamer4lynx/tamer-router';
+
+import { pageShellStyle, useExamplePalette } from '../../examplePalette.js';
+
+function NativeMenuCard({
+  title,
+  subtitle,
+  onTap,
+}: {
+  title: string;
+  subtitle?: string;
+  onTap: () => void;
+}) {
+  return (
+    <view
+      flatten={false}
+      native-interaction-enabled={true}
+      user-interaction-enabled={true}
+      bindtap={onTap}
+      style={{
+        width: '100%',
+        minHeight: px(92),
+        borderRadius: px(18),
+        backgroundColor: '#555',
+        paddingLeft: px(20),
+        paddingRight: px(20),
+        paddingTop: px(18),
+        paddingBottom: px(18),
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: px(6),
+      }}
+    >
+      <text
+        style={{
+          color: '#e8e8e8',
+          fontSize: px(16),
+          fontWeight: '600',
+          textAlign: 'center',
+        }}
+      >
+        {title}
+      </text>
+      {subtitle ? (
+        <text
+          style={{
+            color: '#c8c8c8',
+            fontSize: px(13),
+            lineHeight: px(18),
+            textAlign: 'center',
+          }}
+        >
+          {subtitle}
+        </text>
+      ) : null}
+    </view>
+  );
+}
 
 export default function DevIndex() {
-  const { push } = useTamerNavigate()
+  const p = useExamplePalette();
+  const { push } = useTamerNavigate();
 
   const goLinking = useCallback(() => {
-    'background only'
-    push('/native/linking')
-  }, [push])
+    'background only';
+    push('/native/linking');
+  }, [push]);
   const goBrowser = useCallback(() => {
-    'background only'
-    push('/native/browser')
-  }, [push])
+    'background only';
+    push('/native/browser');
+  }, [push]);
   const goAuth = useCallback(() => {
-    'background only'
-    push('/native/auth')
-  }, [push])
+    'background only';
+    push('/native/auth');
+  }, [push]);
   const goStorage = useCallback(() => {
-    'background only'
-    push('/native/storage')
-  }, [push])
+    'background only';
+    push('/native/storage');
+  }, [push]);
   const goWebView = useCallback(() => {
-    'background only'
-    push('/native/webview')
-  }, [push])
+    'background only';
+    push('/native/webview');
+  }, [push]);
   const goTransports = useCallback(() => {
-    'background only'
-    push('/native/transports')
-  }, [push])
+    'background only';
+    push('/native/transports');
+  }, [push]);
 
   return (
     <view
       style={{
+        display: "flex",
+        flexDirection: "column",
         padding: px(32),
-        display: 'flex',
-        flexDirection: 'column',
         gap: px(24),
       }}
     >
-      <view
-        style={{
-          padding: px(8),
-          backgroundColor: '#555',
-          borderRadius: px(6),
-          display: 'flex',
-          flexDirection: 'column',
-          gap: px(8),
-        }}
-        bindtap={goLinking}
-      >
-        <text style={{ fontSize: px(18) }}>tamer-linking</text>
-        <text style={{ fontSize: px(18), color: '#aaa' }}>
-          createURL, getInitialURL, addEventListener
-        </text>
-      </view>
-      <view
-        style={{
-          padding: px(8),
-          backgroundColor: '#555',
-          borderRadius: px(6),
-          display: 'flex',
-          flexDirection: 'column',
-          gap: px(8),
-        }}
-        bindtap={goBrowser}
-      >
-        <text style={{ fontSize: px(18) }}>tamer-display-browser</text>
-        <text style={{ fontSize: px(18), color: '#aaa' }}>
-          openBrowserAsync, openAuthSessionAsync
-        </text>
-      </view>
-      <view
-        style={{
-          padding: px(8),
-          backgroundColor: '#555',
-          borderRadius: px(6),
-          display: 'flex',
-          flexDirection: 'column',
-          gap: px(8),
-        }}
-        bindtap={goAuth}
-      >
-        <text style={{ fontSize: px(18) }}>OAuth</text>
-        <text style={{ fontSize: px(18), color: '#aaa' }}>
-          Authorization code flow
-        </text>
-      </view>
-      <view
-        style={{
-          padding: px(8),
-          backgroundColor: '#555',
-          borderRadius: px(6),
-          display: 'flex',
-          flexDirection: 'column',
-          gap: px(8),
-        }}
-        bindtap={goStorage}
-      >
-        <text style={{ fontSize: px(18) }}>Storage</text>
-        <text style={{ fontSize: px(18), color: '#aaa' }}>Local storage</text>
-      </view>
-      <view
-        style={{
-          padding: px(8),
-          backgroundColor: '#555',
-          borderRadius: px(6),
-          display: 'flex',
-          flexDirection: 'column',
-          gap: px(8),
-        }}
-        bindtap={goWebView}
-      >
-        <text style={{ fontSize: px(18) }}>tamer-webview (webview)</text>
-        <text style={{ fontSize: px(18), color: '#aaa' }}>
-          Embedded WKWebView / WebView
-        </text>
-      </view>
-      <view
-        style={{
-          padding: px(8),
-          backgroundColor: '#555',
-          borderRadius: px(6),
-          display: 'flex',
-          flexDirection: 'column',
-          gap: px(8),
-        }}
-        bindtap={goTransports}
-      >
-        <text style={{ fontSize: px(18) }}>tamer-transports</text>
-        <text style={{ fontSize: px(18), color: '#aaa' }}>
-          fetch, WebSocket, EventSource
-        </text>
-      </view>
+      <NativeMenuCard
+        title="tamer-linking"
+        subtitle="createURL, getInitialURL, addEventListener"
+        onTap={goLinking}
+      />
+      <NativeMenuCard
+        title="tamer-display-browser"
+        subtitle="openBrowserAsync, openAuthSessionAsync"
+        onTap={goBrowser}
+      />
+      <NativeMenuCard
+        title="OAuth"
+        subtitle="Authorization code flow"
+        onTap={goAuth}
+      />
+      <NativeMenuCard
+        title="Storage"
+        subtitle="Local storage"
+        onTap={goStorage}
+      />
+      <NativeMenuCard
+        title="tamer-webview (webview)"
+        subtitle="Embedded WKWebView / WebView"
+        onTap={goWebView}
+      />
+      <NativeMenuCard
+        title="tamer-transports"
+        subtitle="fetch, WebSocket, EventSource"
+        onTap={goTransports}
+      />
     </view>
-  )
+  );
 }

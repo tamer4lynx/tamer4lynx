@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { execFileSync } from 'child_process';
 import type { ResolvedIconPaths } from './hostConfig';
 
 function purgeAdaptiveForegroundArtifacts(drawableDir: string) {
@@ -199,9 +200,15 @@ export function applyIosAppIconAssets(appIconDir: string, iconPaths: ResolvedIco
         return true;
     }
     if (iconPaths.source) {
-        const ext = path.extname(iconPaths.source) || '.png';
-        const icon1024 = `Icon-1024${ext}`;
-        fs.copyFileSync(iconPaths.source, path.join(appIconDir, icon1024));
+        const icon1024 = 'Icon-1024.png';
+        const outputPath = path.join(appIconDir, icon1024);
+        try {
+            execFileSync('sips', ['-s', 'format', 'png', '-z', '1024', '1024', iconPaths.source, '--out', outputPath], {
+                stdio: 'ignore',
+            });
+        } catch {
+            fs.copyFileSync(iconPaths.source, outputPath);
+        }
         fs.writeFileSync(
             path.join(appIconDir, 'Contents.json'),
             JSON.stringify(

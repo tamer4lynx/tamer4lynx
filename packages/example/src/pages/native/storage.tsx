@@ -1,104 +1,136 @@
-import { useCallback, useEffect, useState } from '@lynx-js/react'
-import { localStorage } from '@tamer4lynx/tamer-local-storage'
+import { useCallback, useEffect, useState } from '@lynx-js/react';
+import { localStorage } from '@tamer4lynx/tamer-local-storage';
 
-import '../../App.css'
-import { px } from '@tamer4lynx/tamer-app-shell'
+import '../../App.css';
+import { Button, px } from '@tamer4lynx/tamer-app-shell';
 
-const REGISTRY_KEY = '__storage_keys__'
+import { pageShellStyle, useExamplePalette } from '../../examplePalette.js';
 
-type StoreItem = { key: string; value: string }
+const REGISTRY_KEY = '__storage_keys__';
+
+type StoreItem = { key: string; value: string };
+
+const updateInputbyid = (id: string, value: string) => {
+  lynx.createSelectorQuery()
+       .select(`#${id}`)
+       .invoke({
+        method: 'setValue',
+        params: {
+          value
+        },
+        success: function (res) {},
+        fail: function (res) {},
+      })
+      .exec();
+}
 
 function parseKeys(json: string | null): string[] {
-  if (!json) return []
+  if (!json) return [];
   try {
-    const arr = JSON.parse(json)
-    return Array.isArray(arr) ? arr.filter((k: unknown) => typeof k === 'string') : []
+    const arr = JSON.parse(json);
+    return Array.isArray(arr)
+      ? arr.filter((k: unknown) => typeof k === 'string')
+      : [];
   } catch {
-    return []
+    return [];
   }
 }
 
 export default function StoragePage() {
-  const [key, setKey] = useState('')
-  const [value, setValue] = useState('')
-  const [items, setItems] = useState<StoreItem[]>([])
-  const [error, setError] = useState<string | null>(null)
+  const p = useExamplePalette();
+  const [key, setKey] = useState('');
+  const [value, setValue] = useState('');
+  const [items, setItems] = useState<StoreItem[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const loadItems = useCallback(() => {
-    'background only'
+    'background only';
     try {
-      setError(null)
-      const json = localStorage.getItem(REGISTRY_KEY)
-      const keys = parseKeys(json).filter((k) => k !== REGISTRY_KEY)
-      const next: StoreItem[] = []
+      setError(null);
+      const json = localStorage.getItem(REGISTRY_KEY);
+      const keys = parseKeys(json).filter((k) => k !== REGISTRY_KEY);
+      const next: StoreItem[] = [];
       for (const k of keys) {
-        const v = localStorage.getItem(k)
-        if (v !== null) next.push({ key: k, value: v })
+        const v = localStorage.getItem(k);
+        if (v !== null) next.push({ key: k, value: v });
       }
-      setItems(next)
+      setItems(next);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to read')
+      setError(e instanceof Error ? e.message : 'Failed to read');
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    'background only'
-    loadItems()
-  }, [loadItems])
+    'background only';
+    loadItems();
+  }, [loadItems]);
 
   const handleSet = useCallback(() => {
-    'background only'
-    const k = key.trim()
-    if (!k) return
+    'background only';
+    const k = key.trim();
+    if (!k) return;
     try {
-      setError(null)
-      const json = localStorage.getItem(REGISTRY_KEY)
-      const keys = parseKeys(json)
-      if (!keys.includes(k)) keys.push(k)
-      localStorage.setItem(REGISTRY_KEY, JSON.stringify(keys))
-      localStorage.setItem(k, value)
-      setKey('')
-      setValue('')
-      loadItems()
+      setError(null);
+      const json = localStorage.getItem(REGISTRY_KEY);
+      const keys = parseKeys(json);
+      if (!keys.includes(k)) keys.push(k);
+      localStorage.setItem(REGISTRY_KEY, JSON.stringify(keys));
+      localStorage.setItem(k, value);
+      setKey('');
+      setValue('');
+      updateInputbyid('key', '');
+      updateInputbyid('value', '');
+      loadItems();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to save')
+      setError(e instanceof Error ? e.message : 'Failed to save');
     }
-  }, [key, value, loadItems])
+  }, [key, value, loadItems]);
 
   const handleDeleteItem = useCallback(
     (itemKey: string) => {
-      'background only'
+      'background only';
       try {
-        setError(null)
-        const json = localStorage.getItem(REGISTRY_KEY)
-        const keys = parseKeys(json).filter((k) => k !== itemKey)
-        localStorage.setItem(REGISTRY_KEY, JSON.stringify(keys))
-        localStorage.removeItem(itemKey)
-        loadItems()
+        setError(null);
+        const json = localStorage.getItem(REGISTRY_KEY);
+        const keys = parseKeys(json).filter((k) => k !== itemKey);
+        localStorage.setItem(REGISTRY_KEY, JSON.stringify(keys));
+        localStorage.removeItem(itemKey);
+        loadItems();
       } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : 'Failed to delete')
+        setError(e instanceof Error ? e.message : 'Failed to delete');
       }
     },
-    [loadItems]
-  )
+    [loadItems],
+  );
 
   return (
-    <scroll-view style={{ padding: 24, flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <text className="Description" style={{ marginBottom: 16, fontSize: px(14), }}>
-        Uses @tamer4lynx/tamer-local-storage (SharedPreferences on Android, UserDefaults on iOS). Web-style
-        localStorage API.
+    <view
+      style={{
+        padding: 24,
+        flex: 1,
+        gap: 16,
+      }}
+    >
+      <text
+        className="Description"
+        style={{ marginBottom: 16, fontSize: px(14), color: p.onSurface }}
+      >
+        Uses @tamer4lynx/tamer-local-storage (SharedPreferences on Android,
+        UserDefaults on iOS). Web-style localStorage API.
       </text>
 
       <view style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <text className="Hint" style={{ marginBottom: 4, fontSize: px(14) }}>Key</text>
+        <text className="Hint" style={{ marginBottom: 4, fontSize: px(14), color: p.onSurface }}>
+          Key
+        </text>
         <input
-          value={key}
+          id="key"
           placeholder="Storage key"
           style={{
             backgroundColor: '#222',
             color: '#fff',
             padding: px(6, 6),
-            borderRadius: "8px",
+            borderRadius: '8px',
             border: '1px solid #444',
             fontSize: px(14),
             height: px(40),
@@ -107,16 +139,25 @@ export default function StoragePage() {
         />
       </view>
 
-      <view style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: "16px" }}>
-        <text className="Hint" style={{ marginBottom: 4, fontSize: px(14) }}>Value</text>
+      <view
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          marginBottom: '16px',
+        }}
+      >
+        <text className="Hint" style={{ marginBottom: 4, fontSize: px(14), color: p.onSurface }}>
+          Value
+        </text>
         <input
-          value={value}
+          id="value"
           placeholder="Value to store"
           style={{
             backgroundColor: '#222',
             color: '#fff',
             padding: px(6, 6),
-            borderRadius: "8px",
+            borderRadius: '8px',
             border: '1px solid #444',
             fontSize: px(14),
             height: px(40),
@@ -126,33 +167,56 @@ export default function StoragePage() {
       </view>
 
       {error && (
-        <view style={{ padding: 16, backgroundColor: '#4a2222', borderRadius: 8 }}>
-          <text className="Description" style={{ color: '#f88' }}>{error}</text>
+        <view
+          style={{ padding: 16, backgroundColor: '#4a2222', borderRadius: 8 }}
+        >
+          <text className="Description" style={{ color: '#f88' }}>
+            {error}
+          </text>
         </view>
       )}
 
-      <view style={{ display: 'flex', flexDirection: 'row', gap: 16, flexWrap: 'wrap' }}>
-        <view className="Button" style={{ flex: 1, minWidth: 80 }} bindtap={handleSet}>
-          <text className="ButtonText">Add</text>
-        </view>
-        <view className="Button" style={{ flex: 1, minWidth: 80 }} bindtap={loadItems}>
-          <text className="ButtonText">Refresh</text>
-        </view>
+      <view
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          justifyContent: "space-between"
+        }}
+      >
+        <Button
+          label="Add"
+          onTap={handleSet}
+          variant="filled"
+          size="sm"
+          style={{ flex: 1, minWidth: "49%" }}
+        />
+        <Button
+          label="Refresh"
+          onTap={loadItems}
+          variant="filled"
+          size="sm"
+          style={{ flex: 1, minWidth: "49%" }}
+        />
       </view>
 
       <view style={{ marginTop: 8 }}>
-        <text className="Hint" style={{ marginBottom: 8 }}>Stored items ({items.length})</text>
+        <text className="Hint" style={{ marginBottom: 8, color: p.onSurface }}>
+          Stored items ({items.length})
+        </text>
         {items.length === 0 ? (
-          <text className="Description" style={{ color: '#888' }}>(empty)</text>
+          <text className="Description" style={{ color: p.onSurface }}>
+            (empty)
+          </text>
         ) : (
-          <view style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <scroll-view style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1  }}>
             {items.map((item) => (
               <view
                 key={item.key}
                 style={{
                   padding: 16,
                   backgroundColor: '#1a1a1a',
-                  borderRadius: "8px",
+                  borderRadius: '8px',
                   border: '1px solid #333',
                   display: 'flex',
                   flexDirection: 'row',
@@ -162,27 +226,25 @@ export default function StoragePage() {
                 }}
               >
                 <view style={{ flex: 1, minWidth: 0 }}>
-                  <text className="Hint" style={{ marginBottom: 4 }}>{item.key}</text>
+                  <text className="Hint" style={{ marginBottom: 4 }}>
+                    {item.key}
+                  </text>
                   <text className="Description">{item.value}</text>
                 </view>
-                <view
-                  bindtap={() => handleDeleteItem(item.key)}
-                  style={{
-                    padding: '12px 24px',
-                    borderRadius: "8px",
-                    backgroundColor: '#552222',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <text className="ButtonText" style={{ color: '#f88' }}>Delete</text>
-                </view>
+                <Button
+                  label="Delete"
+                  onTap={() => handleDeleteItem(item.key)}
+                  variant="filled"
+                  size="sm"
+                  shape="square"
+                  colors={{ container: '#552222', label: '#f88' }}
+                  style={{ flexShrink: 0 }}
+                />
               </view>
             ))}
-          </view>
+          </scroll-view>
         )}
       </view>
-    </scroll-view>
-  )
+    </view>
+  );
 }

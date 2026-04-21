@@ -72,7 +72,6 @@ export function App(props: {
 
   return (
     <view>
-      <view className='Background' />
       <view className='App'>
         <view className='Banner'>
           <view className='Logo' bindtap={onTap}>

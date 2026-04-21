@@ -12,6 +12,9 @@ declare module "@lynx-js/types" {
         | "slide-down"
         | "fade"
         | "none";
+      "bottom-inset"?: number;
+      "stack-order"?: number;
+      "android-set-soft-input-mode"?: "unspecified" | "nothing" | "pan" | "resize";
     };
     svg: {
       content?: string;

@@ -41,6 +41,7 @@
     "packages/tamer-plugin",
     "packages/tamer-env",
     "packages/tamer-router",
+    "packages/tamer-navigation",
     "packages/tamer-screen",
     "packages/tamer-system-ui",
     "packages/tamer-app-shell",
@@ -69,11 +70,11 @@
     "publish:all": "npm run publish:packages && npm run publish:cli"
   },
   "devDependencies": {
-    "@types/react": "^18.3.0",
     "@types/adm-zip": "^0.5.7",
     "@types/bun": "latest",
     "@types/node": "^24.1.0",
     "@types/node-fetch": "^2.6.13",
+    "@types/react": "^18.3.0",
     "@types/semver": "^7.7.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.2"
@@ -87,21 +88,22 @@
     "node": ">=18"
   },
   "dependencies": {
-    "ink": "^5.2.0",
-    "ink-select-input": "^6.2.0",
-    "ink-spinner": "^5.0.0",
-    "ink-text-input": "^6.0.0",
-    "react": "^18.3.1",
     "adm-zip": "^0.5.16",
     "baseline-browser-mapping": "^2.10.0",
     "caniuse-lite": "^1.0.30001777",
     "chokidar": "^4.0.3",
     "commander": "^14.0.0",
-    "dotenv": "^16.4.5",
     "dnssd-advertise": "^1.1.3",
+    "dotenv": "^16.4.5",
     "esbuild": "^0.24.2",
+    "ink": "^5.2.0",
+    "ink-select-input": "^6.2.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^6.0.0",
     "node-fetch": "^2.7.0",
+    "pdf-lib": "^1.17.1",
     "qrcode-terminal": "^0.12.0",
+    "react": "^18.3.1",
     "semver": "^7.7.4",
     "ws": "^8.19.0"
   }

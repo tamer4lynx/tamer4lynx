@@ -156,7 +156,12 @@ program
             assertProductionSigningReady(p);
         }
         if (p === 'android') {
-            await android_build({ install: opts.install, release, production, clean: opts.clean });
+            await android_build({
+                install: opts.install,
+                release,
+                production,
+                clean: opts.clean,
+            });
         } else {
             await ios_build({
                 install: opts.install,
@@ -202,7 +207,8 @@ program
         const release = opts.release === true || opts.production === true;
         const production = opts.production === true;
         const p = parsePlatform(platform ?? 'both') ?? 'both';
-        if (p === 'android' || p === 'all') await android_bundle({ release, production });
+        if (p === 'android' || p === 'all')
+            await android_bundle({ release, production });
         if (p === 'ios' || p === 'all') ios_bundle({ release, production });
     });
 
@@ -248,7 +254,7 @@ program
     .command('build-dev-app')
     .option('-p, --platform <platform>', 'Platform: android, ios, or all (default)', 'all')
     .option('-i, --install', 'Install APK to connected device and launch app after building')
-    .description('Build with dev client embedded (same as t4l build -d)')
+    .description('Build the Tamer Dev App package (detected automatically when building from tamer-dev-app directory)')
     .action(async (opts) => {
         const p = parsePlatform(opts.platform ?? 'all') ?? 'all';
         if (p === 'android' || p === 'all') {

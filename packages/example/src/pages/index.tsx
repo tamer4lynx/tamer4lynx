@@ -1,89 +1,15 @@
-import { useCallback, useEffect, useState } from '@lynx-js/react'
-import { useTamerRouter } from '@tamer4lynx/tamer-router'
-import '@tamer4lynx/tamer-icons'
+import { useEffect } from '@lynx-js/react';
+import { useTamerRouter } from '@tamer4lynx/tamer-router';
+import { Screen } from '@tamer4lynx/tamer-screen';
+import { Slot, Stack } from '@tamer4lynx/tamer-router';
 
-import '../App.css'
-import { useExamplePalette } from '../examplePalette.js'
-import lynxLogo from '../assets/lynx-logo.png?inline'
-import reactLynxLogo from '../assets/react-logo.png?inline'
-import tamerLogo from '../assets/tamer-logo.png?inline'
+export default function IndexRedirect() {
+  const { replace } = useTamerRouter();
 
-export default function Home() {
-  const p = useExamplePalette()
-  const [alterLogo, setAlterLogo] = useState(0)
-  // const [messages, setMessages] = useState<Array<{ id: string; text: string }>>([])
-  // const [ws, setWs] = useState<WebSocket | null>(null)
-  const { push } = useTamerRouter()
+  useEffect(() => {
+    'background only';
+    replace('/tabs');
+  }, [replace]);
 
-  // useEffect(() => {
-  //   'background only'
-  //   console.log('Home mounted')
-  //   const websocket = new WebSocket('ws://localhost:8008')
-  //   websocket.onopen = () => websocket.send('Hello from Lynx!')
-  //   websocket.onmessage = (event) => setMessages((prev) => [...prev, { id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`, text: event.data }])
-  //   websocket.onerror = (e: any) => console.error('WebSocket Error:', e?.message)
-  //   websocket.onclose = () => {}
-  //   setWs(websocket)
-  //   return () => { websocket.close() }
-  // }, [])
-
-  const onTap = useCallback(() => {
-    'background only'
-    console.log('onTap')
-    setAlterLogo(prev => prev + 1)
-    NativeModules.JiggleModule?.vibrate?.(50)
-    console.log('tapped logo')
-    // if (ws) ws.send('Hello from Lynx tap!')
-  }, [push /*, ws*/])
-
-  return (
-      <view className="App" style={{ backgroundColor: p.surface }}>
-        <view className="Background" />
-        <view className="Banner">
-          <view className="Logo" bindtap={onTap}>
-            {alterLogo % 2 === 0 ? (
-              <image src={reactLynxLogo} className="Logo--react" />
-            ) : alterLogo % 3 === 0 ? (
-              <image src={lynxLogo} className="Logo--lynx" />
-            ) : (
-              <image src={tamerLogo} className="Logo--tamer" />
-            )}
-          </view>
-          <text className="Title" style={{ color: p.onSurface }}>React</text>
-          <text className="Subtitle" style={{ color: p.onSurface }}>on Tamer</text>
-          <text className="Subtitle" style={{ color: p.onSurface }}>on Lynx</text>
-        </view>
-        {/* <view className="Content" style={{ flexDirection: 'column' }}>
-          <text className="Description">Server Messages:</text>
-          {messages.map((msg) => (
-            <text key={msg.id} className="Hint">{msg.text}</text>
-          ))}
-        </view> */}
-        <view className="Content">
-          <view className="Button" style={{ flex: "100%" }} bindtap={() => push('/m3')}>
-            <text className="ButtonText">M3 Components (app shell)</text>
-          </view>
-          <view className="Button" style={{ flex: "100%" }} bindtap={() => push('/insets')}>
-            <text className="ButtonText">Test Insets & Keyboard</text>
-          </view>
-          <view className="Button" style={{ flex: "45%", maxWidth: "50%" }} bindtap={() => push('/screen')}>
-            <text className="ButtonText">tamer-screen</text>
-          </view>
-          <view className="Button" style={{ flex: "45%",  maxWidth: "50%" }} bindtap={() => push('/secure')}>
-            <text className="ButtonText">Secure Number</text>
-          </view>
-          <view className="Button" style={{ flex: "45%", maxWidth: "50%" }} bindtap={() => push('/native')}>
-            <text className="ButtonText">Native Tests</text>
-          </view>
-          <view className="Button" style={{ flex: "45%", maxWidth: "50%" }} bindtap={() => push('/native/storage')}>
-            <text className="ButtonText">Storage</text>
-          </view>
-          <view className="Button" style={{ flex: "45%", display: 'flex', backgroundColor: '#dd7777', flexDirection: 'row', gap: 16, justifyContent: 'center', alignItems: 'center' }}>
-            <icon icon="search" set="material" size={20} iconColor="#ffffff" style={{ width: '20px', height: '20px' }} />
-            <icon icon="home" set="material" size={20} iconColor="#fff" style={{ width: '20px', height: '20px' }} />
-            <icon icon="heart" set="fontawesome" size={20} iconColor="#000" style={{ width: '20px', height: '20px' }} />
-          </view>
-        </view>
-      </view>
-  )
+  return <Slot />;
 }

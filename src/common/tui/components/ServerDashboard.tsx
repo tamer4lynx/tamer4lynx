@@ -19,6 +19,8 @@ export type ServerDashboardProps = {
   buildPhase: BuildPhase;
   buildError?: string;
   wsConnections: number;
+  statusProbeCount: number;
+  metaProbeCount: number;
   logLines: string[];
   qrLines: string[];
   phase: 'starting' | 'running' | 'failed';
@@ -38,6 +40,8 @@ export function ServerDashboard({
   buildPhase,
   buildError,
   wsConnections,
+  statusProbeCount,
+  metaProbeCount,
   logLines,
   qrLines,
   phase,
@@ -124,6 +128,8 @@ export function ServerDashboard({
           <Box marginTop={1} flexDirection="column">
             <Text bold>Connections</Text>
             <Text dimColor>WebSocket clients: {wsConnections}</Text>
+            <Text dimColor>Status probes: {statusProbeCount}</Text>
+            <Text dimColor>Meta probes: {metaProbeCount}</Text>
           </Box>
         </Box>
       </Box>
