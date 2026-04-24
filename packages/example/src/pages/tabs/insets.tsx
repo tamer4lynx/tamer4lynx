@@ -12,9 +12,16 @@ export default function InsetsPage() {
   const border = 'rgba(255,255,255,0.12)';
 
   return (
-    <view style={{ flex: 1 }}>
+    <view style={pageShellStyle(p.surface)}>
       <scroll-view
-        style={{ padding: 16, display: 'flex', flexDirection: 'column' }}
+        scroll-y
+        style={{
+          flex: 1,
+          minHeight: '0px',
+          padding: 16,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
       >
         <view
           style={{

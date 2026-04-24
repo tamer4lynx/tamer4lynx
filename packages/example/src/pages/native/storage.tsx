@@ -106,8 +106,8 @@ export default function StoragePage() {
   return (
     <view
       style={{
+        ...pageShellStyle(p.surface),
         padding: 24,
-        flex: 1,
         gap: 16,
       }}
     >
@@ -200,7 +200,15 @@ export default function StoragePage() {
         />
       </view>
 
-      <view style={{ marginTop: 8 }}>
+      <view
+        style={{
+          marginTop: 8,
+          flex: 1,
+          minHeight: '0px',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
         <text className="Hint" style={{ marginBottom: 8, color: p.onSurface }}>
           Stored items ({items.length})
         </text>
@@ -209,7 +217,16 @@ export default function StoragePage() {
             (empty)
           </text>
         ) : (
-          <scroll-view style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1  }}>
+          <scroll-view
+            scroll-y
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              flex: 1,
+              minHeight: '0px',
+            }}
+          >
             {items.map((item) => (
               <view
                 key={item.key}

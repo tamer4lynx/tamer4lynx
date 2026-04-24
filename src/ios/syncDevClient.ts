@@ -62,13 +62,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         LinkingModule.setInitialUrl(s)
         LinkingModule.onUrlReceived(s)
         if url.scheme == "tamerdevapp", let host = url.host, host == "project" {
-            presentProjectViewController()
+            let bundleUrl = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .first(where: { $0.name == "bundleUrl" })?
+                .value
+            presentProjectViewController(bundleUrl: bundleUrl)
         }
         return true
     }
 
-    @objc func presentProjectViewController() {
+    @objc func presentProjectViewController(bundleUrl: String? = nil) {
+        if let bundleUrl, !bundleUrl.isEmpty {
+            DevServerPrefs.setUrl(bundleUrl)
+        }
         guard let root = window?.rootViewController else { return }
+        if root.presentedViewController is ProjectViewController {
+            return
+        }
+        guard root.presentedViewController == nil else { return }
         let projectVC = ProjectViewController()
         projectVC.modalPresentationStyle = .fullScreen
         root.present(projectVC, animated: true)
@@ -78,113 +89,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 }
 
 function getDevLauncherViewControllerSwift(): string {
-    return `import UIKit
-import Lynx
-import tamerdevclient
-import tamerinsets
-import tamersystemui
-
-class DevLauncherViewController: UIViewController {
-    private var lynxView: LynxView?
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .black
-        edgesForExtendedLayout = .all
-        extendedLayoutIncludesOpaqueBars = true
-        additionalSafeAreaInsets = .zero
-        view.insetsLayoutMarginsFromSafeArea = false
-        view.preservesSuperviewLayoutMargins = false
-        if #available(iOS 15.0, *) {
-            viewRespectsSystemMinimumLayoutMargins = false
-        }
-        setupLynxView()
-        setupDevClientModule()
-    }
-
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        if let lynxView = lynxView {
-            applyFullscreenLayout(to: lynxView)
-        }
-    }
-
-    override func viewSafeAreaInsetsDidChange() {
-        super.viewSafeAreaInsetsDidChange()
-        TamerInsetsModule.reRequestInsets()
-    }
-
-    override var preferredStatusBarStyle: UIStatusBarStyle { SystemUIModule.statusBarStyleForHost }
-
-    private func setupLynxView() {
-        let size = fullscreenBounds().size
-        let lv = LynxView { builder in
-            builder.config = LynxConfig(provider: DevTemplateProvider())
-            builder.screenSize = size
-            builder.fontScale = 1.0
-        }
-        lv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        lv.insetsLayoutMarginsFromSafeArea = false
-        lv.preservesSuperviewLayoutMargins = false
-        view.addSubview(lv)
-        applyFullscreenLayout(to: lv)
-        TamerInsetsModule.attachHostView(lv)
-        lv.loadTemplate(fromURL: "dev-client.lynx.bundle", initData: nil)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self, weak lv] in
-            guard let self, let lv else { return }
-            self.logViewport("devclient post-load", lynxView: lv)
-            self.applyFullscreenLayout(to: lv)
-        }
-        self.lynxView = lv
-    }
-
-    private func applyFullscreenLayout(to lynxView: LynxView) {
-        let bounds = fullscreenBounds()
-        let size = bounds.size
-        lynxView.frame = bounds
-        lynxView.updateScreenMetrics(withWidth: size.width, height: size.height)
-        lynxView.updateViewport(withPreferredLayoutWidth: size.width, preferredLayoutHeight: size.height, needLayout: true)
-        lynxView.preferredLayoutWidth = size.width
-        lynxView.preferredLayoutHeight = size.height
-        lynxView.layoutWidthMode = .exact
-        lynxView.layoutHeightMode = .exact
-        logViewport("devclient apply", lynxView: lynxView)
-    }
-
-    private func fullscreenBounds() -> CGRect {
-        let bounds = view.bounds
-        if bounds.width > 0, bounds.height > 0 {
-            return bounds
-        }
-        return UIScreen.main.bounds
-    }
-
-    private func logViewport(_ label: String, lynxView: LynxView) {
-        let rootWidth = lynxView.rootWidth()
-        let rootHeight = lynxView.rootHeight()
-        let intrinsic = lynxView.intrinsicContentSize
-        NSLog("[DevLauncher] %@ view=%@ safe=%@ lynxFrame=%@ lynxBounds=%@ root=%0.2fx%0.2f intrinsic=%@", label, NSCoder.string(for: view.bounds), NSCoder.string(for: view.safeAreaInsets), NSCoder.string(for: lynxView.frame), NSCoder.string(for: lynxView.bounds), rootWidth, rootHeight, NSCoder.string(for: intrinsic))
-    }
-
-    private func setupDevClientModule() {
-        DevClientModule.presentQRScanner = { [weak self] completion in
-            let scanner = QRScannerViewController()
-            scanner.onResult = { url in
-                scanner.dismiss(animated: true) { completion(url) }
-            }
-            scanner.modalPresentationStyle = .fullScreen
-            self?.present(scanner, animated: true)
-        }
-
-        DevClientModule.reloadProjectHandler = { [weak self] in
-            guard let self = self else { return }
-            let projectVC = ProjectViewController()
-            projectVC.modalPresentationStyle = .fullScreen
-            self.present(projectVC, animated: true)
-        }
-    }
-}
-`;
+    return fs.readFileSync(
+        path.join(__dirname, '../../packages/tamer-dev-client/ios/templates/DevLauncherViewController.swift'),
+        'utf8'
+    );
 }
 
 export function getProjectViewControllerSwift(): string {
@@ -193,6 +101,9 @@ import Lynx
 import tamerdevclient
 import tamerinsets
 import tamersystemui
+#if canImport(tamerrouter)
+import tamerrouter
+#endif
 #if canImport(tamernavigation)
 import tamernavigation
 #endif
@@ -208,8 +119,10 @@ class ProjectViewController: UIViewController {
     private var lynxView: LynxView?
     private var devMenuView: LynxView?
     private var devClientManager: DevClientManager?
-    private var previousReloadProjectHandler: (() -> Void)?
     private var previousDismissTamerDebugPanelHandler: (() -> Void)?
+    private var hasTriggeredInitialProjectLoad = false
+    private var pendingInitialLoadWorkItem: DispatchWorkItem?
+    var onDismiss: (() -> Void)?
     private lazy var projectDevMenuGesture: UILongPressGestureRecognizer = {
         let gesture = UILongPressGestureRecognizer(target: self, action: #selector(handleProjectDevMenuGesture(_:)))
         gesture.minimumPressDuration = 0.52
@@ -220,6 +133,7 @@ class ProjectViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        NSLog("[ProjectVC] viewDidLoad")
 #if DEBUG
         let env = LynxEnv.sharedInstance()
         env.lynxDebugEnabled = true
@@ -248,12 +162,12 @@ class ProjectViewController: UIViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        NSLog("[ProjectVC] viewWillAppear")
+        // Do NOT override reloadProjectHandler — DevClientManager handles HMR via WebSocket.
+        // ViewController's handler stays active and ignores repeat calls while we're presented
+        // (presentedViewController is ProjectViewController → return).
+        // Overriding it causes ViewController's background dev-client Lynx to loop-reload us.
 #if DEBUG
-        previousReloadProjectHandler = DevClientModule.reloadProjectHandler
-        DevClientModule.reloadProjectHandler = { [weak self] in
-            self?.dismissProjectDevMenu()
-            self?.reloadLynxView()
-        }
         previousDismissTamerDebugPanelHandler = DevClientModule.dismissTamerDebugPanelHandler
         DevClientModule.dismissTamerDebugPanelHandler = { [weak self] in
             self?.dismissProjectDevMenu()
@@ -263,9 +177,7 @@ class ProjectViewController: UIViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-#if DEBUG
-        LynxDebugGestureSuppressor.suppressDebugEntryGestureIfPossible()
-#endif
+        triggerInitialProjectLoadIfNeeded(reason: "viewDidAppear")
     }
 
     override func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
@@ -285,11 +197,14 @@ class ProjectViewController: UIViewController {
         if let devMenuView = devMenuView {
             applyFullscreenLayout(to: devMenuView)
         }
+        triggerInitialProjectLoadIfNeeded(reason: "viewDidLayoutSubviews")
     }
 
     override func viewSafeAreaInsetsDidChange() {
         super.viewSafeAreaInsetsDidChange()
+        disableAutomaticInsetAdjustment()
         TamerInsetsModule.reRequestInsets()
+        triggerInitialProjectLoadIfNeeded(reason: "viewSafeAreaInsetsDidChange")
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle { SystemUIModule.statusBarStyleForHost }
@@ -309,30 +224,75 @@ class ProjectViewController: UIViewController {
     }
 
     private func setupLynxView() {
+        NSLog("[ProjectVC] setupLynxView devUrl=%@", DevServerPrefs.getUrl() ?? "")
         let lv = buildLynxView()
+        lv.backgroundColor = .black
+        lv.isHidden = false
+        lv.alpha = 1
+        lv.isUserInteractionEnabled = true
         view.addSubview(lv)
         TamerInsetsModule.attachHostView(lv)
+#if canImport(tamerrouter)
+        TamerRouterNativeModule.attachHostView(lv)
+#endif
 #if canImport(tamernavigation)
         TamerNavHost.attachRoot(lv, presenter: self)
 #endif
-        lv.loadTemplate(fromURL: "main.lynx.bundle", initData: DevServerPrefs.getProjectInitTemplateData())
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self, weak lv] in
-            guard let self, let lv else { return }
-            self.logViewport("project post-load", lynxView: lv)
-            self.applyFullscreenLayout(to: lv)
-        }
+        disableAutomaticInsetAdjustment(in: lv)
+        pendingInitialLoadWorkItem?.cancel()
+        pendingInitialLoadWorkItem = nil
+        hasTriggeredInitialProjectLoad = false
         self.lynxView = lv
     }
 
     private func reloadLynxView() {
+        NSLog("[ProjectVC] reloadLynxView")
         dismissProjectDevMenu()
+        pendingInitialLoadWorkItem?.cancel()
+        pendingInitialLoadWorkItem = nil
         TamerInsetsModule.attachHostView(nil)
+#if canImport(tamerrouter)
+        TamerRouterNativeModule.attachHostView(nil)
+#endif
 #if canImport(tamernavigation)
         TamerNavHost.attachRoot(nil, presenter: self)
 #endif
         lynxView?.removeFromSuperview()
         lynxView = nil
         setupLynxView()
+        triggerInitialProjectLoadIfNeeded(reason: "reloadLynxView")
+    }
+
+    private func triggerInitialProjectLoadIfNeeded(reason: String) {
+        guard !hasTriggeredInitialProjectLoad else { return }
+        guard isViewLoaded, view.window != nil else {
+            NSLog("[ProjectVC] initial load waiting reason=%@ window=%@", reason, view.window != nil ? "attached" : "nil")
+            return
+        }
+        let bounds = fullscreenBounds()
+        guard bounds.width > 0, bounds.height > 0 else {
+            NSLog("[ProjectVC] initial load deferred reason=%@ bounds=%@", reason, NSCoder.string(for: bounds))
+            pendingInitialLoadWorkItem?.cancel()
+            let workItem = DispatchWorkItem { [weak self] in
+                self?.triggerInitialProjectLoadIfNeeded(reason: "\\(reason)-retry")
+            }
+            pendingInitialLoadWorkItem = workItem
+            DispatchQueue.main.async(execute: workItem)
+            return
+        }
+        guard let lynxView else { return }
+        hasTriggeredInitialProjectLoad = true
+        pendingInitialLoadWorkItem?.cancel()
+        pendingInitialLoadWorkItem = nil
+        applyFullscreenLayout(to: lynxView)
+        NSLog("[ProjectVC] initial project load reason=%@ bounds=%@ safe=%@", reason, NSCoder.string(for: bounds), NSCoder.string(for: view.safeAreaInsets))
+        lynxView.loadTemplate(fromURL: "main.lynx.bundle", initData: DevServerPrefs.getProjectInitTemplateData())
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self, weak lynxView] in
+            guard let self, let lynxView else { return }
+            self.logViewport("project post-load", lynxView: lynxView)
+            self.applyFullscreenLayout(to: lynxView)
+            self.disableAutomaticInsetAdjustment()
+        }
     }
 
     @objc private func handleProjectDevMenuGesture(_ gesture: UILongPressGestureRecognizer) {
@@ -399,6 +359,27 @@ class ProjectViewController: UIViewController {
         return UIScreen.main.bounds
     }
 
+    private func disableAutomaticInsetAdjustment() {
+        guard let lynxView else { return }
+        disableAutomaticInsetAdjustment(in: lynxView)
+    }
+
+    private func disableAutomaticInsetAdjustment(in view: UIView) {
+        if let scrollView = view as? UIScrollView {
+            scrollView.contentInsetAdjustmentBehavior = .never
+            scrollView.contentInset = .zero
+            scrollView.scrollIndicatorInsets = .zero
+            if #available(iOS 13.0, *) {
+                scrollView.automaticallyAdjustsScrollIndicatorInsets = false
+            }
+        }
+        view.insetsLayoutMarginsFromSafeArea = false
+        view.preservesSuperviewLayoutMargins = false
+        for subview in view.subviews {
+            disableAutomaticInsetAdjustment(in: subview)
+        }
+    }
+
     private func logViewport(_ label: String, lynxView: LynxView) {
         let rootWidth = lynxView.rootWidth()
         let rootHeight = lynxView.rootHeight()
@@ -408,17 +389,31 @@ class ProjectViewController: UIViewController {
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        if isBeingDismissed || isMovingFromParent {
-            dismissProjectDevMenu()
-            devClientManager?.disconnect()
+        NSLog("[ProjectVC] viewWillDisappear dismissed=%@ moving=%@", isBeingDismissed ? "true" : "false", isMovingFromParent ? "true" : "false")
+        // Do not tear down the root host when presenting child native controllers such as the
+        // @tamer-navigation UINavigationController. The coordinator LynxView must remain attached
+        // while a pushed native stack is visible so spoke->root events and updates still work.
+        guard isBeingDismissed || isMovingFromParent else { return }
+        dismissProjectDevMenu()
+        devClientManager?.disconnect()
+#if canImport(tamerrouter)
+        TamerRouterNativeModule.attachHostView(nil)
+#endif
+        TamerInsetsModule.attachHostView(nil)
 #if canImport(tamernavigation)
-            TamerNavHost.attachRoot(nil, presenter: self)
+        TamerNavHost.attachRoot(nil, presenter: self)
 #endif
 #if DEBUG
-            DevClientModule.reloadProjectHandler = previousReloadProjectHandler
-            DevClientModule.dismissTamerDebugPanelHandler = previousDismissTamerDebugPanelHandler
+        DevClientModule.dismissTamerDebugPanelHandler = previousDismissTamerDebugPanelHandler
 #endif
-        }
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        guard isBeingDismissed || isMovingFromParent else { return }
+        pendingInitialLoadWorkItem?.cancel()
+        pendingInitialLoadWorkItem = nil
+        onDismiss?()
     }
 }
 `;
@@ -445,7 +440,6 @@ class DevTemplateProvider: NSObject, LynxTemplateProvider {
                 return
             }
 
-            // Try the dev server first
             if let devUrl = DevServerPrefs.getUrl(), !devUrl.isEmpty {
                 let origin: String
                 if let parsed = URL(string: devUrl) {
@@ -457,7 +451,7 @@ class DevTemplateProvider: NSObject, LynxTemplateProvider {
                     origin = devUrl
                 }
 
-                let candidates = ["/\\(url!)", "/tamer-dev-app/\\(url!)"]
+                let candidates = ["/\\(url!)", "/example/\\(url!)"]
                 for candidate in candidates {
                     if let data = self.httpFetch(url: origin + candidate) {
                         callback?(data, nil)
@@ -685,47 +679,6 @@ import UIKit
 // Manual edits will be overwritten.
 // GENERATED IMPORTS END
 
-#if DEBUG
-/// Suppresses Lynx devtool long-press/gesture entry on debug builds so app gestures
-/// aren't hijacked. Safe no-op if devtool internals are unavailable.
-enum LynxDebugGestureSuppressor {
-    private static var applied = false
-
-    static func apply() {
-        guard !applied else { return }
-        applied = true
-        disableLongPressMenu()
-    }
-
-    static func suppressDebugEntryGestureIfPossible() {
-        disableLongPressMenu()
-        stripDevtoolGestureRecognizersFromKeyWindow()
-    }
-
-    private static func disableLongPressMenu() {
-        guard let cls = NSClassFromString("LynxDevtoolEnv") else { return }
-        let sel = NSSelectorFromString("sharedInstance")
-        guard let env = (cls as AnyObject).perform(sel)?.takeUnretainedValue() as? NSObject else { return }
-        env.setValue(false, forKey: "longPressMenuEnabled")
-    }
-
-    private static func stripDevtoolGestureRecognizersFromKeyWindow() {
-        let windows: [UIWindow] = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap { $0.windows }
-        for window in windows {
-            guard let recognizers = window.gestureRecognizers else { continue }
-            for recognizer in recognizers {
-                let typeName = String(describing: type(of: recognizer))
-                if typeName.contains("Devtool") || typeName.contains("LynxDebug") {
-                    window.removeGestureRecognizer(recognizer)
-                }
-            }
-        }
-    }
-}
-#endif
-
 final class LynxInitProcessor {
     static let shared = LynxInitProcessor()
     private init() {}
@@ -743,12 +696,10 @@ final class LynxInitProcessor {
         if TamerLynxDevToolPolicy.attachDevToolWithInitialLynxSetup {
             env.lynxDebugEnabled = true
             env.logBoxEnabled = true
-            LynxDebugGestureSuppressor.apply()
         }
 #else
         env.lynxDebugEnabled = true
         env.logBoxEnabled = true
-        LynxDebugGestureSuppressor.apply()
 #endif
 #endif
         let globalConfig = LynxConfig(provider: env.config.templateProvider)
@@ -1363,7 +1314,7 @@ async function createDevAppProject(iosDir: string, repoRoot: string): Promise<vo
     ];
     for (const f of templateFiles) {
         const src = templateDir ? path.join(templateDir, f) : null;
-        if (f !== 'ProjectViewController.swift' && src && fs.existsSync(src)) {
+        if (src && fs.existsSync(src)) {
             writeFile(path.join(projectDir, f), readAndSubstituteTemplate(src, templateVars));
         } else {
             const fallback = (() => {
@@ -1423,7 +1374,7 @@ function syncDevAppSourceFiles(iosDir: string, repoRoot: string): void {
     writeFile(path.join(projectDir, 'AppDelegate.swift'), getAppDelegateSwift());
     for (const f of templateFiles) {
         const src = templateDir ? path.join(templateDir, f) : null;
-        if (f !== 'ProjectViewController.swift' && src && fs.existsSync(src)) {
+        if (src && fs.existsSync(src)) {
             writeFile(path.join(projectDir, f), readAndSubstituteTemplate(src, templateVars));
             continue;
         }

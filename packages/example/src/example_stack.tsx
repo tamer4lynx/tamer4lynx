@@ -509,7 +509,18 @@ function StackScreenChrome({
         foregroundColor="#fff"
         style={{ backgroundColor }}
       />
-      <scroll-view style={{ flex: 1, padding: '48rpx' }}>{children}</scroll-view>
+      <scroll-view
+        scroll-y
+        style={{
+          flex: 1,
+          minHeight: '0px',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '48rpx',
+        }}
+      >
+        {children}
+      </scroll-view>
     </SafeArea>
   )
 }

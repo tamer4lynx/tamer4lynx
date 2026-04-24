@@ -183,8 +183,25 @@ function NavScreenDirectTest() {
   return (
     <>
       <Screen style={{ backgroundColor: '#121212' }}>
-        <SafeArea style={{ backgroundColor: '#121212' }} edges={['top', 'bottom', 'left', 'right']}>
-          <scroll-view style={{ padding: '48rpx' }}>
+        <SafeArea
+          style={{
+            backgroundColor: '#121212',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+          edges={['top', 'bottom', 'left', 'right']}
+        >
+          <scroll-view
+            scroll-y
+            style={{
+              flex: 1,
+              minHeight: '0px',
+              display: 'flex',
+              flexDirection: 'column',
+              padding: '48rpx',
+            }}
+          >
             <text style={{ color: '#fff', fontSize: '44rpx', fontWeight: 'bold', marginBottom: '16rpx' }}>
               nav-screen DIRECT test
             </text>
@@ -226,7 +243,16 @@ function NavScreenDirectTest() {
           <text style={{ fontSize: '40rpx', fontWeight: 'bold', color: '#fff', marginBottom: '24rpx', marginLeft: '48rpx' }}>
             Screen E
           </text>
-          <scroll-view style={{ padding: '48rpx' }}>
+          <scroll-view
+            scroll-y
+            style={{
+              flex: 1,
+              minHeight: '0px',
+              display: 'flex',
+              flexDirection: 'column',
+              padding: '48rpx',
+            }}
+          >
             <view bindtap={toggleE} style={{ ...btn, backgroundColor: '#c62828' }}>
               <text style={{ color: '#fff', fontSize: '32rpx', fontWeight: 'bold' }}>Close E</text>
             </view>
@@ -242,11 +268,28 @@ function NavScreenDirectTest() {
         nav-transition="fade"
       >
         <InsetsDebug />
-        <SafeArea style={{ backgroundColor: '#311B92', height: '100%' }} edges={['top', 'bottom', 'left', 'right']}>
+        <SafeArea
+          style={{
+            backgroundColor: '#311B92',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+          edges={['top', 'bottom', 'left', 'right']}
+        >
           <text style={{ fontSize: '40rpx', fontWeight: 'bold', color: '#fff', marginBottom: '24rpx', marginLeft: '48rpx' }}>
             Screen D
           </text>
-          <scroll-view style={{ padding: '48rpx' }}>
+          <scroll-view
+            scroll-y
+            style={{
+              flex: 1,
+              minHeight: '0px',
+              display: 'flex',
+              flexDirection: 'column',
+              padding: '48rpx',
+            }}
+          >
             <view bindtap={toggleD} style={{ ...btn, backgroundColor: '#c62828' }}>
               <text style={{ color: '#fff', fontSize: '32rpx', fontWeight: 'bold' }}>Close D</text>
             </view>
@@ -262,11 +305,28 @@ function NavScreenDirectTest() {
         nav-transition="slide-left"
       >
         <InsetsDebug />
-        <SafeArea style={{ backgroundColor: '#1a237e', height: '100%' }} edges={['top', 'bottom', 'left', 'right']}>
+        <SafeArea
+          style={{
+            backgroundColor: '#1a237e',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+          edges={['top', 'bottom', 'left', 'right']}
+        >
           <text style={{ fontSize: '40rpx', fontWeight: 'bold', color: '#fff', marginBottom: '24rpx', marginLeft: '48rpx' }}>
             Screen C
           </text>
-          <scroll-view style={{ padding: '48rpx' }}>
+          <scroll-view
+            scroll-y
+            style={{
+              flex: 1,
+              minHeight: '0px',
+              display: 'flex',
+              flexDirection: 'column',
+              padding: '48rpx',
+            }}
+          >
             <view bindtap={toggleC} style={{ ...btn, backgroundColor: '#c62828' }}>
               <text style={{ color: '#fff', fontSize: '32rpx', fontWeight: 'bold' }}>Close C</text>
             </view>
@@ -282,11 +342,28 @@ function NavScreenDirectTest() {
         nav-transition="slide-up"
       >
         <InsetsDebug />
-        <SafeArea style={{ backgroundColor: '#2e1e1e', height: '100%' }} edges={['top', 'bottom', 'left', 'right']}>
+        <SafeArea
+          style={{
+            backgroundColor: '#2e1e1e',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+          edges={['top', 'bottom', 'left', 'right']}
+        >
           <text style={{ fontSize: '40rpx', fontWeight: 'bold', color: '#fff', marginBottom: '24rpx', marginLeft: '48rpx' }}>
             Screen B
           </text>
-          <scroll-view style={{ padding: '48rpx' }}>
+          <scroll-view
+            scroll-y
+            style={{
+              flex: 1,
+              minHeight: '0px',
+              display: 'flex',
+              flexDirection: 'column',
+              padding: '48rpx',
+            }}
+          >
             <view bindtap={toggleB} style={{ ...btn, backgroundColor: '#c62828', marginBottom: 0 }}>
               <text style={{ color: '#fff', fontSize: '32rpx', fontWeight: 'bold' }}>Close B</text>
             </view>
@@ -300,12 +377,29 @@ function NavScreenDirectTest() {
         visible={showA}
         nav-transition="slide-right"
       >
-        <SafeArea style={{ backgroundColor: '#2e1e1e' }} edges={['top', 'bottom', 'left', 'right']}>
+        <SafeArea
+          style={{
+            backgroundColor: '#2e1e1e',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+          edges={['top', 'bottom', 'left', 'right']}
+        >
           <InsetsDebug />
           <text style={{ fontSize: '40rpx', fontWeight: 'bold', color: '#fff', marginBottom: '24rpx', marginLeft: '48rpx' }}>
             Screen A
           </text>
-          <scroll-view style={{ padding: '48rpx' }}>
+          <scroll-view
+            scroll-y
+            style={{
+              flex: 1,
+              minHeight: '0px',
+              display: 'flex',
+              flexDirection: 'column',
+              padding: '48rpx',
+            }}
+          >
             <view bindtap={toggleA} style={{ ...btn, backgroundColor: '#c62828' }}>
               <text style={{ color: '#fff', fontSize: '32rpx', fontWeight: 'bold' }}>Close A</text>
             </view>
