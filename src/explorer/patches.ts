@@ -334,16 +334,7 @@ import com.nanofuxion.tamerdevclient.DevClientDebugPanel
 import com.nanofuxion.tamerdevclient.DevClientModule`
     : "";
 
-  const projectInstallNativeStack = `    private fun installNativeNavHost() {
-        com.nanofuxion.tamernavigation.stack.TamerNavHost.spokeBuilder = { ctx ->
-            val viewBuilder = LynxViewBuilder()
-            viewBuilder.setTemplateProvider(TemplateProvider(ctx))
-            GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
-            viewBuilder.build(ctx)
-        }
-    }
-
-`;
+  const projectInstallNativeStack = "";
 
   const reloadMethod = hasDevClient
     ? `
@@ -400,7 +391,6 @@ ${devClientField}    private val handler = Handler(Looper.getMainLooper())
         GeneratedActivityLifecycle.onCreate(intent)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
-        installNativeNavHost()
         lynxView = buildLynxView()
         setContentView(lynxView)
         GeneratedActivityLifecycle.onViewAttached(lynxView)
@@ -498,7 +488,6 @@ class ProjectActivity : AppCompatActivity() {
         GeneratedActivityLifecycle.onCreate(intent)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
-        installNativeNavHost()
         lynxView = buildLynxView()
         setContentView(lynxView)
         GeneratedActivityLifecycle.onViewAttached(lynxView)
@@ -563,15 +552,6 @@ class ProjectActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
-    private fun installNativeNavHost() {
-        TamerNavHost.spokeBuilder = { ctx ->
-            val viewBuilder = LynxViewBuilder()
-            viewBuilder.setTemplateProvider(TemplateProvider(ctx))
-            GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
-            viewBuilder.build(ctx)
-        }
-    }
-
     private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
         viewBuilder.setTemplateProvider(TemplateProvider(this))
@@ -607,16 +587,7 @@ import com.google.zxing.integration.android.IntentIntegrator
 import com.nanofuxion.tamerdevclient.DevClientModule
 `
     : "";
-  const mainInstallNativeStack = `    private fun installNativeNavHost() {
-        com.nanofuxion.tamernavigation.stack.TamerNavHost.spokeBuilder = { ctx ->
-            val viewBuilder = LynxViewBuilder()
-            viewBuilder.setTemplateProvider(TemplateProvider(ctx))
-            GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
-            viewBuilder.build(ctx)
-        }
-    }
-
-`;
+  const mainInstallNativeStack = "";
   const devClientInit = hasDevClient
     ? `
         DevClientModule.attachHostActivity(this)
@@ -736,7 +707,6 @@ ${devClientField}    private var lynxView: LynxView? = null${!hasDevClient ? '\n
         GeneratedActivityLifecycle.onCreate(intent)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
-        installNativeNavHost()
         lynxView = buildLynxView()
         setContentView(lynxView)
         GeneratedActivityLifecycle.onViewAttached(lynxView)
@@ -809,7 +779,6 @@ class LynxPushActivity : AppCompatActivity() {
         GeneratedActivityLifecycle.onCreate(intent)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
-        installNativeNavHost()
         val initDataJson = intent.getStringExtra(EXTRA_INIT_DATA) ?: ""
         val launchUrl = intent.getStringExtra(EXTRA_LAUNCH_URL)
         if (!launchUrl.isNullOrBlank()) {
@@ -862,15 +831,6 @@ class LynxPushActivity : AppCompatActivity() {
             if (!consumed) {
                 runOnUiThread { super.onBackPressed() }
             }
-        }
-    }
-
-    private fun installNativeNavHost() {
-        com.nanofuxion.tamernavigation.stack.TamerNavHost.spokeBuilder = { ctx ->
-            val viewBuilder = LynxViewBuilder()
-            viewBuilder.setTemplateProvider(TemplateProvider(ctx))
-            GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
-            viewBuilder.build(ctx)
         }
     }
 
