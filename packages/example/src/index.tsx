@@ -1,11 +1,12 @@
-import '@lynx-js/react/debug'
-import '@tamer4lynx/tamer-transports/lynx'
-import { root } from '@lynx-js/react'
-import Stack from './Stack.jsx'
-import ExampleStack from './example_stack.jsx'
+import "url-search-params-polyfill";
+import "@lynx-js/react/debug";
+import "@tamer4lynx/tamer-transports/lynx";
+import { root } from "@lynx-js/react";
+import Stack from "./Stack.jsx";
+import ExampleStack from "./example_stack.jsx";
 
-import { FileRouterApp } from './file-router-app.js'
-const testExample: number = 1
+import { FileRouterApp } from "./file-router-app.js";
+const testExample: number = -1;
 
 let component: JSX.Element;
 
@@ -24,5 +25,5 @@ switch (testExample) {
 root.render(component as JSX.Element);
 
 if (import.meta.webpackHot) {
-  import.meta.webpackHot.accept()
+  import.meta.webpackHot.accept();
 }

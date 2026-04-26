@@ -1,16 +1,13 @@
-import { FileRouter } from '@tamer4lynx/tamer-router';
-import RootNavigator, { tamerLinking } from '@tamer4lynx/tamer-router/generated-routes';
-
-import { useExamplePalette } from './examplePalette.js';
+import { TamerStateSyncProvider, FileRouter } from '@tamer4lynx/tamer-router'
+import './tamer-app-routes.js'
+import { demoTamerStateSync } from './demo-tamer-state.js'
+import { useExamplePalette } from './examplePalette.js'
 
 export function FileRouterApp() {
-  const p = useExamplePalette();
+  useExamplePalette()
   return (
-    <FileRouter
-      routes={RootNavigator}
-      linking={tamerLinking}
-      rootBackgroundColor={p.background}
-      overlayBackgroundColor={p.surface}
-    />
-  );
+    <TamerStateSyncProvider syncs={[demoTamerStateSync]}>
+      <FileRouter />
+    </TamerStateSyncProvider>
+  )
 }

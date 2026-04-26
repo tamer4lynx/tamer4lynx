@@ -2,20 +2,6 @@ import * as Lynx from "@lynx-js/types";
 
 declare module "@lynx-js/types" {
   interface IntrinsicElements extends Lynx.IntrinsicElements {
-    "nav-screen": Lynx.ViewProps & {
-      "screen-id": string;
-      visible?: boolean;
-      "nav-transition"?:
-        | "slide-right"
-        | "slide-left"
-        | "slide-up"
-        | "slide-down"
-        | "fade"
-        | "none";
-      "bottom-inset"?: number;
-      "stack-order"?: number;
-      "android-set-soft-input-mode"?: "unspecified" | "nothing" | "pan" | "resize";
-    };
     svg: {
       content?: string;
       src?: string;

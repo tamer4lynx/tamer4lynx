@@ -11,8 +11,8 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@tamer4lynx/tamer-router/generated-routes": [
-        "node_modules/.tamer-router/_generated_routes.tsx"
+      "@tamer4lynx/tamer-router": [
+        "../tamer-router/src/index.ts"
       ],
       "@tamer4lynx/tamer-auth": [
         "../tamer-auth/src/index.ts"

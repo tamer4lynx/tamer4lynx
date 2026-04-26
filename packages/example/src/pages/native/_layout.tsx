@@ -18,7 +18,7 @@ export default function DevLayout() {
   }, [p.barBackground, p.theme?.isDark, setStatusBar, setNavigationBar]);
 
   return (
-    <Stack>
+    <Stack pathPrefix="/native">
       <Stack.Screen
         name="index"
         options={{ title: 'Native Tests' }}
@@ -46,6 +46,10 @@ export default function DevLayout() {
       <Stack.Screen
         name="transports"
         options={{ title: 'tamer-transports' }}
+      />
+      <Stack.Screen
+        name="details"
+        options={{ title: 'Inner stack' }}
       />
     </Stack>
   );

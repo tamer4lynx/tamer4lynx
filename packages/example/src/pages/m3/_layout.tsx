@@ -16,7 +16,7 @@ export default function M3Layout() {
   );
 
   return (
-    <Stack>
+    <Stack pathPrefix="/m3">
       <Stack.Screen
         name="index"
         options={{ title: 'M3 Components' }}

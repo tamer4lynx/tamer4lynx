@@ -287,6 +287,13 @@ import tamerinsets
 import tamernavigation
 #endif
 
+private enum TamerNavLynxRuntime {
+    static let sharedGroup: LynxGroup = {
+        let option = LynxGroupOption()
+        return LynxGroup(name: "TamerNav", with: option)
+    }()
+}
+
 class ViewController: UIViewController {
     private var lynxView: LynxView?
 
@@ -323,6 +330,9 @@ class ViewController: UIViewController {
     private func buildLynxView() -> LynxView {
         let bounds = view.bounds
         let lv = LynxView { builder in
+#if canImport(tamernavigation)
+            builder.group = TamerNavLynxRuntime.sharedGroup
+#endif
             builder.config = LynxConfig(provider: LynxProvider())
             builder.screenSize = bounds.size
             builder.fontScale = 1.0
