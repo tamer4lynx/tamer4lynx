@@ -1,48 +1,48 @@
-import { useState } from '@lynx-js/react';
+import { useState } from "@lynx-js/react";
 import {
   Button,
   Fab,
   NavigationDrawer,
   NavigationRail,
   px,
-} from '@tamer4lynx/tamer-app-shell';
-import { useScreenOptions } from '@tamer4lynx/tamer-router';
-import { pageShellStyle, useExamplePalette } from '../../examplePalette.js';
+} from "@tamer4lynx/tamer-app-shell";
+import { useScreenOptions } from "@tamer4lynx/tamer-router";
+import { pageShellStyle, useExamplePalette } from "../../examplePalette.js";
 
 const DRAWER_SECTIONS = [
   {
     items: [
-      { icon: 'inbox', label: 'Inbox', value: 'inbox', badge: '24' },
-      { icon: 'send', label: 'Sent', value: 'sent' },
-      { icon: 'drafts', label: 'Drafts', value: 'drafts', badge: '3' },
+      { icon: "inbox", label: "Inbox", value: "inbox", badge: "24" },
+      { icon: "send", label: "Sent", value: "sent" },
+      { icon: "drafts", label: "Drafts", value: "drafts", badge: "3" },
     ],
   },
   {
-    title: 'Labels',
+    title: "Labels",
     items: [
-      { icon: 'label', label: 'Work', value: 'work' },
-      { icon: 'label', label: 'Personal', value: 'personal' },
-      { icon: 'label', label: 'Travel', value: 'travel' },
+      { icon: "label", label: "Work", value: "work" },
+      { icon: "label", label: "Personal", value: "personal" },
+      { icon: "label", label: "Travel", value: "travel" },
     ],
   },
 ];
 
 const RAIL_ITEMS = [
-  { icon: 'home', label: 'Home', value: 'home' },
-  { icon: 'search', label: 'Search', value: 'search', badge: '3' },
-  { icon: 'favorite', label: 'Saved', value: 'saved', dot: true },
-  { icon: 'person', label: 'Profile', value: 'profile' },
+  { icon: "home", label: "Home", value: "home" },
+  { icon: "search", label: "Search", value: "search", badge: "3" },
+  { icon: "favorite", label: "Saved", value: "saved", dot: true },
+  { icon: "person", label: "Profile", value: "profile" },
 ];
 
 export default function NavDemo() {
-  useScreenOptions({ title: 'Navigation' });
+  useScreenOptions({ title: "Navigation" });
   const p = useExamplePalette();
   const border =
-    p.theme?.isDark !== false ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
+    p.theme?.isDark !== false ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
 
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerSelected, setDrawerSelected] = useState('inbox');
-  const [railSelected, setRailSelected] = useState('home');
+  const [drawerSelected, setDrawerSelected] = useState("inbox");
+  const [railSelected, setRailSelected] = useState("home");
 
   const closeDrawerAfterSelection = (value: string) => {
     setDrawerSelected(value);
@@ -53,23 +53,20 @@ export default function NavDemo() {
 
   return (
     <>
-      <scroll-view
-        scroll-y
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          flexGrow: 1,
-          minHeight: '100%',
-          padding: px(16),
-          paddingBottom: px(24),
-        }}
-      >
-        <view style={{ display: 'flex', flexDirection: 'column' }}>
+      <view style={pageShellStyle(p.background)}>
+        <view
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            padding: px(16),
+            paddingBottom: px(24),
+          }}
+        >
           {/* ── Navigation Drawer ── */}
           <text
             style={{
               fontSize: px(12),
-              fontWeight: '500',
+              fontWeight: "500",
               color: p.onSurfaceVariant,
               marginBottom: px(12),
             }}
@@ -83,7 +80,7 @@ export default function NavDemo() {
               borderRadius: px(12),
               padding: px(16),
               marginBottom: px(12),
-              borderWidth: '1px',
+              borderWidth: "1px",
               borderColor: border,
             }}
           >
@@ -118,7 +115,7 @@ export default function NavDemo() {
           <text
             style={{
               fontSize: px(12),
-              fontWeight: '500',
+              fontWeight: "500",
               color: p.onSurfaceVariant,
               marginBottom: px(12),
               marginTop: px(4),
@@ -131,14 +128,14 @@ export default function NavDemo() {
             style={{
               backgroundColor: p.surfaceContainer,
               borderRadius: px(12),
-              borderWidth: '1px',
+              borderWidth: "1px",
               borderColor: border,
-              overflow: 'hidden',
+              overflow: "hidden",
               marginBottom: px(12),
             }}
           >
             <view
-              style={{ display: 'flex', flexDirection: 'row', height: px(420) }}
+              style={{ display: "flex", flexDirection: "row", height: px(420) }}
             >
               {/* Rail */}
               <NavigationRail
@@ -149,7 +146,7 @@ export default function NavDemo() {
                 style={{ backgroundColor: p.surfaceContainer }}
                 colors={{
                   indicator:
-                    p.secondaryContainer ?? 'var(--m3-secondary-container)',
+                    p.secondaryContainer ?? "var(--m3-secondary-container)",
                   inactiveIcon: p.onSurfaceVariant,
                   inactiveLabel: p.onSurfaceVariant,
                 }}
@@ -157,29 +154,29 @@ export default function NavDemo() {
               <view
                 style={{
                   flex: 1,
-                  minWidth: '0px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  minWidth: "0px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                   backgroundColor: p.surface,
                 }}
               >
                 <view
                   style={{
                     width: px(180),
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
                   }}
                 >
                   <text
                     style={{
                       width: px(180),
                       fontSize: px(16),
-                      fontWeight: '500',
+                      fontWeight: "500",
                       color: p.onSurface,
-                      textAlign: 'center',
-                      whiteSpace: 'nowrap',
+                      textAlign: "center",
+                      whiteSpace: "nowrap",
                     }}
                   >
                     {railSelected}
@@ -191,7 +188,7 @@ export default function NavDemo() {
                       color: p.onSurfaceVariant,
                       marginTop: px(4),
                       lineHeight: px(16),
-                      textAlign: 'center',
+                      textAlign: "center",
                     }}
                   >
                     Tap rail items to switch sections
@@ -205,14 +202,14 @@ export default function NavDemo() {
             style={{
               backgroundColor: p.surfaceContainer,
               borderRadius: px(12),
-              borderWidth: '1px',
+              borderWidth: "1px",
               borderColor: border,
-              overflow: 'hidden',
+              overflow: "hidden",
               marginBottom: px(12),
             }}
           >
             <view
-              style={{ display: 'flex', flexDirection: 'row', height: px(420) }}
+              style={{ display: "flex", flexDirection: "row", height: px(420) }}
             >
               <NavigationRail
                 expanded
@@ -224,9 +221,9 @@ export default function NavDemo() {
                     style={{
                       width: px(24),
                       height: px(24),
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
                   >
                     <icon
@@ -240,7 +237,7 @@ export default function NavDemo() {
                 style={{ backgroundColor: p.surfaceContainer }}
                 colors={{
                   indicator:
-                    p.secondaryContainer ?? 'var(--m3-secondary-container)',
+                    p.secondaryContainer ?? "var(--m3-secondary-container)",
                   inactiveIcon: p.onSurfaceVariant,
                   inactiveLabel: p.onSurfaceVariant,
                 }}
@@ -248,29 +245,29 @@ export default function NavDemo() {
               <view
                 style={{
                   flex: 1,
-                  minWidth: '0px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  minWidth: "0px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                   backgroundColor: p.surface,
                 }}
               >
                 <view
                   style={{
                     width: px(180),
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
                   }}
                 >
                   <text
                     style={{
                       width: px(180),
                       fontSize: px(16),
-                      fontWeight: '500',
+                      fontWeight: "500",
                       color: p.onSurface,
-                      textAlign: 'center',
-                      whiteSpace: 'nowrap',
+                      textAlign: "center",
+                      whiteSpace: "nowrap",
                     }}
                   >
                     Expanded rail
@@ -282,7 +279,7 @@ export default function NavDemo() {
                       color: p.onSurfaceVariant,
                       marginTop: px(4),
                       lineHeight: px(16),
-                      textAlign: 'center',
+                      textAlign: "center",
                     }}
                   >
                     Rail items can expand into left-aligned rows.
@@ -294,7 +291,7 @@ export default function NavDemo() {
 
           <view style={{ height: px(24) }} />
         </view>
-      </scroll-view>
+      </view>
       <NavigationDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
@@ -307,7 +304,7 @@ export default function NavDemo() {
           onSurface: p.onSurface,
           onSurfaceVariant: p.onSurfaceVariant,
           selectedContainer:
-            p.secondaryContainer ?? 'var(--m3-secondary-container)',
+            p.secondaryContainer ?? "var(--m3-secondary-container)",
         }}
       />
     </>

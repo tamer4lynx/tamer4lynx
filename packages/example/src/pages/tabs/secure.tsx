@@ -7,7 +7,7 @@ import { getItemAsync, setItemAsync } from '@tamer4lynx/tamer-secure-store';
 
 import '../../App.css';
 
-import { Button } from '@tamer4lynx/tamer-app-shell';
+import { Button, px } from '@tamer4lynx/tamer-app-shell';
 import { pageShellStyle, useExamplePalette } from '../../examplePalette.js';
 
 const FLAG_KEY = 'secure-number-exists';
@@ -105,14 +105,14 @@ export default function SecurePage() {
   return (
     <view
       style={{
-        padding: 24,
+        padding: px(24),
         flex: 1,
-        gap: 24,
+        gap: px(24),
       }}
     >
       <text
         className="Description"
-        style={{ marginBottom: 16, color: p.onSurface }}
+        style={{ marginBottom: px(16), color: p.onSurface }}
       >
         Store a random number with biometric protection.
       </text>
@@ -125,9 +125,9 @@ export default function SecurePage() {
       {error && (
         <view
           style={{
-            padding: 16,
+            padding: px(16),
             backgroundColor: 'rgba(239,68,68,0.15)',
-            borderRadius: 8,
+            borderRadius: px(8),
           }}
         >
           <text className="Description" style={{ color: '#f87171' }}>
@@ -143,10 +143,10 @@ export default function SecurePage() {
       )}
 
       {hasNumber === false && (
-        <view style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <view style={{ display: 'flex', flexDirection: 'column', gap: px(24) }}>
           <text
             className="Description"
-            style={{ marginBottom: 8, color: p.onSurface }}
+            style={{ marginBottom: px(8), color: p.onSurface }}
           >
             No number saved yet.
           </text>
@@ -161,7 +161,7 @@ export default function SecurePage() {
       )}
 
       {hasNumber === true && (
-        <view style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <view style={{ display: 'flex', flexDirection: 'column', gap: px(24) }}>
           <view
             style={{
               padding: '4px 24px',

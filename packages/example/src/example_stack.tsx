@@ -435,7 +435,7 @@ function SharedStatePanel({
         style={{
           ...BUTTON_STYLE,
           backgroundColor: '#2E7D32',
-          marginBottom: 0,
+          marginBottom: '0px',
         }}
       >
         <text style={{ color: '#fff', fontSize: '28rpx', fontWeight: 'bold' }}>
@@ -469,7 +469,7 @@ function PeerStackButtons({
             style={{
               ...BUTTON_STYLE,
               backgroundColor: meta.color,
-              marginBottom: index === peers.length - 1 ? 0 : BUTTON_STYLE.marginBottom,
+              marginBottom: index === peers.length - 1 ? '0px' : BUTTON_STYLE.marginBottom,
             }}
           >
             <text

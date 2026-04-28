@@ -68,8 +68,18 @@ export function pageShellStyle(surface: string) {
   return {
     display: 'flex' as const,
     flexDirection: 'column' as const,
-    height: '100%',
-    minHeight: 0,
+    minHeight: '0px',
+    width: '100%',
     backgroundColor: surface,
+  };
+}
+
+export function pageSlotStyle(surface: string) {
+  return {
+    ...pageShellStyle(surface),
+    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: '0px',
   };
 }

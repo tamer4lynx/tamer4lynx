@@ -104,49 +104,53 @@ export default function DevIndex() {
   return (
     <view
       style={{
-        flex: 1,
-        minHeight: "100%",
-        display: "flex",
-        flexDirection: "column",
-        padding: px(32),
-        gap: px(24),
+        ...pageShellStyle(p.surface),
       }}
     >
-      <NativeMenuCard
-        title="tamer-linking"
-        subtitle="createURL, getInitialURL, addEventListener"
-        onTap={goLinking}
-      />
-      <NativeMenuCard
-        title="tamer-display-browser"
-        subtitle="openBrowserAsync, openAuthSessionAsync"
-        onTap={goBrowser}
-      />
-      <NativeMenuCard
-        title="OAuth"
-        subtitle="Authorization code flow"
-        onTap={goAuth}
-      />
-      <NativeMenuCard
-        title="Storage"
-        subtitle="Local storage"
-        onTap={goStorage}
-      />
-      <NativeMenuCard
-        title="tamer-webview (webview)"
-        subtitle="Embedded WKWebView / WebView"
-        onTap={goWebView}
-      />
-      <NativeMenuCard
-        title="tamer-transports"
-        subtitle="fetch, WebSocket, EventSource"
-        onTap={goTransports}
-      />
-      <NativeMenuCard
-        title="Router inner stack"
-        subtitle="Same _layout chain: edit without extra native push; provider bridge"
-        onTap={goInnerStackDemo}
-      />
+      <view
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          padding: px(32),
+          gap: px(24),
+        }}
+      >
+        <NativeMenuCard
+          title="tamer-linking"
+          subtitle="createURL, getInitialURL, addEventListener"
+          onTap={goLinking}
+        />
+        <NativeMenuCard
+          title="tamer-display-browser"
+          subtitle="openBrowserAsync, openAuthSessionAsync"
+          onTap={goBrowser}
+        />
+        <NativeMenuCard
+          title="OAuth"
+          subtitle="Authorization code flow"
+          onTap={goAuth}
+        />
+        <NativeMenuCard
+          title="Storage"
+          subtitle="Local storage"
+          onTap={goStorage}
+        />
+        <NativeMenuCard
+          title="tamer-webview (webview)"
+          subtitle="Embedded WKWebView / WebView"
+          onTap={goWebView}
+        />
+        <NativeMenuCard
+          title="tamer-transports"
+          subtitle="fetch, WebSocket, EventSource"
+          onTap={goTransports}
+        />
+        <NativeMenuCard
+          title="Router inner stack"
+          subtitle="Same _layout chain: edit without extra native push; provider bridge"
+          onTap={goInnerStackDemo}
+        />
+      </view>
     </view>
   );
 }

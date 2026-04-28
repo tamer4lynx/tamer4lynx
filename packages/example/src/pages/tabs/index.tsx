@@ -2,7 +2,7 @@ import { useCallback, useState } from '@lynx-js/react';
 import { useTamerRouter } from '@tamer4lynx/tamer-router';
 import '@tamer4lynx/tamer-icons';
 
-import { Button } from '@tamer4lynx/tamer-app-shell';
+import { Button, px } from '@tamer4lynx/tamer-app-shell';
 import '../../App.css';
 import lynxLogo from '../../assets/lynx-logo.png?inline';
 import reactLynxLogo from '../../assets/react-logo.png?inline';
@@ -94,7 +94,7 @@ export default function Home() {
             display: 'flex',
             backgroundColor: '#dd7777',
             flexDirection: 'row',
-            gap: 16,
+            gap: px(16),
             justifyContent: 'center',
             alignItems: 'center',
           }}

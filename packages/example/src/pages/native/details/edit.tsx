@@ -1,46 +1,101 @@
-import { useCallback } from '@lynx-js/react';
-import { px } from '@tamer4lynx/tamer-app-shell';
+import { useCallback } from "@lynx-js/react";
+import { px } from "@tamer4lynx/tamer-app-shell";
 import {
   sendTamerState,
   useTamerNavigate,
   useTamerStateSnapshot,
-} from '@tamer4lynx/tamer-router';
+} from "@tamer4lynx/tamer-router";
+import { useRecoilState } from "recoil";
 
-import { pageShellStyle, useExamplePalette } from '../../../examplePalette.js';
+import {
+  detailsRecoilAtom,
+  dispatchDetailsRecoilMutation,
+  type DetailsRecoilState,
+} from "../../../details-recoil-state.js";
+import { pageShellStyle, useExamplePalette } from "../../../examplePalette.js";
 
 type DemoSnap = { count?: number } | undefined;
+type DetailsRecoilSnap = Partial<DetailsRecoilState> | undefined;
 
 export default function NativeDetailEdit() {
   const p = useExamplePalette();
   const { back } = useTamerNavigate();
-  const demo = useTamerStateSnapshot('demo') as DemoSnap;
-  const count = typeof demo?.count === 'number' ? demo.count : 0;
+  const demo = useTamerStateSnapshot("demo") as DemoSnap;
+  const detailsSnapshot = useTamerStateSnapshot(
+    "detailsRecoil",
+  ) as DetailsRecoilSnap;
+  const [detailsRecoil, setDetailsRecoil] = useRecoilState(detailsRecoilAtom);
+  const count = typeof demo?.count === "number" ? demo.count : 0;
+  const snapshotCount =
+    typeof detailsSnapshot?.count === "number" ? detailsSnapshot.count : 0;
 
   const goBack = useCallback(() => {
-    'background only';
+    "background only";
     back();
   }, [back]);
 
   const inc = useCallback(() => {
-    'background only';
-    sendTamerState('demo', { type: 'demo/inc' });
+    "background only";
+    sendTamerState("demo", { type: "demo/inc" });
+  }, []);
+
+  const incLocalRecoil = useCallback(() => {
+    "background only";
+    setDetailsRecoil((prev) => ({
+      ...prev,
+      count: prev.count + 1,
+      note: "edit",
+      updatedBy: "edit-local-recoil",
+    }));
+  }, [setDetailsRecoil]);
+
+  const incRouterSync = useCallback(() => {
+    "background only";
+    sendTamerState("detailsRecoil", {
+      type: "details/inc",
+      source: "edit-sendTamerState",
+    });
+  }, []);
+
+  const incCoordinatorViaNav = useCallback(() => {
+    "background only";
+    dispatchDetailsRecoilMutation("edit-TamerNav.dispatch");
   }, []);
 
   const onTapGoBack = useCallback(() => {
-    'background only';
+    "background only";
     goBack();
   }, [goBack]);
 
   const onTapInc = useCallback(() => {
-    'background only';
+    "background only";
     inc();
   }, [inc]);
 
   return (
     <scroll-view scroll-y style={pageShellStyle(p.background)}>
-      <view style={{ padding: px(20), gap: px(12), display: 'flex', flexDirection: 'column' }}>
-        <text style={{ color: p.onSurface, fontSize: px(18), fontWeight: '600' }}>Edit</text>
-        <text style={{ color: p.onSurfaceVariant, fontSize: px(14) }}>Demo count: {count}</text>
+      <view
+        style={{
+          padding: px(20),
+          gap: px(12),
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <text
+          style={{ color: p.onSurface, fontSize: px(18), fontWeight: "600" }}
+        >
+          Edit
+        </text>
+        <text style={{ color: p.onSurfaceVariant, fontSize: px(14) }}>
+          Demo count: {count}
+        </text>
+        <text style={{ color: p.onSurfaceVariant, fontSize: px(14) }}>
+          Recoil provider count: {detailsRecoil.count} / synced snapshot: {snapshotCount}
+        </text>
+        <text style={{ color: p.onSurfaceVariant, fontSize: px(13), lineHeight: px(18) }}>
+          Recoil note: {detailsRecoil.note} · updated by {detailsRecoil.updatedBy}
+        </text>
         <view
           flatten={false}
           native-interaction-enabled={true}
@@ -51,10 +106,13 @@ export default function NativeDetailEdit() {
             padding: px(14),
             borderRadius: px(12),
             backgroundColor: p.surface,
-            alignItems: 'center',
+            alignItems: "center",
           }}
         >
-          <text user-interaction-enabled={false} style={{ color: p.onSurface, fontSize: px(15), fontWeight: '600' }}>
+          <text
+            user-interaction-enabled={false}
+            style={{ color: p.onSurface, fontSize: px(15), fontWeight: "600" }}
+          >
             Back (inner)
           </text>
         </view>
@@ -67,12 +125,75 @@ export default function NativeDetailEdit() {
             marginTop: px(8),
             padding: px(14),
             borderRadius: px(12),
-            backgroundColor: '#555',
-            alignItems: 'center',
+            backgroundColor: "#555",
+            alignItems: "center",
           }}
         >
-          <text user-interaction-enabled={false} style={{ color: '#fff', fontSize: px(15), fontWeight: '600' }}>
+          <text
+            user-interaction-enabled={false}
+            style={{ color: "#fff", fontSize: px(15), fontWeight: "600" }}
+          >
             Inc
+          </text>
+        </view>
+        <view
+          flatten={false}
+          native-interaction-enabled={true}
+          user-interaction-enabled={true}
+          bindtap={incLocalRecoil}
+          style={{
+            marginTop: px(8),
+            padding: px(14),
+            borderRadius: px(12),
+            backgroundColor: p.surface,
+            alignItems: "center",
+          }}
+        >
+          <text
+            user-interaction-enabled={false}
+            style={{ color: p.onSurface, fontSize: px(15), fontWeight: "600" }}
+          >
+            Inc local Recoil provider
+          </text>
+        </view>
+        <view
+          flatten={false}
+          native-interaction-enabled={true}
+          user-interaction-enabled={true}
+          bindtap={incRouterSync}
+          style={{
+            marginTop: px(8),
+            padding: px(14),
+            borderRadius: px(12),
+            backgroundColor: p.surface,
+            alignItems: "center",
+          }}
+        >
+          <text
+            user-interaction-enabled={false}
+            style={{ color: p.onSurface, fontSize: px(15), fontWeight: "600" }}
+          >
+            Inc via tamer-router sync
+          </text>
+        </view>
+        <view
+          flatten={false}
+          native-interaction-enabled={true}
+          user-interaction-enabled={true}
+          bindtap={incCoordinatorViaNav}
+          style={{
+            marginTop: px(8),
+            padding: px(14),
+            borderRadius: px(12),
+            backgroundColor: "#555",
+            alignItems: "center",
+          }}
+        >
+          <text
+            user-interaction-enabled={false}
+            style={{ color: "#fff", fontSize: px(15), fontWeight: "600" }}
+          >
+            Inc via TamerNav dispatch
           </text>
         </view>
       </view>

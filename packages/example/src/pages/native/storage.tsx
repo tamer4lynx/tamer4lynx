@@ -107,20 +107,20 @@ export default function StoragePage() {
     <view
       style={{
         ...pageShellStyle(p.surface),
-        padding: 24,
-        gap: 16,
+        padding: px(24),
+        gap: px(16),
       }}
     >
       <text
         className="Description"
-        style={{ marginBottom: 16, fontSize: px(14), color: p.onSurface }}
+        style={{ marginBottom: px(16), fontSize: px(14), color: p.onSurface }}
       >
         Uses @tamer4lynx/tamer-local-storage (SharedPreferences on Android,
         UserDefaults on iOS). Web-style localStorage API.
       </text>
 
-      <view style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <text className="Hint" style={{ marginBottom: 4, fontSize: px(14), color: p.onSurface }}>
+      <view style={{ display: 'flex', flexDirection: 'column', gap: px(8) }}>
+        <text className="Hint" style={{ marginBottom: px(4), fontSize: px(14), color: p.onSurface }}>
           Key
         </text>
         <input
@@ -143,11 +143,11 @@ export default function StoragePage() {
         style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: 8,
+          gap: px(8),
           marginBottom: '16px',
         }}
       >
-        <text className="Hint" style={{ marginBottom: 4, fontSize: px(14), color: p.onSurface }}>
+        <text className="Hint" style={{ marginBottom: px(4), fontSize: px(14), color: p.onSurface }}>
           Value
         </text>
         <input
@@ -168,7 +168,7 @@ export default function StoragePage() {
 
       {error && (
         <view
-          style={{ padding: 16, backgroundColor: '#4a2222', borderRadius: 8 }}
+          style={{ padding: px(16), backgroundColor: '#4a2222', borderRadius: px(8) }}
         >
           <text className="Description" style={{ color: '#f88' }}>
             {error}
@@ -202,14 +202,14 @@ export default function StoragePage() {
 
       <view
         style={{
-          marginTop: 8,
+          marginTop: px(8),
           flex: 1,
           minHeight: '0px',
           display: 'flex',
           flexDirection: 'column',
         }}
       >
-        <text className="Hint" style={{ marginBottom: 8, color: p.onSurface }}>
+        <text className="Hint" style={{ marginBottom: px(8), color: p.onSurface }}>
           Stored items ({items.length})
         </text>
         {items.length === 0 ? (
@@ -222,7 +222,7 @@ export default function StoragePage() {
             style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: 8,
+              gap: px(8),
               flex: 1,
               minHeight: '0px',
             }}
@@ -231,7 +231,7 @@ export default function StoragePage() {
               <view
                 key={item.key}
                 style={{
-                  padding: 16,
+                  padding: px(16),
                   backgroundColor: '#1a1a1a',
                   borderRadius: '8px',
                   border: '1px solid #333',
@@ -239,11 +239,11 @@ export default function StoragePage() {
                   flexDirection: 'row',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  gap: 16,
+                  gap: px(16),
                 }}
               >
-                <view style={{ flex: 1, minWidth: 0 }}>
-                  <text className="Hint" style={{ marginBottom: 4 }}>
+                <view style={{ flex: 1, minWidth: '0px' }}>
+                  <text className="Hint" style={{ marginBottom: px(4) }}>
                     {item.key}
                   </text>
                   <text className="Description">{item.value}</text>

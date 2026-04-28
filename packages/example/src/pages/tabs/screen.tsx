@@ -18,7 +18,11 @@ function ScreenPage() {
     <view
       style={{
         flex: 1,
-        minHeight: '100%',
+        flexGrow: 1,
+        flexShrink: 1,
+        flexBasis: '0px',
+        minHeight: '0px',
+        width: '100%',
         display: 'flex',
         flexDirection: 'column',
         backgroundColor: p.surface,
@@ -27,10 +31,13 @@ function ScreenPage() {
       <scroll-view
         scroll-y
         style={{
-          flex: 1,
+          flexGrow: 1,
+          flexShrink: 1,
+          flexBasis: '0px',
           minHeight: '0px',
           display: 'flex',
           flexDirection: 'column',
+          width: '100%',
         }}
       >
         <view
@@ -202,7 +209,7 @@ function ScreenPage() {
         </view>
       </scroll-view>
 
-      <AvoidKeyboard behavior="padding" style={{ flexShrink: 0 }}>
+      <AvoidKeyboard behavior="position" style={{ flexShrink: 0 }}>
         <view
           style={{
             display: 'flex',

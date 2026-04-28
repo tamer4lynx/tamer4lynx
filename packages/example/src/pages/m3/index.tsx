@@ -6,11 +6,10 @@ import {
   ExtendedFab,
   Fab,
   FabMenu,
-  FloatingFabContainer,
   px,
 } from "@tamer4lynx/tamer-app-shell";
 import { useTamerRouter } from "@tamer4lynx/tamer-router";
-import { useExamplePalette } from "../../examplePalette.js";
+import { pageShellStyle, useExamplePalette } from "../../examplePalette.js";
 
 function SectionHeader({ title, color }: { title: string; color: string }) {
   return (
@@ -41,20 +40,14 @@ export function M3PageContent({
   return (
     <view
       style={{
-        position: "absolute",
-        display: "flex",
-        flexDirection: "column",
-        minHeight: "100vh",
-        backgroundColor: "red",
+        ...pageShellStyle(p.background),
+        position: "relative",
       }}
     >
-      <scroll-view
-        scroll-y
+      <view
         style={{
           display: "flex",
           flexDirection: "column",
-          flexGrow: 1,
-          minHeight: "100%",
           padding: px(16),
           paddingBottom: px(120),
         }}
@@ -352,10 +345,11 @@ export function M3PageContent({
             />
           </view>
         </Card>
-      </scroll-view>
+      </view>
 
       <FabMenu
         icon="add"
+        floating
         items={[
           { icon: "photo_camera", label: "Camera", onTap: () => {} },
           { icon: "image", label: "Gallery", onTap: () => {} },
