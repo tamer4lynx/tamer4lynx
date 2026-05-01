@@ -1,4 +1,5 @@
 import { TamerStateSyncProvider, FileRouter } from "@tamer4lynx/tamer-router";
+import "@tamer4lynx/tamer-icons";
 import "./tamer-app-routes.js";
 import { demoTamerStateSync } from "./demo-tamer-state.js";
 import {

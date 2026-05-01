@@ -4206,6 +4206,13 @@ import tamerinsets
 import tamernavigation
 #endif
 
+private enum TamerNavLynxRuntime {
+  static let sharedGroup: LynxGroup = {
+	let option = LynxGroupOption()
+	return LynxGroup(name: "TamerNav", with: option)
+  }()
+}
+
 class ViewController: UIViewController {
   private var lynxView: LynxView?
 
@@ -4242,6 +4249,9 @@ class ViewController: UIViewController {
   private func buildLynxView() -> LynxView {
 	let bounds = view.bounds
 	let lv = LynxView { builder in
+#if canImport(tamernavigation)
+	  builder.group = TamerNavLynxRuntime.sharedGroup
+#endif
 	  builder.config = LynxConfig(provider: LynxProvider())
 	  builder.screenSize = bounds.size
 	  builder.fontScale = 1.0
@@ -4867,6 +4877,14 @@ private func tamer_project_disableLynxLongPressMenuIfAvailable() {
     env.setValue(false, forKey: "longPressMenuEnabled")
 }
 
+/// Shared with TamerNav stack spokes (\`TamerNavHost.applySpokeBuilder\`); required for one JS context group.
+private enum TamerNavLynxRuntime {
+    static let sharedGroup: LynxGroup = {
+        let option = LynxGroupOption()
+        return LynxGroup(name: "TamerNav", with: option)
+    }()
+}
+
 class ProjectViewController: UIViewController {
     private var lynxView: LynxView?
     private var devMenuView: LynxView?
@@ -4964,6 +4982,9 @@ class ProjectViewController: UIViewController {
     private func buildLynxView() -> LynxView {
         let size = fullscreenBounds().size
         let lv = LynxView { builder in
+#if canImport(tamernavigation)
+            builder.group = TamerNavLynxRuntime.sharedGroup
+#endif
             builder.config = LynxConfig(provider: DevTemplateProvider())
             builder.screenSize = size
             builder.fontScale = 1.0
@@ -5448,6 +5469,13 @@ import tamerinsets
 import tamernavigation
 #endif
 
+private enum TamerNavLynxRuntime {
+    static let sharedGroup: LynxGroup = {
+        let option = LynxGroupOption()
+        return LynxGroup(name: "TamerNav", with: option)
+    }()
+}
+
 class ViewController: UIViewController {
     private var lynxView: LynxView?
 
@@ -5484,6 +5512,9 @@ class ViewController: UIViewController {
     private func buildLynxView() -> LynxView {
         let bounds = view.bounds
         let lv = LynxView { builder in
+#if canImport(tamernavigation)
+            builder.group = TamerNavLynxRuntime.sharedGroup
+#endif
             builder.config = LynxConfig(provider: LynxProvider())
             builder.screenSize = bounds.size
             builder.fontScale = 1.0

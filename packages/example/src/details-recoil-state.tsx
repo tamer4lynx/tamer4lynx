@@ -1,12 +1,9 @@
-import { useEffect, useRef, type ReactNode } from '@lynx-js/react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from '@lynx-js/react';
 import { TamerNav } from '@tamer4lynx/tamer-navigation';
 import {
   createTamerStateSync,
   useTamerStateSnapshot,
 } from '@tamer4lynx/tamer-router';
-import { RecoilEnv, RecoilRoot, atom, useRecoilState } from 'recoil';
-
-RecoilEnv.RECOIL_GKS_ENABLED.delete('recoil_sync_external_store');
 
 export type DetailsRecoilState = {
   count: number;
@@ -78,11 +75,10 @@ function createDetailsRecoilStore() {
 }
 
 export const detailsRecoilStore = createDetailsRecoilStore();
-
-export const detailsRecoilAtom = atom<DetailsRecoilState>({
-  key: 'tamer4lynxExampleDetailsRecoil',
-  default: DEFAULT_DETAILS_RECOIL_STATE,
-});
+const DetailsRecoilContext = createContext<{
+  value: DetailsRecoilState;
+  setValue: (next: DetailsRecoilState | ((prev: DetailsRecoilState) => DetailsRecoilState)) => void;
+} | null>(null);
 
 export const detailsRecoilTamerStateSync = createTamerStateSync(
   'detailsRecoil',
@@ -117,8 +113,24 @@ function stringifyState(value: DetailsRecoilState): string {
 
 function DetailsRecoilSyncBridge() {
   const snapshot = useTamerStateSnapshot('detailsRecoil');
-  const [value, setValue] = useRecoilState(detailsRecoilAtom);
+  const ctx = useContext(DetailsRecoilContext);
   const lastAppliedJson = useRef('');
+
+  if (!ctx) {
+    throw new Error('DetailsRecoilSyncBridge must be used inside DetailsRecoilProvider');
+  }
+
+  const { value, setValue } = ctx;
+
+  useEffect(() => {
+    return detailsRecoilStore.subscribe(() => {
+      const next = detailsRecoilStore.getState();
+      const nextJson = stringifyState(next);
+      if (nextJson === lastAppliedJson.current) return;
+      lastAppliedJson.current = nextJson;
+      setValue(next);
+    });
+  }, [setValue]);
 
   useEffect(() => {
     if (!snapshot || typeof snapshot !== 'object') return;
@@ -140,16 +152,31 @@ function DetailsRecoilSyncBridge() {
 }
 
 export function DetailsRecoilProvider({ children }: { children: ReactNode }) {
+  const [value, setValue] = useState<DetailsRecoilState>(detailsRecoilStore.getState());
+  const contextValue = useMemo(
+    () => ({
+      value,
+      setValue: (next: DetailsRecoilState | ((prev: DetailsRecoilState) => DetailsRecoilState)) => {
+        setValue((prev) => (typeof next === 'function' ? (next as (prev: DetailsRecoilState) => DetailsRecoilState)(prev) : next));
+      },
+    }),
+    [value],
+  );
+
   return (
-    <RecoilRoot
-      initializeState={({ set }) => {
-        set(detailsRecoilAtom, detailsRecoilStore.getState());
-      }}
-    >
+    <DetailsRecoilContext.Provider value={contextValue}>
       <DetailsRecoilSyncBridge />
       {children as any}
-    </RecoilRoot>
+    </DetailsRecoilContext.Provider>
   );
+}
+
+export function useDetailsRecoilState() {
+  const ctx = useContext(DetailsRecoilContext);
+  if (!ctx) {
+    throw new Error('useDetailsRecoilState must be used inside DetailsRecoilProvider');
+  }
+  return [ctx.value, ctx.setValue] as const;
 }
 
 export function dispatchDetailsRecoilMutation(source: string): void {

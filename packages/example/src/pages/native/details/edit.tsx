@@ -5,11 +5,9 @@ import {
   useTamerNavigate,
   useTamerStateSnapshot,
 } from "@tamer4lynx/tamer-router";
-import { useRecoilState } from "recoil";
-
 import {
-  detailsRecoilAtom,
   dispatchDetailsRecoilMutation,
+  useDetailsRecoilState,
   type DetailsRecoilState,
 } from "../../../details-recoil-state.js";
 import { pageShellStyle, useExamplePalette } from "../../../examplePalette.js";
@@ -24,7 +22,7 @@ export default function NativeDetailEdit() {
   const detailsSnapshot = useTamerStateSnapshot(
     "detailsRecoil",
   ) as DetailsRecoilSnap;
-  const [detailsRecoil, setDetailsRecoil] = useRecoilState(detailsRecoilAtom);
+  const [detailsRecoil, setDetailsRecoil] = useDetailsRecoilState();
   const count = typeof demo?.count === "number" ? demo.count : 0;
   const snapshotCount =
     typeof detailsSnapshot?.count === "number" ? detailsSnapshot.count : 0;
