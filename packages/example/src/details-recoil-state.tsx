@@ -1,9 +1,19 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from '@lynx-js/react';
-import { TamerNav } from '@tamer4lynx/tamer-navigation';
 import {
-  createTamerStateSync,
-  useTamerStateSnapshot,
-} from '@tamer4lynx/tamer-router';
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from '@lynx-js/react';
+import { TamerNav } from '@tamer4lynx/tamer-navigation';
+import { createTamerProviderConnector } from '@tamer4lynx/tamer-router';
+import { atom, RecoilEnv } from 'recoil';
+
+// Lynx React compat does not expose the React internals that Recoil probes for this mode.
+RecoilEnv.RECOIL_GKS_ENABLED.delete('recoil_sync_external_store');
 
 export type DetailsRecoilState = {
   count: number;
@@ -22,6 +32,16 @@ type DetailsRecoilAction =
   | { type: 'details/inc'; source?: string }
   | { type: 'details/set-note'; note?: string; source?: string };
 
+export const detailsRecoilAtom = atom<DetailsRecoilState>({
+  key: 'tamer-example-details-recoil',
+  default: DEFAULT_DETAILS_RECOIL_STATE,
+});
+
+const DetailsRecoilContext = createContext<{
+  value: DetailsRecoilState;
+  setValue: (next: DetailsRecoilState | ((prev: DetailsRecoilState) => DetailsRecoilState)) => void;
+} | null>(null);
+
 function normalizeDetailsRecoilState(value: unknown): DetailsRecoilState {
   if (!value || typeof value !== 'object') return DEFAULT_DETAILS_RECOIL_STATE;
   const raw = value as Partial<DetailsRecoilState>;
@@ -35,11 +55,28 @@ function normalizeDetailsRecoilState(value: unknown): DetailsRecoilState {
   };
 }
 
-function createDetailsRecoilStore() {
+function stringifyState(value: DetailsRecoilState): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '{}';
+  }
+}
+
+function areDetailsRecoilStatesEqual(a: DetailsRecoilState, b: DetailsRecoilState): boolean {
+  return a.count === b.count && a.note === b.note && a.updatedBy === b.updatedBy;
+}
+
+function createDetailsRecoilConnectorStore() {
   let state = DEFAULT_DETAILS_RECOIL_STATE;
   const listeners = new Set<() => void>();
   const emit = () => {
     for (const listener of listeners) listener();
+  };
+  const setState = (next: DetailsRecoilState) => {
+    if (areDetailsRecoilStatesEqual(state, next)) return;
+    state = next;
+    emit();
   };
 
   return {
@@ -53,42 +90,35 @@ function createDetailsRecoilStore() {
     dispatch: (action: unknown) => {
       const a = action as DetailsRecoilAction;
       if (a?.type === '@@tamer/HYDRATE') {
-        state = normalizeDetailsRecoilState(a.payload);
+        setState(normalizeDetailsRecoilState(a.payload));
       } else if (a?.type === 'details/inc') {
-        state = {
+        setState({
           ...state,
           count: state.count + 1,
           updatedBy: a.source ?? 'details/inc',
-        };
+        });
       } else if (a?.type === 'details/set-note') {
-        state = {
+        setState({
           ...state,
           note: typeof a.note === 'string' ? a.note : state.note,
           updatedBy: a.source ?? 'details/set-note',
-        };
-      } else {
-        return;
+        });
       }
-      emit();
     },
   };
 }
 
-export const detailsRecoilStore = createDetailsRecoilStore();
-const DetailsRecoilContext = createContext<{
-  value: DetailsRecoilState;
-  setValue: (next: DetailsRecoilState | ((prev: DetailsRecoilState) => DetailsRecoilState)) => void;
-} | null>(null);
+export const detailsRecoilConnectorStore = createDetailsRecoilConnectorStore();
 
-export const detailsRecoilTamerStateSync = createTamerStateSync(
+export const detailsRecoilProviderConnector = createTamerProviderConnector(
   'detailsRecoil',
   {
-    getState: () => detailsRecoilStore.getState(),
-    subscribe: (listener) => detailsRecoilStore.subscribe(listener),
+    getState: () => detailsRecoilConnectorStore.getState(),
+    subscribe: (listener) => detailsRecoilConnectorStore.subscribe(listener),
     hydrate: (json) => {
       'background only';
       try {
-        detailsRecoilStore.dispatch({
+        detailsRecoilConnectorStore.dispatch({
           type: '@@tamer/HYDRATE',
           payload: JSON.parse(json),
         });
@@ -98,33 +128,29 @@ export const detailsRecoilTamerStateSync = createTamerStateSync(
     },
     send: (action) => {
       'background only';
-      detailsRecoilStore.dispatch(action);
+      detailsRecoilConnectorStore.dispatch(action);
     },
   },
 );
 
-function stringifyState(value: DetailsRecoilState): string {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return '{}';
-  }
-}
-
-function DetailsRecoilSyncBridge() {
-  const snapshot = useTamerStateSnapshot('detailsRecoil');
+function DetailsRecoilConnectorBridge() {
   const ctx = useContext(DetailsRecoilContext);
   const lastAppliedJson = useRef('');
+  const skipNextProviderWrite = useRef(true);
 
   if (!ctx) {
-    throw new Error('DetailsRecoilSyncBridge must be used inside DetailsRecoilProvider');
+    throw new Error('DetailsRecoilConnectorBridge must be used inside DetailsRecoilProvider');
   }
 
   const { value, setValue } = ctx;
 
   useEffect(() => {
-    return detailsRecoilStore.subscribe(() => {
-      const next = detailsRecoilStore.getState();
+    const initial = detailsRecoilConnectorStore.getState();
+    lastAppliedJson.current = stringifyState(initial);
+    setValue(initial);
+
+    return detailsRecoilConnectorStore.subscribe(() => {
+      const next = detailsRecoilConnectorStore.getState();
       const nextJson = stringifyState(next);
       if (nextJson === lastAppliedJson.current) return;
       lastAppliedJson.current = nextJson;
@@ -133,39 +159,47 @@ function DetailsRecoilSyncBridge() {
   }, [setValue]);
 
   useEffect(() => {
-    if (!snapshot || typeof snapshot !== 'object') return;
-    const next = normalizeDetailsRecoilState(snapshot);
-    const nextJson = stringifyState(next);
-    if (nextJson === lastAppliedJson.current) return;
-    lastAppliedJson.current = nextJson;
-    setValue(next);
-  }, [snapshot, setValue]);
-
-  useEffect(() => {
+    if (skipNextProviderWrite.current) {
+      skipNextProviderWrite.current = false;
+      return;
+    }
     const valueJson = stringifyState(value);
     if (valueJson === lastAppliedJson.current) return;
     lastAppliedJson.current = valueJson;
-    detailsRecoilStore.dispatch({ type: '@@tamer/HYDRATE', payload: value });
+    detailsRecoilConnectorStore.dispatch({
+      type: '@@tamer/HYDRATE',
+      payload: value,
+    });
   }, [value]);
 
   return null;
 }
 
 export function DetailsRecoilProvider({ children }: { children: ReactNode }) {
-  const [value, setValue] = useState<DetailsRecoilState>(detailsRecoilStore.getState());
+  const [value, setValue] = useState<DetailsRecoilState>(
+    detailsRecoilConnectorStore.getState(),
+  );
+  const setConnectorValue = useCallback(
+    (next: DetailsRecoilState | ((prev: DetailsRecoilState) => DetailsRecoilState)) => {
+      setValue((prev) =>
+        typeof next === 'function'
+          ? (next as (prev: DetailsRecoilState) => DetailsRecoilState)(prev)
+          : next,
+      );
+    },
+    [],
+  );
   const contextValue = useMemo(
     () => ({
       value,
-      setValue: (next: DetailsRecoilState | ((prev: DetailsRecoilState) => DetailsRecoilState)) => {
-        setValue((prev) => (typeof next === 'function' ? (next as (prev: DetailsRecoilState) => DetailsRecoilState)(prev) : next));
-      },
+      setValue: setConnectorValue,
     }),
-    [value],
+    [setConnectorValue, value],
   );
 
   return (
     <DetailsRecoilContext.Provider value={contextValue}>
-      <DetailsRecoilSyncBridge />
+      <DetailsRecoilConnectorBridge />
       {children as any}
     </DetailsRecoilContext.Provider>
   );

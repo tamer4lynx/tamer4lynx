@@ -220,10 +220,14 @@ class ProjectViewController: UIViewController {
     private func buildLynxView() -> LynxView {
         let size = fullscreenBounds().size
         let lv = LynxView { builder in
+            let provider = DevTemplateProvider()
 #if canImport(tamernavigation)
             builder.group = TamerNavLynxRuntime.sharedGroup
 #endif
-            builder.config = LynxConfig(provider: DevTemplateProvider())
+            builder.enableGenericResourceFetcher = .true
+            builder.config = LynxConfig(provider: provider)
+            builder.templateResourceFetcher = provider
+            builder.genericResourceFetcher = provider
             builder.screenSize = size
             builder.fontScale = 1.0
         }
@@ -317,7 +321,11 @@ class ProjectViewController: UIViewController {
     private func buildDevMenuView() -> LynxView {
         let size = fullscreenBounds().size
         let lv = LynxView { builder in
-            builder.config = LynxConfig(provider: DevTemplateProvider())
+            let provider = DevTemplateProvider()
+            builder.enableGenericResourceFetcher = .true
+            builder.config = LynxConfig(provider: provider)
+            builder.templateResourceFetcher = provider
+            builder.genericResourceFetcher = provider
             builder.screenSize = size
             builder.fontScale = 1.0
         }
@@ -517,15 +525,21 @@ class DevClientManager {
     private var session: URLSession?
     private var shouldReconnect = false
     private var reconnectWorkItem: DispatchWorkItem?
+    private let bundleUrl: String?
+    private var hasSuccessfullyConnected = false
 
     private let reconnectDelay: TimeInterval = 3.0
 
-    init(onReload: @escaping () -> Void) {
+    init(bundleUrl: String? = nil, onReload: @escaping () -> Void) {
+        self.bundleUrl = bundleUrl
         self.onReload = onReload
     }
 
     func connect() {
         shouldReconnect = true
+        if let bundleUrl = bundleUrl, !bundleUrl.isEmpty {
+            DevServerPrefs.setUrl(bundleUrl)
+        }
         openSocketIfNeeded()
     }
 

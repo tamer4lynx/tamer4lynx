@@ -11,6 +11,7 @@ import {
   getProjectActivity,
   getStandaloneMainActivity,
   getTamerDevAppProjectActivity,
+  getTamerNavLynxRuntime,
 } from "../explorer/patches";
 import { getDevServerPrefs } from "../explorer/devLauncher";
 
@@ -431,6 +432,7 @@ object GeneratedLynxExtensions {
       ]);
       writeFile(path.join(javaDir, "App.java"), applicationSource);
       writeFile(path.join(javaDir, "TemplateProvider.java"), templateProviderSource);
+      writeFile(path.join(kotlinDir, "TamerNavLynxRuntime.kt"), getTamerNavLynxRuntime(vars));
       writeFile(path.join(kotlinDir, "MainActivity.kt"), getStandaloneMainActivity(vars));
       if (hasDevLauncher) {
         if (devClientPkg) {
@@ -438,6 +440,7 @@ object GeneratedLynxExtensions {
           for (const [src, dst] of [
             ["DevClientManager.kt", path.join(kotlinDir, "DevClientManager.kt")],
             ["DevServerPrefs.kt", path.join(kotlinDir, "DevServerPrefs.kt")],
+            ["TamerNavLynxRuntime.kt", path.join(kotlinDir, "TamerNavLynxRuntime.kt")],
           ] as [string, string][]) {
             const srcPath = path.join(templateDir, src);
             if (fs.existsSync(srcPath)) {

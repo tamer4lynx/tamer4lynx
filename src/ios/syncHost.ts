@@ -370,11 +370,15 @@ class ViewController: UIViewController {
 `;
 }
 
-function getDevViewControllerSwift(): string {
-    const devLauncher = fs.readFileSync(
-        path.join(__dirname, '../../packages/tamer-dev-client/ios/templates/DevLauncherViewController.swift'),
-        'utf8'
-    );
+function getDevViewControllerSwift(devClientPkg: string | null): string {
+    if (!devClientPkg) {
+        throw new Error('tamer-dev-client not found; cannot sync embedded iOS dev host.');
+    }
+    const devLauncherPath = path.join(devClientPkg, 'ios', 'templates', 'DevLauncherViewController.swift');
+    if (!fs.existsSync(devLauncherPath)) {
+        throw new Error(`DevLauncherViewController.swift template not found at ${devLauncherPath}`);
+    }
+    const devLauncher = fs.readFileSync(devLauncherPath, 'utf8');
     return devLauncher
         .replace(/class DevLauncherViewController/g, 'class ViewController');
 }
@@ -545,7 +549,7 @@ function syncHostIos(opts?: { release?: boolean; includeDevClient?: boolean }): 
         const tplVars = { PROJECT_BUNDLE_SEGMENT: segment };
 
         // ViewController = DevLauncherViewController (loads dev-client, wires DevClientModule)
-        writeFile(path.join(projectDir, 'ViewController.swift'), getDevViewControllerSwift());
+        writeFile(path.join(projectDir, 'ViewController.swift'), getDevViewControllerSwift(devClientPkg));
 
         // Keep LynxProvider.swift as simple provider (unused by DevTemplateProvider, but registered in Xcode)
         writeFile(path.join(projectDir, 'LynxProvider.swift'), getSimpleLynxProviderSwift());
@@ -559,7 +563,12 @@ function syncHostIos(opts?: { release?: boolean; includeDevClient?: boolean }): 
         }
 
         // ProjectViewController – loads main.lynx.bundle with HMR
-        const projectVCContent = getProjectViewControllerSwift();
+        const projectVCContent = readTemplateOrFallback(
+            devClientPkg,
+            'ProjectViewController.swift',
+            getProjectViewControllerSwift(),
+            tplVars
+        );
         if (projectVCContent) {
             writeFile(path.join(projectDir, 'ProjectViewController.swift'), projectVCContent);
             addSwiftSourceToXcodeProject(pbxprojPath, appName, 'ProjectViewController.swift');

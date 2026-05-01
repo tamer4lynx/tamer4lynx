@@ -10,20 +10,20 @@ import {
   useDetailsRecoilState,
   type DetailsRecoilState,
 } from "../../../details-recoil-state.js";
+import { incrementDemoStore, useDemoState } from "../../../demo-store.js";
 import { pageShellStyle, useExamplePalette } from "../../../examplePalette.js";
 
-type DemoSnap = { count?: number } | undefined;
 type DetailsRecoilSnap = Partial<DetailsRecoilState> | undefined;
 
 export default function NativeDetailEdit() {
   const p = useExamplePalette();
   const { back } = useTamerNavigate();
-  const demo = useTamerStateSnapshot("demo") as DemoSnap;
+  const demo = useDemoState();
   const detailsSnapshot = useTamerStateSnapshot(
     "detailsRecoil",
   ) as DetailsRecoilSnap;
   const [detailsRecoil, setDetailsRecoil] = useDetailsRecoilState();
-  const count = typeof demo?.count === "number" ? demo.count : 0;
+  const count = demo.count;
   const snapshotCount =
     typeof detailsSnapshot?.count === "number" ? detailsSnapshot.count : 0;
 
@@ -34,7 +34,7 @@ export default function NativeDetailEdit() {
 
   const inc = useCallback(() => {
     "background only";
-    sendTamerState("demo", { type: "demo/inc" });
+    incrementDemoStore();
   }, []);
 
   const incLocalRecoil = useCallback(() => {
@@ -86,10 +86,10 @@ export default function NativeDetailEdit() {
           Edit
         </text>
         <text style={{ color: p.onSurfaceVariant, fontSize: px(14) }}>
-          Demo count: {count}
+          Zustand singleton count: {count}
         </text>
         <text style={{ color: p.onSurfaceVariant, fontSize: px(14) }}>
-          Recoil provider count: {detailsRecoil.count} / synced snapshot: {snapshotCount}
+          Recoil connector count: {detailsRecoil.count} / snapshot: {snapshotCount}
         </text>
         <text style={{ color: p.onSurfaceVariant, fontSize: px(13), lineHeight: px(18) }}>
           Recoil note: {detailsRecoil.note} · updated by {detailsRecoil.updatedBy}
@@ -131,7 +131,7 @@ export default function NativeDetailEdit() {
             user-interaction-enabled={false}
             style={{ color: "#fff", fontSize: px(15), fontWeight: "600" }}
           >
-            Inc
+            Inc Zustand singleton
           </text>
         </view>
         <view
@@ -151,7 +151,7 @@ export default function NativeDetailEdit() {
             user-interaction-enabled={false}
             style={{ color: p.onSurface, fontSize: px(15), fontWeight: "600" }}
           >
-            Inc local Recoil provider
+            Inc local Recoil bridge
           </text>
         </view>
         <view
@@ -171,7 +171,7 @@ export default function NativeDetailEdit() {
             user-interaction-enabled={false}
             style={{ color: p.onSurface, fontSize: px(15), fontWeight: "600" }}
           >
-            Inc via tamer-router sync
+            Inc Recoil providerConnector
           </text>
         </view>
         <view
@@ -191,7 +191,7 @@ export default function NativeDetailEdit() {
             user-interaction-enabled={false}
             style={{ color: "#fff", fontSize: px(15), fontWeight: "600" }}
           >
-            Inc via TamerNav dispatch
+            Inc Recoil via TamerNav dispatch
           </text>
         </view>
       </view>

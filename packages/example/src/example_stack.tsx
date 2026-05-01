@@ -190,9 +190,10 @@ function readHydratedSharedState(): SharedState {
 }
 
 /**
- * Provider hydration contract examples:
- * - Redux: serialize the selected store slice or the full store state, then hydrate a local store.
- * - Zustand: serialize a store snapshot or slice, then apply it into a local store instance.
+ * Provider hydration contract examples for React-tree-bound or isolated state.
+ * Module-level Redux/Zustand/MobX/XState stores should usually rely on the shared LynxGroup
+ * singleton runtime instead of this JSON bridge.
+ *
  * - TanStack Query: serialize the dehydrated query cache, not the live QueryClient instance.
  * - Recoil: serialize the chosen atom/selector snapshot, then restore it into a local store wrapper.
  */

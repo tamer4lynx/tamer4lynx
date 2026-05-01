@@ -194,36 +194,190 @@ function getLoadTemplateBody(vars: PatchVars): string {
 export async function fetchAndPatchTemplateProvider(
   vars: PatchVars
 ): Promise<string> {
-  const raw = await fetchExplorerFile(EXPLORER_PROVIDER);
-  const loadBody = getLoadTemplateBody(vars);
-  const out = raw
-    .replace(/package com\.lynx\.explorer\.provider;/, `package ${vars.packageName};`)
-    .replace(/public class DemoTemplateProvider/, "public class TemplateProvider")
-    .replace(/extends AbsTemplateProvider \{/, `extends AbsTemplateProvider {
-    private final android.content.Context context;
+  const projectSegment = vars.projectRoot
+    ? vars.projectRoot.replace(/\\/g, "/").split("/").filter(Boolean).pop() ?? ""
+    : "";
+  const embeddedImports = vars.devMode === "embedded"
+    ? `import ${vars.packageName}.BuildConfig;
+import ${vars.packageName}.DevServerPrefs;
+`
+    : "";
+  const embeddedConstants = vars.devMode === "embedded"
+    ? `    private static final String DEV_CLIENT_BUNDLE = "dev-client.lynx.bundle";
+    private static final String TAMER_DEBUG_BUNDLE = "tamer-debug.lynx.bundle";
+    private static final String PROJECT_BUNDLE_SEGMENT = "${projectSegment}";
+`
+    : "";
+  const embeddedLoadBody = vars.devMode === "embedded"
+    ? `        if (isEmbeddedDevShellUrl(url)) {
+            return loadAssetBytes(url != null && url.contains(TAMER_DEBUG_BUNDLE) ? TAMER_DEBUG_BUNDLE : DEV_CLIENT_BUNDLE);
+        }
+        if (BuildConfig.DEBUG) {
+            byte[] data = loadFromDevServer(url);
+            if (data != null) return data;
+        }
+`
+    : "";
+  const embeddedHelpers = vars.devMode === "embedded"
+    ? `
+    private byte[] loadFromDevServer(String url) {
+        String devUrl = DevServerPrefs.INSTANCE.getUrl(context);
+        if (devUrl == null || devUrl.isEmpty()) return null;
+        try {
+            java.net.URL u = new java.net.URL(devUrl.trim());
+            int port = u.getPort();
+            String host = u.getHost() != null ? u.getHost() : "127.0.0.1";
+            String scheme = u.getProtocol() != null ? u.getProtocol() : "http";
+            String origin = scheme + "://" + host + (port > 0 ? ":" + port : ("http".equalsIgnoreCase(scheme) ? ":3000" : ""));
+            String configuredPath = u.getPath() != null ? u.getPath().replaceAll("/+$", "") : "";
+            String normalized = normalizeAssetPath(url);
+            java.util.ArrayList<String> candidatePaths = new java.util.ArrayList<>();
+            if (!configuredPath.isEmpty()) candidatePaths.add(configuredPath + "/" + normalized);
+            if (!PROJECT_BUNDLE_SEGMENT.isEmpty()) candidatePaths.add("/" + PROJECT_BUNDLE_SEGMENT + "/" + normalized);
+            candidatePaths.add("/" + normalized);
+            okhttp3.OkHttpClient client = new okhttp3.OkHttpClient.Builder()
+                .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                .build();
+            for (String candidatePath : candidatePaths) {
+                String fetchUrl = origin + (candidatePath.startsWith("/") ? candidatePath : "/" + candidatePath);
+                okhttp3.Request request = new okhttp3.Request.Builder().url(fetchUrl).build();
+                try (okhttp3.Response response = client.newCall(request).execute()) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        return response.body().bytes();
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    private static boolean isEmbeddedDevShellUrl(String url) {
+        if (url == null) return false;
+        return url.equals(DEV_CLIENT_BUNDLE) || url.endsWith("/" + DEV_CLIENT_BUNDLE) || url.contains(DEV_CLIENT_BUNDLE)
+            || url.equals(TAMER_DEBUG_BUNDLE) || url.endsWith("/" + TAMER_DEBUG_BUNDLE) || url.contains(TAMER_DEBUG_BUNDLE);
+    }
+`
+    : "";
+
+  return `package ${vars.packageName};
+
+${embeddedImports}import com.lynx.tasm.provider.AbsTemplateProvider;
+import com.lynx.tasm.resourceprovider.LynxResourceCallback;
+import com.lynx.tasm.resourceprovider.LynxResourceRequest;
+import com.lynx.tasm.resourceprovider.LynxResourceResponse;
+import com.lynx.tasm.resourceprovider.LynxResourceResponse.ResponseState;
+import com.lynx.tasm.resourceprovider.generic.LynxGenericResourceFetcher;
+import com.lynx.tasm.resourceprovider.template.LynxTemplateResourceFetcher;
+import com.lynx.tasm.resourceprovider.template.TemplateProviderResult;
+
+public class TemplateProvider extends AbsTemplateProvider {
+${embeddedConstants}    private final android.content.Context context;
+    public final LynxGenericResourceFetcher genericResourceFetcher;
+    public final LynxTemplateResourceFetcher templateResourceFetcher;
 
     public TemplateProvider(android.content.Context context) {
         this.context = context.getApplicationContext();
+        this.genericResourceFetcher = new LynxGenericResourceFetcher() {
+            @Override
+            public void fetchResource(LynxResourceRequest request, LynxResourceCallback<byte[]> callback) {
+                loadBytesAsync(request.getUrl(), callback);
+            }
+
+            @Override
+            public void fetchResourcePath(LynxResourceRequest request, LynxResourceCallback<String> callback) {
+                callback.onResponse(LynxResourceResponse.onFailed(new java.io.IOException("Asset path lookup is not supported")));
+            }
+        };
+        this.templateResourceFetcher = new LynxTemplateResourceFetcher() {
+            @Override
+            public void fetchTemplate(LynxResourceRequest request, LynxResourceCallback<TemplateProviderResult> callback) {
+                loadBytesAsync(request.getUrl(), new LynxResourceCallback<byte[]>() {
+                    @Override
+                    public void onResponse(LynxResourceResponse<byte[]> response) {
+                        if (response.getState() == ResponseState.SUCCESS && response.getData() != null) {
+                            callback.onResponse(LynxResourceResponse.onSuccess(TemplateProviderResult.fromBinary(response.getData())));
+                        } else {
+                            Throwable error = response.getError() != null ? response.getError() : new java.io.IOException("Template load failed");
+                            callback.onResponse(LynxResourceResponse.onFailed(error));
+                        }
+                    }
+                });
+            }
+
+            @Override
+            public void fetchSSRData(LynxResourceRequest request, LynxResourceCallback<byte[]> callback) {
+                loadBytesAsync(request.getUrl(), callback);
+            }
+        };
     }
 
-`)
-    .replace(
-      /@Override\s+public void loadTemplate\(String url, final Callback callback\)\s*\{[\s\S]*?\}\s*\)\s*;\s*\n\s*\}/,
-      loadBody
-    )
-    .replace(/import okhttp3\.ResponseBody;[\s\n]*/, "")
-    .replace(/import retrofit2\.Call;[\s\n]*/, "")
-    .replace(/import retrofit2\.Response;[\s\n]*/, "")
-    .replace(/import retrofit2\.Retrofit;[\s\n]*/, "")
-    .replace(/import java\.io\.IOException;[\s\n]*/, "");
+    @Override
+    public void loadTemplate(String url, final Callback callback) {
+        new Thread(() -> {
+            try {
+                callback.onSuccess(loadBytes(url));
+            } catch (java.io.IOException e) {
+                callback.onFailed(e.getMessage());
+            }
+        }).start();
+    }
 
-  const withBuildConfig = vars.devMode === "embedded"
-    ? out.replace(
-        /(package [^;]+;)/,
-        `$1\nimport ${vars.packageName}.BuildConfig;\nimport ${vars.packageName}.DevServerPrefs;`
-      )
-    : out;
-  return withBuildConfig.replace(/\n{3,}/g, "\n\n");
+    private void loadBytesAsync(String url, LynxResourceCallback<byte[]> callback) {
+        new Thread(() -> {
+            try {
+                callback.onResponse(LynxResourceResponse.onSuccess(loadBytes(url)));
+            } catch (java.io.IOException e) {
+                callback.onResponse(LynxResourceResponse.onFailed(e));
+            }
+        }).start();
+    }
+
+    private byte[] loadBytes(String url) throws java.io.IOException {
+${embeddedLoadBody}        return loadAssetBytes(normalizeAssetPath(url));
+    }
+${embeddedHelpers}
+    private byte[] loadAssetBytes(String assetPath) throws java.io.IOException {
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        try (java.io.InputStream is = context.getAssets().open(assetPath)) {
+            byte[] buf = new byte[1024];
+            int n;
+            while ((n = is.read(buf)) != -1) {
+                baos.write(buf, 0, n);
+            }
+        }
+        return baos.toByteArray();
+    }
+
+    private String normalizeAssetPath(String url) {
+        if (url == null) return "";
+        String s = url.trim();
+        int query = s.indexOf('?');
+        if (query >= 0) s = s.substring(0, query);
+        while (s.startsWith("/")) s = s.substring(1);
+        return java.nio.file.Paths.get(s).normalize().toString().replace('\\\\', '/');
+    }
+}
+`;
+}
+
+export function getTamerNavLynxRuntime(vars: Pick<PatchVars, "packageName">): string {
+  return `package ${vars.packageName}
+
+import com.lynx.tasm.LynxGroup
+
+/**
+ * Shared LynxGroup for coordinator LynxViews and TamerNav stack spokes.
+ * Module-singleton stores such as Zustand rely on this shared JS context group.
+ */
+object TamerNavLynxRuntime {
+    val group: LynxGroup = LynxGroup.LynxGroupBuilder()
+        .setGroupName("TamerNav")
+        .setID("tamer-nav-shared")
+        .build()
+}
+`;
 }
 
 export function getDevClientManager(vars: PatchVars): string | null {
@@ -366,7 +520,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.lynx.tasm.LynxView
-import com.lynx.tasm.LynxViewBuilder${devClientImports}
+import com.lynx.tasm.LynxViewBuilder
+import com.lynx.tasm.LynxBooleanOption${devClientImports ? devClientImports : "\n"}
+import com.nanofuxion.tamernavigation.stack.TamerNavHost
 import ${vars.packageName}.generated.GeneratedLynxExtensions
 import ${vars.packageName}.generated.GeneratedActivityLifecycle
 
@@ -388,6 +544,7 @@ ${devClientField}    private val handler = Handler(Looper.getMainLooper())
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ${hasDevClient ? "com.nanofuxion.tamerdevclient.LynxDevToolBootstrap.bootstrapDevToolForProjectHost(this)\n        GeneratedLynxExtensions.register(this)" : ""}
+        configureTamerNavSpokeBuilder()
         GeneratedActivityLifecycle.onCreate(intent)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
@@ -430,9 +587,28 @@ ${reloadMethod}
 
 ${projectInstallNativeStack}    private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
-        viewBuilder.setTemplateProvider(TemplateProvider(this))
+        viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
+        val provider = TemplateProvider(this)
+        viewBuilder.setTemplateProvider(provider)
+        viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
+        viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
+        viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
         GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
+    }
+
+    private fun configureTamerNavSpokeBuilder() {
+        TamerNavHost.spokeBuilder = { ctx ->
+            val viewBuilder = LynxViewBuilder()
+            viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
+            val provider = TemplateProvider(ctx)
+            viewBuilder.setTemplateProvider(provider)
+            viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
+            viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
+            viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+            GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
+            viewBuilder.build(ctx)
+        }
     }
 }
 `;
@@ -457,6 +633,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.lynx.tasm.LynxView
 import com.lynx.tasm.LynxViewBuilder
+import com.lynx.tasm.LynxBooleanOption
 import ${packageName}.DevClientManager
 import com.nanofuxion.tamerdevclient.DevClientModule
 import com.nanofuxion.tamerdevclient.LynxDevToolBootstrap
@@ -485,6 +662,7 @@ class ProjectActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         LynxDevToolBootstrap.bootstrapDevToolForProjectHost(this)
         GeneratedLynxExtensions.register(this)
+        configureTamerNavSpokeBuilder()
         GeneratedActivityLifecycle.onCreate(intent)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
@@ -554,9 +732,28 @@ class ProjectActivity : AppCompatActivity() {
 
     private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
-        viewBuilder.setTemplateProvider(TemplateProvider(this))
+        viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
+        val provider = TemplateProvider(this)
+        viewBuilder.setTemplateProvider(provider)
+        viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
+        viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
+        viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
         GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
+    }
+
+    private fun configureTamerNavSpokeBuilder() {
+        TamerNavHost.spokeBuilder = { ctx ->
+            val viewBuilder = LynxViewBuilder()
+            viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
+            val provider = TemplateProvider(ctx)
+            viewBuilder.setTemplateProvider(provider)
+            viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
+            viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
+            viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+            GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
+            viewBuilder.build(ctx)
+        }
     }
 }
 `;
@@ -694,7 +891,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.lynx.tasm.LynxView
-import com.lynx.tasm.LynxViewBuilder${devClientImports}
+import com.lynx.tasm.LynxViewBuilder
+import com.lynx.tasm.LynxBooleanOption
+${devClientImports}import com.nanofuxion.tamernavigation.stack.TamerNavHost
 import ${vars.packageName}.generated.GeneratedLynxExtensions
 import ${vars.packageName}.generated.GeneratedActivityLifecycle
 
@@ -704,6 +903,7 @@ ${devClientField}    private var lynxView: LynxView? = null${!hasDevClient ? '\n
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         GeneratedLynxExtensions.register(this)
+        configureTamerNavSpokeBuilder()
         GeneratedActivityLifecycle.onCreate(intent)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = true
@@ -743,9 +943,28 @@ ${devClientField}    private var lynxView: LynxView? = null${!hasDevClient ? '\n
 
 ${mainInstallNativeStack}    private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
-        viewBuilder.setTemplateProvider(TemplateProvider(this))
+        viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
+        val provider = TemplateProvider(this)
+        viewBuilder.setTemplateProvider(provider)
+        viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
+        viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
+        viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
         GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
+    }
+
+    private fun configureTamerNavSpokeBuilder() {
+        TamerNavHost.spokeBuilder = { ctx ->
+            val viewBuilder = LynxViewBuilder()
+            viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
+            val provider = TemplateProvider(ctx)
+            viewBuilder.setTemplateProvider(provider)
+            viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
+            viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
+            viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+            GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
+            viewBuilder.build(ctx)
+        }
     }${hasDevClient ? windowFocusAndNewIntent : standaloneLifecycle}${devClientCleanup}
 }
 `;
@@ -763,6 +982,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.lynx.tasm.LynxView
 import com.lynx.tasm.LynxViewBuilder
+import com.lynx.tasm.LynxBooleanOption
 import com.nanofuxion.tamerdevclient.DevClientModule
 import com.nanofuxion.tamerrouter.TamerRouterNativeModule
 import org.json.JSONObject
@@ -836,7 +1056,12 @@ class LynxPushActivity : AppCompatActivity() {
 
     private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
-        viewBuilder.setTemplateProvider(TemplateProvider(this))
+        viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
+        val provider = TemplateProvider(this)
+        viewBuilder.setTemplateProvider(provider)
+        viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
+        viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
+        viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
         GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
     }

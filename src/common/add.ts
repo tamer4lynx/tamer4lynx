@@ -29,6 +29,8 @@ const DEV_STACK_PACKAGES = [
   '@tamer4lynx/tamer-app-shell',
   '@tamer4lynx/tamer-icons',
   '@tamer4lynx/tamer-insets',
+  '@tamer4lynx/tamer-linking',
+  '@tamer4lynx/tamer-navigation',
   '@tamer4lynx/tamer-plugin',
   '@tamer4lynx/tamer-router',
   '@tamer4lynx/tamer-screen',

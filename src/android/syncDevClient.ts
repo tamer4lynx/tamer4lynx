@@ -6,6 +6,7 @@ import {
   getProjectActivity,
   getLynxPushActivity,
   getStandaloneMainActivity,
+  getTamerNavLynxRuntime,
 } from "../explorer/patches";
 
 function readAndSubstituteTemplate(
@@ -86,6 +87,7 @@ async function syncDevClient(opts?: { forceProduction?: boolean; includeDevClien
   ]);
 
   fs.writeFileSync(path.join(javaDir, "TemplateProvider.java"), templateProviderSource);
+  fs.writeFileSync(path.join(kotlinDir, "TamerNavLynxRuntime.kt"), getTamerNavLynxRuntime(vars));
   fs.writeFileSync(path.join(kotlinDir, "MainActivity.kt"), getStandaloneMainActivity(vars));
   patchAppLogService(path.join(javaDir, "App.java"));
 
@@ -99,6 +101,7 @@ async function syncDevClient(opts?: { forceProduction?: boolean; includeDevClien
       "DevClientManager.kt",
       "DevServerPrefs.kt",
       "PortraitCaptureActivity.kt",
+      "TamerNavLynxRuntime.kt",
     ];
     for (const f of devClientFiles) {
       const src = path.join(templateDir, f);
