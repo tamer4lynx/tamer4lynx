@@ -1,5 +1,5 @@
 import { useCallback, useState } from '@lynx-js/react';
-import { Button, Card, px } from '@tamer4lynx/tamer-app-shell';
+import { Card, px } from '@tamer4lynx/tamer-app-shell';
 
 import { pageShellStyle, useExamplePalette } from '../../examplePalette.js';
 
@@ -141,30 +141,40 @@ export default function TransportsPage() {
           package here so the bundle does not load a second copy of its index.
         </text>
 
-        <Card variant="outlined">
+        <Card variant="outlined" onTap={runFetch} style={{ width: '100%', minHeight: px(72) }}>
           <view
             style={{
               width: '100%',
               display: 'flex',
               flexDirection: 'column',
-              gap: px(14),
+              gap: px(10),
             }}
           >
-            <Button
-              label={`fetch GET\n${JSON_PLACEHOLDER}`}
-              onTap={runFetch}
-              variant="filled"
-              size="sm"
+            <text
+              user-interaction-enabled={false}
               style={{
-                width: '100%',
-                alignSelf: 'stretch',
-                minHeight: px(80),
-                height: 'auto',
+                fontSize: px(15),
+                fontWeight: '600',
+                color: p.onSurface,
               }}
-            />
-            <view style={{ width: '100%', minHeight: px(8) }}>
+            >
+              fetch GET
+            </text>
+            <text
+              user-interaction-enabled={false}
+              style={{
+                fontSize: px(13),
+                color: p.onSurfaceVariant,
+                wordBreak: 'break-all',
+                lineHeight: px(18),
+              }}
+            >
+              {JSON_PLACEHOLDER}
+            </text>
+            <view style={{ width: '100%', minHeight: px(8), paddingTop: px(4) }}>
               {fetchLog ? (
                 <text
+                  user-interaction-enabled={false}
                   style={{
                     fontSize: px(14),
                     color: p.onSurfaceVariant,
@@ -179,30 +189,40 @@ export default function TransportsPage() {
           </view>
         </Card>
 
-        <Card variant="outlined">
+        <Card variant="outlined" onTap={runWs} style={{ width: '100%', minHeight: px(72) }}>
           <view
             style={{
               width: '100%',
               display: 'flex',
               flexDirection: 'column',
-              gap: px(14),
+              gap: px(10),
             }}
           >
-            <Button
-              label={`WebSocket echo\n${WS_ECHO}`}
-              onTap={runWs}
-              variant="filled"
-              size="sm"
+            <text
+              user-interaction-enabled={false}
               style={{
-                width: '100%',
-                alignSelf: 'stretch',
-                minHeight: px(80),
-                height: 'auto',
+                fontSize: px(15),
+                fontWeight: '600',
+                color: p.onSurface,
               }}
-            />
-            <view style={{ width: '100%', minHeight: px(8) }}>
+            >
+              WebSocket echo
+            </text>
+            <text
+              user-interaction-enabled={false}
+              style={{
+                fontSize: px(13),
+                color: p.onSurfaceVariant,
+                wordBreak: 'break-all',
+                lineHeight: px(18),
+              }}
+            >
+              {WS_ECHO}
+            </text>
+            <view style={{ width: '100%', minHeight: px(8), paddingTop: px(4) }}>
               {wsLog ? (
                 <text
+                  user-interaction-enabled={false}
                   style={{
                     fontSize: px(14),
                     color: p.onSurfaceVariant,
@@ -217,30 +237,40 @@ export default function TransportsPage() {
           </view>
         </Card>
 
-        <Card variant="outlined">
+        <Card variant="outlined" onTap={runSse} style={{ width: '100%', minHeight: px(88) }}>
           <view
             style={{
               width: '100%',
               display: 'flex',
               flexDirection: 'column',
-              gap: px(14),
+              gap: px(10),
             }}
           >
-            <Button
-              label={`EventSource (SSE)\n${SSE_WIKI}`}
-              onTap={runSse}
-              variant="filled"
-              size="sm"
+            <text
+              user-interaction-enabled={false}
               style={{
-                width: '100%',
-                alignSelf: 'stretch',
-                minHeight: px(96),
-                height: 'auto',
+                fontSize: px(15),
+                fontWeight: '600',
+                color: p.onSurface,
               }}
-            />
-            <view style={{ width: '100%', minHeight: px(8) }}>
+            >
+              EventSource (SSE)
+            </text>
+            <text
+              user-interaction-enabled={false}
+              style={{
+                fontSize: px(13),
+                color: p.onSurfaceVariant,
+                wordBreak: 'break-all',
+                lineHeight: px(18),
+              }}
+            >
+              {SSE_WIKI}
+            </text>
+            <view style={{ width: '100%', minHeight: px(8), paddingTop: px(4) }}>
               {sseLog ? (
                 <text
+                  user-interaction-enabled={false}
                   style={{
                     fontSize: px(14),
                     color: p.onSurfaceVariant,
