@@ -1,6 +1,7 @@
 import { useState } from '@lynx-js/react';
 import {
   AvoidKeyboard,
+  Screen,
   useInsets,
   useKeyboard,
 } from '@tamer4lynx/tamer-screen';
@@ -15,19 +16,20 @@ function ScreenPage() {
   const keyboard = useKeyboard();
   const [inputValue, setInputValue] = useState('');
   return (
-    <view
-      style={{
-        flex: 1,
-        flexGrow: 1,
-        flexShrink: 1,
-        flexBasis: '0px',
-        minHeight: '0px',
-        width: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        backgroundColor: p.surface,
-      }}
-    >
+    <Screen>
+      <view
+        style={{
+          flex: 1,
+          flexGrow: 1,
+          flexShrink: 1,
+          flexBasis: '0px',
+          minHeight: '0px',
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          backgroundColor: p.surface,
+        }}
+      >
       <scroll-view
         scroll-y
         style={{
@@ -241,7 +243,8 @@ function ScreenPage() {
           />
         </view>
       </AvoidKeyboard>
-    </view>
+      </view>
+    </Screen>
   );
 }
 
