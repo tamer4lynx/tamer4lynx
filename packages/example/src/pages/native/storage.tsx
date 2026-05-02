@@ -8,6 +8,10 @@ import { pageShellStyle, useExamplePalette } from '../../examplePalette.js';
 
 const REGISTRY_KEY = '__storage_keys__';
 
+/** Row height hint for recycler; values + padding fit one–two lines. */
+const STORAGE_ROW_ESTIMATE_PX = 96;
+const STORAGE_EMPTY_ROW_ESTIMATE_PX = 40;
+
 type StoreItem = { key: string; value: string };
 
 const updateInputbyid = (id: string, value: string) => {
@@ -103,164 +107,201 @@ export default function StoragePage() {
     [loadItems],
   );
 
+  const shell = pageShellStyle(p.surface);
+
   return (
     <view
       style={{
-        ...pageShellStyle(p.surface),
+        ...shell,
+        width: '100%',
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
         padding: px(24),
         gap: px(16),
       }}
     >
-      <text
-        className="Description"
-        style={{ marginBottom: px(16), fontSize: px(14), color: p.onSurface }}
-      >
-        Uses @tamer4lynx/tamer-local-storage (SharedPreferences on Android,
-        UserDefaults on iOS). Web-style localStorage API.
-      </text>
-
-      <view style={{ display: 'flex', flexDirection: 'column', gap: px(8) }}>
-        <text className="Hint" style={{ marginBottom: px(4), fontSize: px(14), color: p.onSurface }}>
-          Key
-        </text>
-        <input
-          id="key"
-          placeholder="Storage key"
-          style={{
-            backgroundColor: '#222',
-            color: '#fff',
-            padding: px(6, 6),
-            borderRadius: '8px',
-            border: '1px solid #444',
-            fontSize: px(14),
-            height: px(40),
-          }}
-          bindinput={(e) => setKey(e.detail.value)}
-        />
-      </view>
-
       <view
         style={{
+          flexShrink: 0,
           display: 'flex',
           flexDirection: 'column',
-          gap: px(8),
-          marginBottom: '16px',
+          gap: px(16),
         }}
       >
-        <text className="Hint" style={{ marginBottom: px(4), fontSize: px(14), color: p.onSurface }}>
-          Value
-        </text>
-        <input
-          id="value"
-          placeholder="Value to store"
-          style={{
-            backgroundColor: '#222',
-            color: '#fff',
-            padding: px(6, 6),
-            borderRadius: '8px',
-            border: '1px solid #444',
-            fontSize: px(14),
-            height: px(40),
-          }}
-          bindinput={(e) => setValue(e.detail.value)}
-        />
-      </view>
-
-      {error && (
-        <view
-          style={{ padding: px(16), backgroundColor: '#4a2222', borderRadius: px(8) }}
+        <text
+          className="Description"
+          style={{ marginBottom: px(16), fontSize: px(14), color: p.onSurface }}
         >
-          <text className="Description" style={{ color: '#f88' }}>
-            {error}
-          </text>
-        </view>
-      )}
+          Uses @tamer4lynx/tamer-local-storage (SharedPreferences on Android,
+          UserDefaults on iOS). Web-style localStorage API.
+        </text>
 
-      <view
-        style={{
-          display: 'flex',
-          flexDirection: 'row',
-          flexWrap: 'wrap',
-          justifyContent: "space-between"
-        }}
-      >
-        <Button
-          label="Add"
-          onTap={handleSet}
-          variant="filled"
-          size="sm"
-          style={{ flex: 1, minWidth: "49%" }}
-        />
-        <Button
-          label="Refresh"
-          onTap={loadItems}
-          variant="filled"
-          size="sm"
-          style={{ flex: 1, minWidth: "49%" }}
-        />
+        <view style={{ display: 'flex', flexDirection: 'column', gap: px(8) }}>
+          <text className="Hint" style={{ marginBottom: px(4), fontSize: px(14), color: p.onSurface }}>
+            Key
+          </text>
+          <input
+            id="key"
+            placeholder="Storage key"
+            style={{
+              backgroundColor: '#222',
+              color: '#fff',
+              padding: px(6, 6),
+              borderRadius: '8px',
+              border: '1px solid #444',
+              fontSize: px(14),
+              height: px(40),
+            }}
+            bindinput={(e) => setKey(e.detail.value)}
+          />
+        </view>
+
+        <view
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: px(8),
+            marginBottom: '16px',
+          }}
+        >
+          <text className="Hint" style={{ marginBottom: px(4), fontSize: px(14), color: p.onSurface }}>
+            Value
+          </text>
+          <input
+            id="value"
+            placeholder="Value to store"
+            style={{
+              backgroundColor: '#222',
+              color: '#fff',
+              padding: px(6, 6),
+              borderRadius: '8px',
+              border: '1px solid #444',
+              fontSize: px(14),
+              height: px(40),
+            }}
+            bindinput={(e) => setValue(e.detail.value)}
+          />
+        </view>
+
+        {error && (
+          <view
+            style={{ padding: px(16), backgroundColor: '#4a2222', borderRadius: px(8) }}
+          >
+            <text className="Description" style={{ color: '#f88' }}>
+              {error}
+            </text>
+          </view>
+        )}
+
+        <view
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            justifyContent: "space-between"
+          }}
+        >
+          <Button
+            label="Add"
+            onTap={handleSet}
+            variant="filled"
+            size="sm"
+            style={{ flex: 1, minWidth: "49%" }}
+          />
+          <Button
+            label="Refresh"
+            onTap={loadItems}
+            variant="filled"
+            size="sm"
+            style={{ flex: 1, minWidth: "49%" }}
+          />
+        </view>
       </view>
 
       <view
         style={{
-          marginTop: px(8),
           flex: 1,
-          minHeight: '0px',
-          display: 'flex',
-          flexDirection: 'column',
+          flexGrow: 1,
+          flexShrink: 1,
+          flexBasis: '0px',
+          minHeight: px(160),
+          width: '100%',
+          marginTop: px(8),
+          position: 'relative',
         }}
       >
         <text className="Hint" style={{ marginBottom: px(8), color: p.onSurface }}>
           Stored items ({items.length})
         </text>
-        {items.length === 0 ? (
-          <text className="Description" style={{ color: p.onSurface }}>
-            (empty)
-          </text>
-        ) : (
-          <scroll-view
-            scroll-y
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: px(8),
-              flex: 1,
-              minHeight: '0px',
-            }}
-          >
-            {items.map((item) => (
-              <view
+        <list
+          scroll-orientation="vertical"
+          list-type="single"
+          span-count={1}
+          preload-buffer-count={1}
+          style={{
+            position: 'absolute',
+            left: '0px',
+            right: '0px',
+            top: px(36),
+            bottom: '0px',
+            width: '100%',
+            listMainAxisGap: px(8),
+          }}
+        >
+          {items.length === 0 ? (
+            <list-item
+              item-key="storage-empty"
+              key="storage-empty"
+              estimated-main-axis-size-px={STORAGE_EMPTY_ROW_ESTIMATE_PX}
+            >
+              <text className="Description" style={{ color: p.onSurface }}>
+                (empty)
+              </text>
+            </list-item>
+          ) : (
+            items.map((item) => (
+              <list-item
+                item-key={`storage-item:${item.key}`}
                 key={item.key}
-                style={{
-                  padding: px(16),
-                  backgroundColor: '#1a1a1a',
-                  borderRadius: '8px',
-                  border: '1px solid #333',
-                  display: 'flex',
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: px(16),
-                }}
+                estimated-main-axis-size-px={STORAGE_ROW_ESTIMATE_PX}
               >
-                <view style={{ flex: 1, minWidth: '0px' }}>
-                  <text className="Hint" style={{ marginBottom: px(4) }}>
-                    {item.key}
-                  </text>
-                  <text className="Description">{item.value}</text>
+                <view
+                  style={{
+                    padding: px(16),
+                    backgroundColor: '#1a1a1a',
+                    borderRadius: '8px',
+                    border: '1px solid #333',
+                    display: 'flex',
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: px(16),
+                  }}
+                >
+                  <view style={{ flex: 1, minWidth: '0px' }}>
+                    <text className="Hint" style={{ marginBottom: px(4) }}>
+                      {item.key}
+                    </text>
+                    <text className="Description">{item.value}</text>
+                  </view>
+                  <Button
+                    label="Delete"
+                    onTap={() => {
+                      'background only';
+                      handleDeleteItem(item.key);
+                    }}
+                    variant="filled"
+                    size="sm"
+                    shape="square"
+                    colors={{ container: '#552222', label: '#f88' }}
+                    style={{ flexShrink: 0 }}
+                  />
                 </view>
-                <Button
-                  label="Delete"
-                  onTap={() => handleDeleteItem(item.key)}
-                  variant="filled"
-                  size="sm"
-                  shape="square"
-                  colors={{ container: '#552222', label: '#f88' }}
-                  style={{ flexShrink: 0 }}
-                />
-              </view>
-            ))}
-          </scroll-view>
-        )}
+              </list-item>
+            ))
+          )}
+        </list>
       </view>
     </view>
   );

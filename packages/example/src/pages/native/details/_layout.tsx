@@ -5,7 +5,7 @@ export default function NativeDetailsLayout() {
     <Stack pathPrefix="/native/details">
       <Stack.Screen
         name="[id]"
-        options={{ title: 'Detail', headerShown: false }}
+        options={{ title: 'Detail' }}
       />
       <Stack.Screen
         name="edit"

@@ -968,7 +968,8 @@ import com.lynx.tasm.LynxGroup
 object TamerNavLynxRuntime {
     val group: LynxGroup = LynxGroup.LynxGroupBuilder()
         .setGroupName("TamerNav")
-        .setID("tamer-nav-shared")
+        .setID(LynxGroup.SINGNLE_GROUP)
+        .setEnableJSGroupThread(true)
         .build()
 }
 `;
@@ -1178,6 +1179,7 @@ ${projectInstallNativeStack}    private fun buildLynxView(): LynxView {
     }
 
     private fun configureTamerNavSpokeBuilder() {
+        TamerNavHost.configureSharedLynxGroup(TamerNavLynxRuntime.group)
         TamerNavHost.spokeBuilder = { ctx ->
             val viewBuilder = LynxViewBuilder()
             viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
@@ -1316,6 +1318,7 @@ class ProjectActivity : AppCompatActivity() {
     }
 
     private fun configureTamerNavSpokeBuilder() {
+        TamerNavHost.configureSharedLynxGroup(TamerNavLynxRuntime.group)
         TamerNavHost.spokeBuilder = { ctx ->
             val viewBuilder = LynxViewBuilder()
             viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
@@ -1499,6 +1502,7 @@ ${mainInstallNativeStack}    private fun buildLynxView(): LynxView {
     }
 
     private fun configureTamerNavSpokeBuilder() {
+        TamerNavHost.configureSharedLynxGroup(TamerNavLynxRuntime.group)
         TamerNavHost.spokeBuilder = { ctx ->
             val viewBuilder = LynxViewBuilder()
             viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
@@ -4332,6 +4336,7 @@ import tamernavigation
 private enum TamerNavLynxRuntime {
   static let sharedGroup: LynxGroup = {
 	let option = LynxGroupOption()
+	option.enableJSGroupThread = true
 	return LynxGroup(name: "TamerNav", with: option)
   }()
 }
@@ -4387,6 +4392,9 @@ class ViewController: UIViewController {
   }
 
   private func setupLynxView() {
+#if canImport(tamernavigation)
+	TamerNavHost.configureSharedGroup(TamerNavLynxRuntime.sharedGroup)
+#endif
 	let lv = buildLynxView()
 	view.addSubview(lv)
 	TamerInsetsModule.attachHostView(lv)
@@ -5004,6 +5012,7 @@ private func tamer_project_disableLynxLongPressMenuIfAvailable() {
 private enum TamerNavLynxRuntime {
     static let sharedGroup: LynxGroup = {
         let option = LynxGroupOption()
+        option.enableJSGroupThread = true
         return LynxGroup(name: "TamerNav", with: option)
     }()
 }
@@ -5125,6 +5134,9 @@ class ProjectViewController: UIViewController {
 
     private func setupLynxView() {
         NSLog("[ProjectVC] setupLynxView devUrl=%@", DevServerPrefs.getUrl() ?? "")
+#if canImport(tamernavigation)
+        TamerNavHost.configureSharedGroup(TamerNavLynxRuntime.sharedGroup)
+#endif
         let lv = buildLynxView()
         lv.backgroundColor = .black
         lv.isHidden = false
@@ -5205,6 +5217,12 @@ class ProjectViewController: UIViewController {
 
     private func buildDevMenuView() -> LynxView {
         let size = fullscreenBounds().size
+#if DEBUG
+        let env = LynxEnv.sharedInstance()
+        let previousDevtoolEnabled = env.devtoolEnabled
+        env.devtoolEnabled = false
+        defer { env.devtoolEnabled = previousDevtoolEnabled }
+#endif
         let lv = LynxView { builder in
             let provider = DevTemplateProvider()
             builder.enableGenericResourceFetcher = .true
@@ -5227,12 +5245,14 @@ class ProjectViewController: UIViewController {
         guard devMenuView == nil else { return }
         let lv = buildDevMenuView()
         view.addSubview(lv)
+        DevClientModule.attachLynxView(lv)
         lv.loadTemplate(fromURL: "tamer-debug.lynx.bundle", initData: nil)
         devMenuView = lv
         #endif
     }
 
     private func dismissProjectDevMenu() {
+        DevClientModule.attachLynxView(lynxView)
         devMenuView?.removeFromSuperview()
         devMenuView = nil
     }
@@ -5317,6 +5337,7 @@ class ProjectViewController: UIViewController {
         guard isBeingDismissed || isMovingFromParent else { return }
         pendingInitialLoadWorkItem?.cancel()
         pendingInitialLoadWorkItem = nil
+        DevClientModule.attachLynxView(nil)
         onDismiss?()
     }
 }
@@ -5603,6 +5624,7 @@ import tamernavigation
 private enum TamerNavLynxRuntime {
     static let sharedGroup: LynxGroup = {
         let option = LynxGroupOption()
+        option.enableJSGroupThread = true
         return LynxGroup(name: "TamerNav", with: option)
     }()
 }
@@ -5658,6 +5680,9 @@ class ViewController: UIViewController {
     }
 
     private func setupLynxView() {
+#if canImport(tamernavigation)
+        TamerNavHost.configureSharedGroup(TamerNavLynxRuntime.sharedGroup)
+#endif
         let lv = buildLynxView()
         view.addSubview(lv)
         TamerInsetsModule.attachHostView(lv)

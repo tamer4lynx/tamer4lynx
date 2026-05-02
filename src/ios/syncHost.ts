@@ -290,6 +290,7 @@ import tamernavigation
 private enum TamerNavLynxRuntime {
     static let sharedGroup: LynxGroup = {
         let option = LynxGroupOption()
+        option.enableJSGroupThread = true
         return LynxGroup(name: "TamerNav", with: option)
     }()
 }
@@ -345,6 +346,9 @@ class ViewController: UIViewController {
     }
 
     private func setupLynxView() {
+#if canImport(tamernavigation)
+        TamerNavHost.configureSharedGroup(TamerNavLynxRuntime.sharedGroup)
+#endif
         let lv = buildLynxView()
         view.addSubview(lv)
         TamerInsetsModule.attachHostView(lv)

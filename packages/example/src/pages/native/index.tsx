@@ -1,8 +1,10 @@
-import { useCallback } from "@lynx-js/react";
+import { useCallback, useMemo } from "@lynx-js/react";
 import { px } from "@tamer4lynx/tamer-app-shell";
 import { useTamerNavigate } from "@tamer4lynx/tamer-router";
 
 import { pageShellStyle, useExamplePalette } from "../../examplePalette.js";
+
+const MENU_ROW_ESTIMATE_PX = 128;
 
 function NativeMenuCard({
   title,
@@ -101,56 +103,104 @@ export default function DevIndex() {
     push("/native/details/42");
   }, [push]);
 
+  const entries = useMemo(
+    () =>
+      [
+        {
+          itemKey: "native-menu-linking",
+          title: "tamer-linking",
+          subtitle: "createURL, getInitialURL, addEventListener",
+          onTap: goLinking,
+        },
+        {
+          itemKey: "native-menu-browser",
+          title: "tamer-display-browser",
+          subtitle: "openBrowserAsync, openAuthSessionAsync",
+          onTap: goBrowser,
+        },
+        {
+          itemKey: "native-menu-oauth",
+          title: "OAuth",
+          subtitle: "Authorization code flow",
+          onTap: goAuth,
+        },
+        {
+          itemKey: "native-menu-storage",
+          title: "Storage",
+          subtitle: "Local storage",
+          onTap: goStorage,
+        },
+        {
+          itemKey: "native-menu-webview",
+          title: "tamer-webview (webview)",
+          subtitle: "Embedded WKWebView / WebView",
+          onTap: goWebView,
+        },
+        {
+          itemKey: "native-menu-transports",
+          title: "tamer-transports",
+          subtitle: "fetch, WebSocket, EventSource",
+          onTap: goTransports,
+        },
+        {
+          itemKey: "native-menu-inner-stack",
+          title: "Router inner stack",
+          subtitle:
+            "Same _layout chain: edit without extra native push; provider bridge",
+          onTap: goInnerStackDemo,
+        },
+      ] as const,
+    [
+      goAuth,
+      goBrowser,
+      goInnerStackDemo,
+      goLinking,
+      goStorage,
+      goTransports,
+      goWebView,
+    ],
+  );
+
+  const shell = pageShellStyle(p.surface);
+
   return (
     <view
       style={{
-        ...pageShellStyle(p.surface),
+        ...shell,
+        width: "100%",
+        height: "100vh",
       }}
     >
-      <view
+      <list
+        scroll-orientation="vertical"
+        list-type="single"
+        span-count={1}
+        preload-buffer-count={1}
         style={{
-          display: "flex",
-          flexDirection: "column",
-          padding: px(32),
-          gap: px(24),
+          width: "100%",
+          height: "100%",
+          listMainAxisGap: px(24),
+          paddingLeft: px(32),
+          paddingRight: px(32),
+          paddingTop: px(32),
+          paddingBottom: px(32),
+          backgroundColor: shell.backgroundColor,
         }}
       >
-        <NativeMenuCard
-          title="tamer-linking"
-          subtitle="createURL, getInitialURL, addEventListener"
-          onTap={goLinking}
-        />
-        <NativeMenuCard
-          title="tamer-display-browser"
-          subtitle="openBrowserAsync, openAuthSessionAsync"
-          onTap={goBrowser}
-        />
-        <NativeMenuCard
-          title="OAuth"
-          subtitle="Authorization code flow"
-          onTap={goAuth}
-        />
-        <NativeMenuCard
-          title="Storage"
-          subtitle="Local storage"
-          onTap={goStorage}
-        />
-        <NativeMenuCard
-          title="tamer-webview (webview)"
-          subtitle="Embedded WKWebView / WebView"
-          onTap={goWebView}
-        />
-        <NativeMenuCard
-          title="tamer-transports"
-          subtitle="fetch, WebSocket, EventSource"
-          onTap={goTransports}
-        />
-        <NativeMenuCard
-          title="Router inner stack"
-          subtitle="Same _layout chain: edit without extra native push; provider bridge"
-          onTap={goInnerStackDemo}
-        />
-      </view>
+        {entries.map((e) => (
+          <list-item
+            key={e.itemKey}
+            item-key={e.itemKey}
+            estimated-main-axis-size-px={MENU_ROW_ESTIMATE_PX}
+          >
+            <NativeMenuCard
+              title={e.title}
+              subtitle={e.subtitle}
+              onTap={e.onTap}
+            />
+          </list-item>
+        ))}
+      </list>
     </view>
   );
 }

@@ -27,7 +27,7 @@ export default function About() {
             display: "flex",
             flexDirection: "column",
             padding: px(32),
-            gap: px(24),
+            gap: px(4),
           }}
         >
           <text

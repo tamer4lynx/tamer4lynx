@@ -374,7 +374,8 @@ import com.lynx.tasm.LynxGroup
 object TamerNavLynxRuntime {
     val group: LynxGroup = LynxGroup.LynxGroupBuilder()
         .setGroupName("TamerNav")
-        .setID("tamer-nav-shared")
+        .setID(LynxGroup.SINGNLE_GROUP)
+        .setEnableJSGroupThread(true)
         .build()
 }
 `;
@@ -598,6 +599,7 @@ ${projectInstallNativeStack}    private fun buildLynxView(): LynxView {
     }
 
     private fun configureTamerNavSpokeBuilder() {
+        TamerNavHost.configureSharedLynxGroup(TamerNavLynxRuntime.group)
         TamerNavHost.spokeBuilder = { ctx ->
             val viewBuilder = LynxViewBuilder()
             viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
@@ -743,6 +745,7 @@ class ProjectActivity : AppCompatActivity() {
     }
 
     private fun configureTamerNavSpokeBuilder() {
+        TamerNavHost.configureSharedLynxGroup(TamerNavLynxRuntime.group)
         TamerNavHost.spokeBuilder = { ctx ->
             val viewBuilder = LynxViewBuilder()
             viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
@@ -954,6 +957,7 @@ ${mainInstallNativeStack}    private fun buildLynxView(): LynxView {
     }
 
     private fun configureTamerNavSpokeBuilder() {
+        TamerNavHost.configureSharedLynxGroup(TamerNavLynxRuntime.group)
         TamerNavHost.spokeBuilder = { ctx ->
             val viewBuilder = LynxViewBuilder()
             viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
