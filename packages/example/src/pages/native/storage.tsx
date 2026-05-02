@@ -293,8 +293,6 @@ export default function StoragePage() {
                     }}
                     variant="filled"
                     size="sm"
-                    shape="square"
-                    colors={{ container: '#552222', label: '#f88' }}
                     style={{ flexShrink: 0 }}
                   />
                 </view>

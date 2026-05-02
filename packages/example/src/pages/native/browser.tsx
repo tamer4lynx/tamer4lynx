@@ -13,12 +13,14 @@ export default function BrowserPage() {
   const [status, setStatus] = useState<string>('');
 
   const onOpenBrowser = useCallback(() => {
+    'background only';
     openBrowserAsync('https://example.com').then((r: { type: string }) =>
       setStatus(r.type === 'opened' ? 'Opened' : r.type),
     );
   }, []);
 
   const onOpenAuthSession = useCallback(() => {
+    'background only';
     setStatus('Opening...');
     openAuthSessionAsync(
       'https://example.com',
@@ -32,8 +34,7 @@ export default function BrowserPage() {
   return (
     <view
       style={{
-        display: "flex",
-        flexDirection: "column",
+        ...pageShellStyle(p.surface),
         padding: px(32),
         gap: px(24),
       }}
@@ -43,8 +44,6 @@ export default function BrowserPage() {
         onTap={onOpenBrowser}
         variant="filled"
         size="sm"
-        shape="square"
-        colors={{ container: '#555', label: '#fff' }}
         style={{ width: '100%', alignSelf: 'stretch' }}
       />
       <Button
@@ -52,12 +51,12 @@ export default function BrowserPage() {
         onTap={onOpenAuthSession}
         variant="filled"
         size="sm"
-        shape="square"
-        colors={{ container: '#555', label: '#fff' }}
         style={{ width: '100%', alignSelf: 'stretch' }}
       />
       {status ? (
-        <text style={{ fontSize: px(18), color: '#aaa' }}>{status}</text>
+        <text style={{ fontSize: px(18), color: p.onSurfaceVariant }}>
+          {status}
+        </text>
       ) : null}
     </view>
   );

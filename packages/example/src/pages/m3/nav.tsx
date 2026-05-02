@@ -135,15 +135,54 @@ export default function NavDemo() {
             }}
           >
             <view
-              style={{ display: "flex", flexDirection: "row", height: px(420) }}
+              style={{
+                width: "100%",
+                paddingLeft: px(16),
+                paddingRight: px(16),
+                paddingTop: px(14),
+                paddingBottom: px(12),
+              }}
             >
-              {/* Rail */}
+              <text
+                style={{
+                  fontSize: px(16),
+                  fontWeight: "500",
+                  color: p.onSurface,
+                  width: "100%",
+                }}
+              >
+                {railSelected}
+              </text>
+              <text
+                style={{
+                  fontSize: px(12),
+                  color: p.onSurfaceVariant,
+                  marginTop: px(4),
+                  lineHeight: px(16),
+                  width: "100%",
+                }}
+              >
+                Tap rail items to switch sections.
+              </text>
+            </view>
+            <view
+              style={{
+                display: "grid",
+                width: "100%",
+                height: px(380),
+                gridTemplateColumns: `${px(96)} minmax(0, 1fr)`,
+              }}
+            >
               <NavigationRail
                 items={RAIL_ITEMS}
                 selected={railSelected}
                 onSelect={setRailSelected}
                 top={<Fab icon="edit" size="small" onTap={() => {}} />}
-                style={{ backgroundColor: p.surfaceContainer }}
+                style={{
+                  backgroundColor: p.surfaceContainer,
+                  minWidth: px(96),
+                  maxWidth: px(96),
+                }}
                 colors={{
                   indicator:
                     p.secondaryContainer ?? "var(--m3-secondary-container)",
@@ -153,48 +192,11 @@ export default function NavDemo() {
               />
               <view
                 style={{
-                  flex: 1,
                   minWidth: "0px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: p.surface,
+                  height: "100%",
+                  backgroundColor: p.surfaceContainer,
                 }}
-              >
-                <view
-                  style={{
-                    width: px(180),
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                  }}
-                >
-                  <text
-                    style={{
-                      width: px(180),
-                      fontSize: px(16),
-                      fontWeight: "500",
-                      color: p.onSurface,
-                      textAlign: "center",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {railSelected}
-                  </text>
-                  <text
-                    style={{
-                      width: px(180),
-                      fontSize: px(12),
-                      color: p.onSurfaceVariant,
-                      marginTop: px(4),
-                      lineHeight: px(16),
-                      textAlign: "center",
-                    }}
-                  >
-                    Tap rail items to switch sections
-                  </text>
-                </view>
-              </view>
+              />
             </view>
           </view>
 
@@ -209,7 +211,43 @@ export default function NavDemo() {
             }}
           >
             <view
-              style={{ display: "flex", flexDirection: "row", height: px(420) }}
+              style={{
+                width: "100%",
+                paddingLeft: px(16),
+                paddingRight: px(16),
+                paddingTop: px(14),
+                paddingBottom: px(12),
+              }}
+            >
+              <text
+                style={{
+                  fontSize: px(16),
+                  fontWeight: "500",
+                  color: p.onSurface,
+                  width: "100%",
+                }}
+              >
+                Expanded rail
+              </text>
+              <text
+                style={{
+                  fontSize: px(12),
+                  color: p.onSurfaceVariant,
+                  marginTop: px(4),
+                  lineHeight: px(16),
+                  width: "100%",
+                }}
+              >
+                Rail items can expand into left-aligned rows.
+              </text>
+            </view>
+            <view
+              style={{
+                display: "grid",
+                width: "100%",
+                height: px(380),
+                gridTemplateColumns: `${px(256)} minmax(0, 1fr)`,
+              }}
             >
               <NavigationRail
                 expanded
@@ -234,7 +272,11 @@ export default function NavDemo() {
                     />
                   </view>
                 }
-                style={{ backgroundColor: p.surfaceContainer }}
+                style={{
+                  backgroundColor: p.surfaceContainer,
+                  minWidth: px(256),
+                  maxWidth: px(256),
+                }}
                 colors={{
                   indicator:
                     p.secondaryContainer ?? "var(--m3-secondary-container)",
@@ -244,48 +286,11 @@ export default function NavDemo() {
               />
               <view
                 style={{
-                  flex: 1,
                   minWidth: "0px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: p.surface,
+                  height: "100%",
+                  backgroundColor: p.surfaceContainer,
                 }}
-              >
-                <view
-                  style={{
-                    width: px(180),
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                  }}
-                >
-                  <text
-                    style={{
-                      width: px(180),
-                      fontSize: px(16),
-                      fontWeight: "500",
-                      color: p.onSurface,
-                      textAlign: "center",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Expanded rail
-                  </text>
-                  <text
-                    style={{
-                      width: px(180),
-                      fontSize: px(12),
-                      color: p.onSurfaceVariant,
-                      marginTop: px(4),
-                      lineHeight: px(16),
-                      textAlign: "center",
-                    }}
-                  >
-                    Rail items can expand into left-aligned rows.
-                  </text>
-                </view>
-              </view>
+              />
             </view>
           </view>
 

@@ -1,5 +1,5 @@
 import { useCallback, useState } from '@lynx-js/react';
-import { Button, px } from '@tamer4lynx/tamer-app-shell';
+import { Button, Card, px } from '@tamer4lynx/tamer-app-shell';
 
 import { pageShellStyle, useExamplePalette } from '../../examplePalette.js';
 
@@ -125,85 +125,136 @@ export default function TransportsPage() {
   }, []);
 
   return (
-    <scroll-view
-      scroll-y
-      style={{
-        flex: 1,
-        padding: px(32),
-        gap: px(20),
-      }}
-    >
-      <text style={{ fontSize: px(14), color: '#aaa' }}>
-        Uses global fetch / WebSocket / EventSource after polyfills from
-        @tamer4lynx/tamer-transports/lynx (entry import). Avoid importing the
-        package here so the bundle does not load a second copy of its index.
-      </text>
-
-      <Button
-        label={`fetch GET\n${JSON_PLACEHOLDER}`}
-        onTap={runFetch}
-        variant="filled"
-        size="sm"
-        shape="square"
-        colors={{ container: '#555', label: '#e8e8e8' }}
+    <scroll-view scroll-y style={{ ...pageShellStyle(p.surface), flex: 1 }}>
+      <view
         style={{
-          width: '100%',
-          alignSelf: 'stretch',
-          minHeight: px(80),
-          height: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: px(20),
+          padding: px(32),
+          paddingBottom: px(48),
         }}
-      />
-      {fetchLog ? (
-        <text
-          style={{ fontSize: px(14), color: '#ccc', wordBreak: 'break-all' }}
-        >
-          {fetchLog}
+      >
+        <text style={{ fontSize: px(14), color: p.onSurfaceVariant }}>
+          Uses global fetch / WebSocket / EventSource after polyfills from
+          @tamer4lynx/tamer-transports/lynx (entry import). Avoid importing the
+          package here so the bundle does not load a second copy of its index.
         </text>
-      ) : null}
 
-      <Button
-        label={`WebSocket echo\n${WS_ECHO}`}
-        onTap={runWs}
-        variant="filled"
-        size="sm"
-        shape="square"
-        colors={{ container: '#555', label: '#e8e8e8' }}
-        style={{
-          width: '100%',
-          alignSelf: 'stretch',
-          minHeight: px(80),
-          height: 'auto',
-        }}
-      />
-      {wsLog ? (
-        <text
-          style={{ fontSize: px(14), color: '#ccc', wordBreak: 'break-all' }}
-        >
-          {wsLog}
-        </text>
-      ) : null}
+        <Card variant="outlined">
+          <view
+            style={{
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: px(14),
+            }}
+          >
+            <Button
+              label={`fetch GET\n${JSON_PLACEHOLDER}`}
+              onTap={runFetch}
+              variant="filled"
+              size="sm"
+              style={{
+                width: '100%',
+                alignSelf: 'stretch',
+                minHeight: px(80),
+                height: 'auto',
+              }}
+            />
+            <view style={{ width: '100%', minHeight: px(8) }}>
+              {fetchLog ? (
+                <text
+                  style={{
+                    fontSize: px(14),
+                    color: p.onSurfaceVariant,
+                    wordBreak: 'break-all',
+                    lineHeight: px(20),
+                  }}
+                >
+                  {fetchLog}
+                </text>
+              ) : null}
+            </view>
+          </view>
+        </Card>
 
-      <Button
-        label={`EventSource (SSE)\n${SSE_WIKI}`}
-        onTap={runSse}
-        variant="filled"
-        size="sm"
-        shape="square"
-        colors={{ container: '#555', label: '#e8e8e8' }}
-        style={{
-          width: '100%',
-          alignSelf: 'stretch',
-          minHeight: px(96),
-          height: 'auto',
-        }}
-      />
-      {sseLog ? (
-        <text
-          style={{ fontSize: px(14), color: '#ccc', wordBreak: 'break-all' }}
-        >
-          {sseLog}
-        </text>
-      ) : null}
+        <Card variant="outlined">
+          <view
+            style={{
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: px(14),
+            }}
+          >
+            <Button
+              label={`WebSocket echo\n${WS_ECHO}`}
+              onTap={runWs}
+              variant="filled"
+              size="sm"
+              style={{
+                width: '100%',
+                alignSelf: 'stretch',
+                minHeight: px(80),
+                height: 'auto',
+              }}
+            />
+            <view style={{ width: '100%', minHeight: px(8) }}>
+              {wsLog ? (
+                <text
+                  style={{
+                    fontSize: px(14),
+                    color: p.onSurfaceVariant,
+                    wordBreak: 'break-all',
+                    lineHeight: px(20),
+                  }}
+                >
+                  {wsLog}
+                </text>
+              ) : null}
+            </view>
+          </view>
+        </Card>
+
+        <Card variant="outlined">
+          <view
+            style={{
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: px(14),
+            }}
+          >
+            <Button
+              label={`EventSource (SSE)\n${SSE_WIKI}`}
+              onTap={runSse}
+              variant="filled"
+              size="sm"
+              style={{
+                width: '100%',
+                alignSelf: 'stretch',
+                minHeight: px(96),
+                height: 'auto',
+              }}
+            />
+            <view style={{ width: '100%', minHeight: px(8) }}>
+              {sseLog ? (
+                <text
+                  style={{
+                    fontSize: px(14),
+                    color: p.onSurfaceVariant,
+                    wordBreak: 'break-all',
+                    lineHeight: px(20),
+                  }}
+                >
+                  {sseLog}
+                </text>
+              ) : null}
+            </view>
+          </view>
+        </Card>
+      </view>
     </scroll-view>
   );
 }

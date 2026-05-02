@@ -1,74 +1,11 @@
 import { useCallback, useMemo } from "@lynx-js/react";
-import { px } from "@tamer4lynx/tamer-app-shell";
+import { Card, px } from "@tamer4lynx/tamer-app-shell";
 import { useTamerNavigate } from "@tamer4lynx/tamer-router";
 
 import { pageShellStyle, useExamplePalette } from "../../examplePalette.js";
 
 const MENU_ROW_ESTIMATE_PX = 128;
-
-function NativeMenuCard({
-  title,
-  subtitle,
-  onTap,
-}: {
-  title: string;
-  subtitle?: string;
-  onTap: () => void;
-}) {
-  const handleTap = useCallback(() => {
-    "background only";
-    onTap();
-  }, [onTap]);
-
-  return (
-    <view
-      flatten={false}
-      native-interaction-enabled={true}
-      user-interaction-enabled={true}
-      bindtap={handleTap}
-      style={{
-        width: "100%",
-        minHeight: px(92),
-        borderRadius: px(18),
-        backgroundColor: "#555",
-        paddingLeft: px(20),
-        paddingRight: px(20),
-        paddingTop: px(18),
-        paddingBottom: px(18),
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        alignItems: "center",
-        gap: px(6),
-      }}
-    >
-      <text
-        user-interaction-enabled={false}
-        style={{
-          color: "#e8e8e8",
-          fontSize: px(16),
-          fontWeight: "600",
-          textAlign: "center",
-        }}
-      >
-        {title}
-      </text>
-      {subtitle ? (
-        <text
-          user-interaction-enabled={false}
-          style={{
-            color: "#c8c8c8",
-            fontSize: px(13),
-            lineHeight: px(18),
-            textAlign: "center",
-          }}
-        >
-          {subtitle}
-        </text>
-      ) : null}
-    </view>
-  );
-}
+const LIST_TAIL_SPACER_PX = 1;
 
 export default function DevIndex() {
   const p = useExamplePalette();
@@ -171,36 +108,71 @@ export default function DevIndex() {
         height: "100vh",
       }}
     >
-      <list
+      <scroll-view
         scroll-orientation="vertical"
         list-type="single"
         span-count={1}
         preload-buffer-count={1}
         style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
           width: "100%",
-          height: "100%",
-          listMainAxisGap: px(24),
+          minHeight: "100%",
+          gap: px(24),
           paddingLeft: px(32),
           paddingRight: px(32),
           paddingTop: px(32),
-          paddingBottom: px(32),
+          paddingBottom: px(MENU_ROW_ESTIMATE_PX/2),
           backgroundColor: shell.backgroundColor,
         }}
       >
         {entries.map((e) => (
-          <list-item
-            key={e.itemKey}
-            item-key={e.itemKey}
-            estimated-main-axis-size-px={MENU_ROW_ESTIMATE_PX}
-          >
-            <NativeMenuCard
-              title={e.title}
-              subtitle={e.subtitle}
-              onTap={e.onTap}
-            />
-          </list-item>
+          <Card bindtap={e.onTap} variant="elevated" style={{
+            minHeight: px(MENU_ROW_ESTIMATE_PX),
+            marginBottom: px(24)
+          }}>
+              <view
+                style={{
+                  width: "100%",
+                  minHeight: px(92),
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: px(6),
+                  padding: px(20),
+                }}
+              >
+                <text
+                  style={{
+                    color: "#e8e8e8",
+                    fontSize: px(16),
+                    fontWeight: "600",
+                    textAlign: "center",
+                  }}
+                >
+                  {e.title}
+                </text>
+                {e.subtitle ? (
+                  <text
+                    style={{
+                      color: "#c8c8c8",
+                      fontSize: px(13),
+                      lineHeight: px(18),
+                      textAlign: "center",
+                    }}
+                  >
+                    {e.subtitle}
+                  </text>
+                ) : null}
+              </view>
+            </Card>
         ))}
-      </list>
+      </scroll-view>
+
+
+
     </view>
   );
 }

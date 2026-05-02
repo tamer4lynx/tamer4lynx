@@ -1,9 +1,9 @@
 import { useCallback } from '@lynx-js/react';
-import { px } from '@tamer4lynx/tamer-app-shell';
+import { Button, px } from '@tamer4lynx/tamer-app-shell';
 import {
   sendTamerState,
   useParams,
-  useTamerNavigate,
+  useTamerRouter,
   useTamerStateSnapshot,
 } from '@tamer4lynx/tamer-router';
 
@@ -20,7 +20,7 @@ type DetailsRecoilSnap = Partial<DetailsRecoilState> | undefined;
 export default function NativeDetailId() {
   const p = useExamplePalette();
   const { id } = useParams();
-  const { push } = useTamerNavigate();
+  const { push } = useTamerRouter();
   const demo = useDemoState();
   const detailsSnapshot = useTamerStateSnapshot(
     'detailsRecoil',
@@ -63,16 +63,6 @@ export default function NativeDetailId() {
     dispatchDetailsRecoilMutation('detail-TamerNav.dispatch');
   }, []);
 
-  const onTapGoEdit = useCallback(() => {
-    'background only';
-    goEdit();
-  }, [goEdit]);
-
-  const onTapInc = useCallback(() => {
-    'background only';
-    inc();
-  }, [inc]);
-
   return (
     <scroll-view scroll-y style={pageShellStyle(p.background)}>
       <view style={{ padding: px(20), gap: px(12), display: 'flex', flexDirection: 'column' }}>
@@ -92,91 +82,36 @@ export default function NativeDetailId() {
           Open edit as a same-layout sibling — native push count should stay flat; use system back
           and inner stack should pop before the native stack.
         </text>
-        <view
-          flatten={false}
-          native-interaction-enabled={true}
-          user-interaction-enabled={true}
-          bindtap={onTapGoEdit}
-          style={{
-            marginTop: px(8),
-            padding: px(14),
-            borderRadius: px(12),
-            backgroundColor: p.surface,
-            alignItems: 'center',
-          }}
-        >
-          <text user-interaction-enabled={false} style={{ color: p.onSurface, fontSize: px(15), fontWeight: '600' }}>
-            Go to edit
-          </text>
-        </view>
-        <view
-          flatten={false}
-          native-interaction-enabled={true}
-          user-interaction-enabled={true}
-          bindtap={onTapInc}
-          style={{
-            marginTop: px(8),
-            padding: px(14),
-            borderRadius: px(12),
-            backgroundColor: '#555',
-            alignItems: 'center',
-          }}
-        >
-          <text user-interaction-enabled={false} style={{ color: '#fff', fontSize: px(15), fontWeight: '600' }}>
-            Inc Zustand singleton
-          </text>
-        </view>
-        <view
-          flatten={false}
-          native-interaction-enabled={true}
-          user-interaction-enabled={true}
-          bindtap={incLocalRecoil}
-          style={{
-            marginTop: px(8),
-            padding: px(14),
-            borderRadius: px(12),
-            backgroundColor: p.surface,
-            alignItems: 'center',
-          }}
-        >
-          <text user-interaction-enabled={false} style={{ color: p.onSurface, fontSize: px(15), fontWeight: '600' }}>
-            Inc local Recoil bridge
-          </text>
-        </view>
-        <view
-          flatten={false}
-          native-interaction-enabled={true}
-          user-interaction-enabled={true}
-          bindtap={incRouterSync}
-          style={{
-            marginTop: px(8),
-            padding: px(14),
-            borderRadius: px(12),
-            backgroundColor: p.surface,
-            alignItems: 'center',
-          }}
-        >
-          <text user-interaction-enabled={false} style={{ color: p.onSurface, fontSize: px(15), fontWeight: '600' }}>
-            Inc Recoil providerConnector
-          </text>
-        </view>
-        <view
-          flatten={false}
-          native-interaction-enabled={true}
-          user-interaction-enabled={true}
-          bindtap={incCoordinatorViaNav}
-          style={{
-            marginTop: px(8),
-            padding: px(14),
-            borderRadius: px(12),
-            backgroundColor: '#555',
-            alignItems: 'center',
-          }}
-        >
-          <text user-interaction-enabled={false} style={{ color: '#fff', fontSize: px(15), fontWeight: '600' }}>
-            Inc Recoil via TamerNav dispatch
-          </text>
-        </view>
+        <Button
+          label="Go to edit"
+          variant="tonal"
+          onTap={goEdit}
+          style={{ width: '100%', alignSelf: 'stretch' }}
+        />
+        <Button
+          label="Inc Zustand singleton"
+          variant="filled"
+          onTap={inc}
+          style={{ width: '100%', alignSelf: 'stretch' }}
+        />
+        <Button
+          label="Inc local Recoil bridge"
+          variant="tonal"
+          onTap={incLocalRecoil}
+          style={{ width: '100%', alignSelf: 'stretch' }}
+        />
+        <Button
+          label="Inc Recoil providerConnector"
+          variant="tonal"
+          onTap={incRouterSync}
+          style={{ width: '100%', alignSelf: 'stretch' }}
+        />
+        <Button
+          label="Inc Recoil via TamerNav dispatch"
+          variant="filled"
+          onTap={incCoordinatorViaNav}
+          style={{ width: '100%', alignSelf: 'stretch' }}
+        />
       </view>
     </scroll-view>
   );

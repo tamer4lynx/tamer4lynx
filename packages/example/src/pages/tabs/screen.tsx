@@ -209,7 +209,7 @@ function ScreenPage() {
         </view>
       </scroll-view>
 
-      <AvoidKeyboard behavior="position" style={{ flexShrink: 0 }}>
+      <AvoidKeyboard behavior="padding" style={{ flexShrink: 0 }}>
         <view
           style={{
             display: 'flex',

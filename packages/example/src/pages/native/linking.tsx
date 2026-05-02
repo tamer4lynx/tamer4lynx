@@ -15,11 +15,13 @@ export default function LinkingPage() {
   const [lastUrl, setLastUrl] = useState<string>('');
 
   const onCreateUrl = useCallback(() => {
+    'background only';
     const url = createURL('test', { scheme: 'tamerdevapp' });
     setCreateUrlResult(url);
   }, []);
 
   const onGetInitialUrl = useCallback(() => {
+    'background only';
     getInitialURL().then((url: string | null) =>
       setInitialUrlResult(url ?? '(null)'),
     );
@@ -35,8 +37,7 @@ export default function LinkingPage() {
   return (
     <view
       style={{
-        display: "flex",
-        flexDirection: "column",
+        ...pageShellStyle(p.surface),
         padding: px(32),
         gap: px(24),
       }}
@@ -46,13 +47,15 @@ export default function LinkingPage() {
         onTap={onCreateUrl}
         variant="filled"
         size="sm"
-        shape="square"
-        colors={{ container: '#555', label: '#fff' }}
         style={{ width: '100%', alignSelf: 'stretch' }}
       />
       {createUrlResult ? (
         <text
-          style={{ fontSize: px(18), color: '#aaa', wordBreak: 'break-all' }}
+          style={{
+            fontSize: px(18),
+            color: p.onSurfaceVariant,
+            wordBreak: 'break-all',
+          }}
         >
           {createUrlResult}
         </text>
@@ -62,18 +65,20 @@ export default function LinkingPage() {
         onTap={onGetInitialUrl}
         variant="filled"
         size="sm"
-        shape="square"
-        colors={{ container: '#555', label: '#fff' }}
         style={{ width: '100%', alignSelf: 'stretch' }}
       />
       {initialUrlResult ? (
         <text
-          style={{ fontSize: px(18), color: '#aaa', wordBreak: 'break-all' }}
+          style={{
+            fontSize: px(18),
+            color: p.onSurfaceVariant,
+            wordBreak: 'break-all',
+          }}
         >
           {initialUrlResult}
         </text>
       ) : null}
-      <text style={{ fontSize: px(18), color: '#aaa' }}>
+      <text style={{ fontSize: px(18), color: p.onSurfaceVariant }}>
         addEventListener (url): {lastUrl || 'waiting...'}
       </text>
     </view>

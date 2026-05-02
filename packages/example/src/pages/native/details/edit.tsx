@@ -1,5 +1,5 @@
 import { useCallback } from "@lynx-js/react";
-import { px } from "@tamer4lynx/tamer-app-shell";
+import { Button, px } from "@tamer4lynx/tamer-app-shell";
 import {
   sendTamerState,
   useTamerNavigate,
@@ -60,16 +60,6 @@ export default function NativeDetailEdit() {
     dispatchDetailsRecoilMutation("edit-TamerNav.dispatch");
   }, []);
 
-  const onTapGoBack = useCallback(() => {
-    "background only";
-    goBack();
-  }, [goBack]);
-
-  const onTapInc = useCallback(() => {
-    "background only";
-    inc();
-  }, [inc]);
-
   return (
     <scroll-view scroll-y style={pageShellStyle(p.background)}>
       <view
@@ -94,106 +84,36 @@ export default function NativeDetailEdit() {
         <text style={{ color: p.onSurfaceVariant, fontSize: px(13), lineHeight: px(18) }}>
           Recoil note: {detailsRecoil.note} · updated by {detailsRecoil.updatedBy}
         </text>
-        <view
-          flatten={false}
-          native-interaction-enabled={true}
-          user-interaction-enabled={true}
-          bindtap={onTapGoBack}
-          style={{
-            marginTop: px(8),
-            padding: px(14),
-            borderRadius: px(12),
-            backgroundColor: p.surface,
-            alignItems: "center",
-          }}
-        >
-          <text
-            user-interaction-enabled={false}
-            style={{ color: p.onSurface, fontSize: px(15), fontWeight: "600" }}
-          >
-            Back (inner)
-          </text>
-        </view>
-        <view
-          flatten={false}
-          native-interaction-enabled={true}
-          user-interaction-enabled={true}
-          bindtap={onTapInc}
-          style={{
-            marginTop: px(8),
-            padding: px(14),
-            borderRadius: px(12),
-            backgroundColor: "#555",
-            alignItems: "center",
-          }}
-        >
-          <text
-            user-interaction-enabled={false}
-            style={{ color: "#fff", fontSize: px(15), fontWeight: "600" }}
-          >
-            Inc Zustand singleton
-          </text>
-        </view>
-        <view
-          flatten={false}
-          native-interaction-enabled={true}
-          user-interaction-enabled={true}
-          bindtap={incLocalRecoil}
-          style={{
-            marginTop: px(8),
-            padding: px(14),
-            borderRadius: px(12),
-            backgroundColor: p.surface,
-            alignItems: "center",
-          }}
-        >
-          <text
-            user-interaction-enabled={false}
-            style={{ color: p.onSurface, fontSize: px(15), fontWeight: "600" }}
-          >
-            Inc local Recoil bridge
-          </text>
-        </view>
-        <view
-          flatten={false}
-          native-interaction-enabled={true}
-          user-interaction-enabled={true}
-          bindtap={incRouterSync}
-          style={{
-            marginTop: px(8),
-            padding: px(14),
-            borderRadius: px(12),
-            backgroundColor: p.surface,
-            alignItems: "center",
-          }}
-        >
-          <text
-            user-interaction-enabled={false}
-            style={{ color: p.onSurface, fontSize: px(15), fontWeight: "600" }}
-          >
-            Inc Recoil providerConnector
-          </text>
-        </view>
-        <view
-          flatten={false}
-          native-interaction-enabled={true}
-          user-interaction-enabled={true}
-          bindtap={incCoordinatorViaNav}
-          style={{
-            marginTop: px(8),
-            padding: px(14),
-            borderRadius: px(12),
-            backgroundColor: "#555",
-            alignItems: "center",
-          }}
-        >
-          <text
-            user-interaction-enabled={false}
-            style={{ color: "#fff", fontSize: px(15), fontWeight: "600" }}
-          >
-            Inc Recoil via TamerNav dispatch
-          </text>
-        </view>
+        <Button
+          label="Back (inner)"
+          variant="tonal"
+          onTap={goBack}
+          style={{ width: "100%", alignSelf: "stretch" }}
+        />
+        <Button
+          label="Inc Zustand singleton"
+          variant="filled"
+          onTap={inc}
+          style={{ width: "100%", alignSelf: "stretch" }}
+        />
+        <Button
+          label="Inc local Recoil bridge"
+          variant="tonal"
+          onTap={incLocalRecoil}
+          style={{ width: "100%", alignSelf: "stretch" }}
+        />
+        <Button
+          label="Inc Recoil providerConnector"
+          variant="tonal"
+          onTap={incRouterSync}
+          style={{ width: "100%", alignSelf: "stretch" }}
+        />
+        <Button
+          label="Inc Recoil via TamerNav dispatch"
+          variant="filled"
+          onTap={incCoordinatorViaNav}
+          style={{ width: "100%", alignSelf: "stretch" }}
+        />
       </view>
     </scroll-view>
   );

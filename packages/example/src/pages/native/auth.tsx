@@ -78,13 +78,12 @@ export default function AuthPage() {
   return (
     <view
       style={{
-        display: "flex",
-        flexDirection: "column",
+        ...pageShellStyle(p.surface),
         padding: px(32),
         gap: px(24),
       }}
     >
-      <text style={{ fontSize: px(18), color: '#aaa' }}>
+      <text style={{ fontSize: px(18), color: p.onSurfaceVariant }}>
         Beeceptor mock - authorization code flow
       </text>
       <Button
@@ -92,16 +91,20 @@ export default function AuthPage() {
         onTap={startAuth}
         variant="filled"
         size="sm"
-        shape="square"
-        colors={{ container: '#555', label: '#fff' }}
         style={{ width: '100%', alignSelf: 'stretch' }}
       />
       {status ? (
-        <text style={{ fontSize: px(18), color: '#aaa' }}>{status}</text>
+        <text style={{ fontSize: px(18), color: p.onSurfaceVariant }}>
+          {status}
+        </text>
       ) : null}
       {token ? (
         <text
-          style={{ fontSize: px(18), color: '#aaa', wordBreak: 'break-all' }}
+          style={{
+            fontSize: px(18),
+            color: p.onSurfaceVariant,
+            wordBreak: 'break-all',
+          }}
         >
           Token: {token.slice(0, 20)}...
         </text>
