@@ -6,7 +6,6 @@ import {
   useTamerStateSnapshot,
 } from "@tamer4lynx/tamer-router";
 import {
-  dispatchDetailsRecoilMutation,
   useDetailsRecoilState,
   type DetailsRecoilState,
 } from "../../../details-recoil-state.js";
@@ -22,7 +21,7 @@ export default function NativeDetailEdit() {
   const detailsSnapshot = useTamerStateSnapshot(
     "detailsRecoil",
   ) as DetailsRecoilSnap;
-  const [detailsRecoil, setDetailsRecoil] = useDetailsRecoilState();
+  const [detailsRecoil] = useDetailsRecoilState();
   const count = demo.count;
   const snapshotCount =
     typeof detailsSnapshot?.count === "number" ? detailsSnapshot.count : 0;
@@ -37,27 +36,12 @@ export default function NativeDetailEdit() {
     incrementDemoStore();
   }, []);
 
-  const incLocalRecoil = useCallback(() => {
-    "background only";
-    setDetailsRecoil((prev) => ({
-      ...prev,
-      count: prev.count + 1,
-      note: "edit",
-      updatedBy: "edit-local-recoil",
-    }));
-  }, [setDetailsRecoil]);
-
   const incRouterSync = useCallback(() => {
     "background only";
     sendTamerState("detailsRecoil", {
       type: "details/inc",
       source: "edit-sendTamerState",
     });
-  }, []);
-
-  const incCoordinatorViaNav = useCallback(() => {
-    "background only";
-    dispatchDetailsRecoilMutation("edit-TamerNav.dispatch");
   }, []);
 
   return (
@@ -97,21 +81,9 @@ export default function NativeDetailEdit() {
           style={{ width: "100%", alignSelf: "stretch" }}
         />
         <Button
-          label="Inc local Recoil bridge"
-          variant="tonal"
-          onTap={incLocalRecoil}
-          style={{ width: "100%", alignSelf: "stretch" }}
-        />
-        <Button
           label="Inc Recoil providerConnector"
           variant="tonal"
           onTap={incRouterSync}
-          style={{ width: "100%", alignSelf: "stretch" }}
-        />
-        <Button
-          label="Inc Recoil via TamerNav dispatch"
-          variant="filled"
-          onTap={incCoordinatorViaNav}
           style={{ width: "100%", alignSelf: "stretch" }}
         />
       </view>
