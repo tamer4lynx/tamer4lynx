@@ -2,7 +2,7 @@
 
 CLI and npm packages (`@tamer4lynx/*`) for [Lynx](https://lynxjs.org): routing, native UI, platform APIs, iOS/Android hosts. Aligned with the [Lynx Autolink RFC](https://github.com/lynx-family/lynx/discussions/2653).
 
-**Docs:** [tamer4lynx.github.io/docs](https://tamer4lynx.github.io/docs) (or `cd packages/docs && bun run dev`)
+**Docs:** [tamer4lynx.github.io](https://tamer4lynx.github.io) (or `cd packages/docs && bun run dev`)
 
 ## Install
 
