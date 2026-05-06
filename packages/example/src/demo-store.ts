@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 
+console.log('[TamerHeap] demo-store module-eval', Math.random())
+
 export type DemoState = {
   count: number
   increment: () => void

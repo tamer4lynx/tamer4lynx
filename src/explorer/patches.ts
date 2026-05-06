@@ -365,11 +365,17 @@ ${embeddedHelpers}
 export function getTamerNavLynxRuntime(vars: Pick<PatchVars, "packageName">): string {
   return `package ${vars.packageName}
 
+import android.content.Context
+import com.lynx.tasm.LynxBooleanOption
 import com.lynx.tasm.LynxGroup
+import com.lynx.tasm.LynxViewBuilder
+import com.lynx.tasm.group.ILynxViewGroup
+import com.lynx.tasm.group.LynxViewGroupBuilder
+import com.lynx.xelement.XElementBehaviors
 
 /**
- * Shared LynxGroup for coordinator LynxViews and TamerNav stack spokes.
- * Module-singleton stores such as Zustand rely on this shared JS context group.
+ * Shared LynxGroup plus per-bundle LynxViewGroups for coordinator LynxViews and TamerNav spokes.
+ * Module-singleton stores such as Zustand rely on this shared runtime group.
  */
 object TamerNavLynxRuntime {
     val group: LynxGroup = LynxGroup.LynxGroupBuilder()
@@ -377,6 +383,36 @@ object TamerNavLynxRuntime {
         .setID(LynxGroup.SINGNLE_GROUP)
         .setEnableJSGroupThread(true)
         .build()
+
+    private val viewGroups = LinkedHashMap<String, ILynxViewGroup>()
+
+    @Synchronized
+    fun viewGroup(context: Context, src: String): ILynxViewGroup {
+        val key = src.ifBlank { "main.lynx.bundle" }
+        return viewGroups.getOrPut(key) {
+            val appContext = context.applicationContext ?: context
+            val provider = TemplateProvider(appContext)
+            val groupBuilder = LynxViewGroupBuilder()
+                .setContext(appContext)
+                .setUrl(key)
+                .setLynxGroup(group)
+                .addBehaviors(XElementBehaviors().create())
+            groupBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
+            groupBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
+            groupBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+            groupBuilder.build()
+        }
+    }
+
+    fun configureBuilder(context: Context, viewBuilder: LynxViewBuilder, src: String) {
+        val provider = TemplateProvider(context)
+        viewBuilder.setLynxViewGroup(viewGroup(context, src))
+        viewBuilder.setLynxGroup(group)
+        viewBuilder.setTemplateProvider(provider)
+        viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
+        viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
+        viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+    }
 }
 `;
 }
@@ -588,26 +624,16 @@ ${reloadMethod}
 
 ${projectInstallNativeStack}    private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
-        viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
-        val provider = TemplateProvider(this)
-        viewBuilder.setTemplateProvider(provider)
-        viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
-        viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
-        viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+        TamerNavLynxRuntime.configureBuilder(this, viewBuilder, "main.lynx.bundle")
         GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
     }
 
     private fun configureTamerNavSpokeBuilder() {
         TamerNavHost.configureSharedLynxGroup(TamerNavLynxRuntime.group)
-        TamerNavHost.spokeBuilder = { ctx ->
+        TamerNavHost.sourceSpokeBuilder = { ctx, src ->
             val viewBuilder = LynxViewBuilder()
-            viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
-            val provider = TemplateProvider(ctx)
-            viewBuilder.setTemplateProvider(provider)
-            viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
-            viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
-            viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+            TamerNavLynxRuntime.configureBuilder(ctx, viewBuilder, src)
             GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
             viewBuilder.build(ctx)
         }
@@ -734,26 +760,16 @@ class ProjectActivity : AppCompatActivity() {
 
     private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
-        viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
-        val provider = TemplateProvider(this)
-        viewBuilder.setTemplateProvider(provider)
-        viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
-        viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
-        viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+        TamerNavLynxRuntime.configureBuilder(this, viewBuilder, "main.lynx.bundle")
         GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
     }
 
     private fun configureTamerNavSpokeBuilder() {
         TamerNavHost.configureSharedLynxGroup(TamerNavLynxRuntime.group)
-        TamerNavHost.spokeBuilder = { ctx ->
+        TamerNavHost.sourceSpokeBuilder = { ctx, src ->
             val viewBuilder = LynxViewBuilder()
-            viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
-            val provider = TemplateProvider(ctx)
-            viewBuilder.setTemplateProvider(provider)
-            viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
-            viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
-            viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+            TamerNavLynxRuntime.configureBuilder(ctx, viewBuilder, src)
             GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
             viewBuilder.build(ctx)
         }
@@ -946,26 +962,16 @@ ${devClientField}    private var lynxView: LynxView? = null${!hasDevClient ? '\n
 
 ${mainInstallNativeStack}    private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
-        viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
-        val provider = TemplateProvider(this)
-        viewBuilder.setTemplateProvider(provider)
-        viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
-        viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
-        viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+        TamerNavLynxRuntime.configureBuilder(this, viewBuilder, currentUri)
         GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
     }
 
     private fun configureTamerNavSpokeBuilder() {
         TamerNavHost.configureSharedLynxGroup(TamerNavLynxRuntime.group)
-        TamerNavHost.spokeBuilder = { ctx ->
+        TamerNavHost.sourceSpokeBuilder = { ctx, src ->
             val viewBuilder = LynxViewBuilder()
-            viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
-            val provider = TemplateProvider(ctx)
-            viewBuilder.setTemplateProvider(provider)
-            viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
-            viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
-            viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+            TamerNavLynxRuntime.configureBuilder(ctx, viewBuilder, src)
             GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
             viewBuilder.build(ctx)
         }
@@ -1060,12 +1066,7 @@ class LynxPushActivity : AppCompatActivity() {
 
     private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
-        viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
-        val provider = TemplateProvider(this)
-        viewBuilder.setTemplateProvider(provider)
-        viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
-        viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
-        viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+        TamerNavLynxRuntime.configureBuilder(this, viewBuilder, "main.lynx.bundle")
         GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
     }

@@ -28,6 +28,7 @@ function ScreenPage() {
           display: 'flex',
           flexDirection: 'column',
           backgroundColor: p.surface,
+          position: "relative"
         }}
       >
       <scroll-view

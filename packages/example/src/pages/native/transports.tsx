@@ -141,7 +141,7 @@ export default function TransportsPage() {
           package here so the bundle does not load a second copy of its index.
         </text>
 
-        <Card variant="outlined" onTap={runFetch} style={{ width: '100%', minHeight: px(72) }}>
+        <Card variant="elevated" onTap={runFetch} style={{ width: '100%', minHeight: px(72) }}>
           <view
             style={{
               width: '100%',
@@ -189,7 +189,7 @@ export default function TransportsPage() {
           </view>
         </Card>
 
-        <Card variant="outlined" onTap={runWs} style={{ width: '100%', minHeight: px(72) }}>
+        <Card variant="elevated" onTap={runWs} style={{ width: '100%', minHeight: px(72) }}>
           <view
             style={{
               width: '100%',
@@ -237,7 +237,7 @@ export default function TransportsPage() {
           </view>
         </Card>
 
-        <Card variant="outlined" onTap={runSse} style={{ width: '100%', minHeight: px(88) }}>
+        <Card variant="elevated" onTap={runSse} style={{ width: '100%', minHeight: px(88) }}>
           <view
             style={{
               width: '100%',

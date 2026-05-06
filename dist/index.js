@@ -959,11 +959,17 @@ ${embeddedHelpers}
 function getTamerNavLynxRuntime(vars) {
   return `package ${vars.packageName}
 
+import android.content.Context
+import com.lynx.tasm.LynxBooleanOption
 import com.lynx.tasm.LynxGroup
+import com.lynx.tasm.LynxViewBuilder
+import com.lynx.tasm.group.ILynxViewGroup
+import com.lynx.tasm.group.LynxViewGroupBuilder
+import com.lynx.xelement.XElementBehaviors
 
 /**
- * Shared LynxGroup for coordinator LynxViews and TamerNav stack spokes.
- * Module-singleton stores such as Zustand rely on this shared JS context group.
+ * Shared LynxGroup plus per-bundle LynxViewGroups for coordinator LynxViews and TamerNav spokes.
+ * Module-singleton stores such as Zustand rely on this shared runtime group.
  */
 object TamerNavLynxRuntime {
     val group: LynxGroup = LynxGroup.LynxGroupBuilder()
@@ -971,6 +977,36 @@ object TamerNavLynxRuntime {
         .setID(LynxGroup.SINGNLE_GROUP)
         .setEnableJSGroupThread(true)
         .build()
+
+    private val viewGroups = LinkedHashMap<String, ILynxViewGroup>()
+
+    @Synchronized
+    fun viewGroup(context: Context, src: String): ILynxViewGroup {
+        val key = src.ifBlank { "main.lynx.bundle" }
+        return viewGroups.getOrPut(key) {
+            val appContext = context.applicationContext ?: context
+            val provider = TemplateProvider(appContext)
+            val groupBuilder = LynxViewGroupBuilder()
+                .setContext(appContext)
+                .setUrl(key)
+                .setLynxGroup(group)
+                .addBehaviors(XElementBehaviors().create())
+            groupBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
+            groupBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
+            groupBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+            groupBuilder.build()
+        }
+    }
+
+    fun configureBuilder(context: Context, viewBuilder: LynxViewBuilder, src: String) {
+        val provider = TemplateProvider(context)
+        viewBuilder.setLynxViewGroup(viewGroup(context, src))
+        viewBuilder.setLynxGroup(group)
+        viewBuilder.setTemplateProvider(provider)
+        viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
+        viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
+        viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+    }
 }
 `;
 }
@@ -1168,26 +1204,16 @@ ${reloadMethod}
 
 ${projectInstallNativeStack}    private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
-        viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
-        val provider = TemplateProvider(this)
-        viewBuilder.setTemplateProvider(provider)
-        viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
-        viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
-        viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+        TamerNavLynxRuntime.configureBuilder(this, viewBuilder, "main.lynx.bundle")
         GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
     }
 
     private fun configureTamerNavSpokeBuilder() {
         TamerNavHost.configureSharedLynxGroup(TamerNavLynxRuntime.group)
-        TamerNavHost.spokeBuilder = { ctx ->
+        TamerNavHost.sourceSpokeBuilder = { ctx, src ->
             val viewBuilder = LynxViewBuilder()
-            viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
-            val provider = TemplateProvider(ctx)
-            viewBuilder.setTemplateProvider(provider)
-            viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
-            viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
-            viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+            TamerNavLynxRuntime.configureBuilder(ctx, viewBuilder, src)
             GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
             viewBuilder.build(ctx)
         }
@@ -1307,26 +1333,16 @@ class ProjectActivity : AppCompatActivity() {
 
     private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
-        viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
-        val provider = TemplateProvider(this)
-        viewBuilder.setTemplateProvider(provider)
-        viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
-        viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
-        viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+        TamerNavLynxRuntime.configureBuilder(this, viewBuilder, "main.lynx.bundle")
         GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
     }
 
     private fun configureTamerNavSpokeBuilder() {
         TamerNavHost.configureSharedLynxGroup(TamerNavLynxRuntime.group)
-        TamerNavHost.spokeBuilder = { ctx ->
+        TamerNavHost.sourceSpokeBuilder = { ctx, src ->
             val viewBuilder = LynxViewBuilder()
-            viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
-            val provider = TemplateProvider(ctx)
-            viewBuilder.setTemplateProvider(provider)
-            viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
-            viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
-            viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+            TamerNavLynxRuntime.configureBuilder(ctx, viewBuilder, src)
             GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
             viewBuilder.build(ctx)
         }
@@ -1491,26 +1507,16 @@ ${devClientField}    private var lynxView: LynxView? = null${!hasDevClient ? "\n
 
 ${mainInstallNativeStack}    private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
-        viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
-        val provider = TemplateProvider(this)
-        viewBuilder.setTemplateProvider(provider)
-        viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
-        viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
-        viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+        TamerNavLynxRuntime.configureBuilder(this, viewBuilder, currentUri)
         GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
     }
 
     private fun configureTamerNavSpokeBuilder() {
         TamerNavHost.configureSharedLynxGroup(TamerNavLynxRuntime.group)
-        TamerNavHost.spokeBuilder = { ctx ->
+        TamerNavHost.sourceSpokeBuilder = { ctx, src ->
             val viewBuilder = LynxViewBuilder()
-            viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
-            val provider = TemplateProvider(ctx)
-            viewBuilder.setTemplateProvider(provider)
-            viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
-            viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
-            viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+            TamerNavLynxRuntime.configureBuilder(ctx, viewBuilder, src)
             GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
             viewBuilder.build(ctx)
         }
@@ -1603,12 +1609,7 @@ class LynxPushActivity : AppCompatActivity() {
 
     private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
-        viewBuilder.setLynxGroup(TamerNavLynxRuntime.group)
-        val provider = TemplateProvider(this)
-        viewBuilder.setTemplateProvider(provider)
-        viewBuilder.setEnableGenericResourceFetcher(LynxBooleanOption.TRUE)
-        viewBuilder.setTemplateResourceFetcher(provider.templateResourceFetcher)
-        viewBuilder.setGenericResourceFetcher(provider.genericResourceFetcher)
+        TamerNavLynxRuntime.configureBuilder(this, viewBuilder, "main.lynx.bundle")
         GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
     }
@@ -4339,6 +4340,32 @@ private enum TamerNavLynxRuntime {
 	option.enableJSGroupThread = true
 	return LynxGroup(name: "TamerNav", with: option)
   }()
+
+  private static var viewGroups: [String: LynxViewGroup] = [:]
+
+  static func viewGroup(src: String, provider: LynxProvider) -> LynxViewGroup {
+	let key = src.isEmpty ? "main.lynx.bundle" : src
+	if let existing = viewGroups[key] {
+	  return existing
+	}
+	let group = LynxViewGroup(url: key, templateFetcher: provider)
+	group.group = sharedGroup
+	group.enableGenericResourceFetcher = .true
+	group.config = LynxConfig(provider: provider)
+	group.templateResourceFetcher = provider
+	group.genericResourceFetcher = provider
+	viewGroups[key] = group
+	return group
+  }
+
+  static func configureBuilder(_ builder: LynxViewBuilder, src: String, provider: LynxProvider) {
+	builder.lynxViewGroup = viewGroup(src: src, provider: provider)
+	builder.group = sharedGroup
+	builder.enableGenericResourceFetcher = .true
+	builder.config = LynxConfig(provider: provider)
+	builder.templateResourceFetcher = provider
+	builder.genericResourceFetcher = provider
+  }
 }
 
 class ViewController: UIViewController {
@@ -4377,10 +4404,15 @@ class ViewController: UIViewController {
   private func buildLynxView() -> LynxView {
 	let bounds = view.bounds
 	let lv = LynxView { builder in
+	  let provider = LynxProvider()
 #if canImport(tamernavigation)
-	  builder.group = TamerNavLynxRuntime.sharedGroup
+	  TamerNavLynxRuntime.configureBuilder(builder, src: "main.lynx.bundle", provider: provider)
+#else
+	  builder.enableGenericResourceFetcher = .true
+	  builder.config = LynxConfig(provider: provider)
+	  builder.templateResourceFetcher = provider
+	  builder.genericResourceFetcher = provider
 #endif
-	  builder.config = LynxConfig(provider: LynxProvider())
 	  builder.screenSize = bounds.size
 	  builder.fontScale = 1.0
 	}
@@ -4394,6 +4426,10 @@ class ViewController: UIViewController {
   private func setupLynxView() {
 #if canImport(tamernavigation)
 	TamerNavHost.configureSharedGroup(TamerNavLynxRuntime.sharedGroup)
+	TamerNavHost.configureSpokeBuilder = { builder, src in
+	  let provider = LynxProvider()
+	  TamerNavLynxRuntime.configureBuilder(builder, src: src, provider: provider)
+	}
 #endif
 	let lv = buildLynxView()
 	view.addSubview(lv)
@@ -4420,20 +4456,54 @@ class ViewController: UIViewController {
 	`);
     writeFile2(path18.join(projectDir, "LynxProvider.swift"), `
 import Foundation
+import Lynx
 
-class LynxProvider: NSObject, LynxTemplateProvider {
+class LynxProvider: NSObject, LynxTemplateProvider, LynxTemplateResourceFetcher, LynxGenericResourceFetcher {
     func loadTemplate(withUrl url: String!, onComplete callback: LynxTemplateLoadBlock!) {
         DispatchQueue.global(qos: .background).async {
-            guard let url = url,
-                  let bundleUrl = Bundle.main.url(forResource: url, withExtension: nil),
-                  let data = try? Data(contentsOf: bundleUrl) else {
-                let err = NSError(domain: "LynxProvider", code: 404,
-                                  userInfo: [NSLocalizedDescriptionKey: "Bundle not found: \\(url ?? "nil")"])
-                callback?(nil, err)
-                return
-            }
-            callback?(data, nil)
+            let result = self.loadData(url: url)
+            callback?(result.data, result.error)
         }
+    }
+
+    func fetchTemplate(_ request: LynxResourceRequest, onComplete callback: @escaping LynxTemplateResourceCompletionBlock) {
+        DispatchQueue.global(qos: .background).async {
+            let result = self.loadData(url: request.url)
+            callback(result.data.map { LynxTemplateResource(nsData: $0) }, result.error)
+        }
+    }
+
+    func fetchSSRData(_ request: LynxResourceRequest, onComplete callback: @escaping LynxSSRResourceCompletionBlock) {
+        DispatchQueue.global(qos: .background).async {
+            let result = self.loadData(url: request.url)
+            callback(result.data, result.error)
+        }
+    }
+
+    func fetchResource(_ request: LynxResourceRequest, onComplete callback: @escaping LynxGenericResourceCompletionBlock) -> (() -> Void) {
+        DispatchQueue.global(qos: .background).async {
+            let result = self.loadData(url: request.url)
+            callback(result.data, result.error)
+        }
+        return {}
+    }
+
+    func fetchResourcePath(_ request: LynxResourceRequest, onComplete callback: @escaping LynxGenericResourcePathCompletionBlock) -> (() -> Void) {
+        let error = NSError(domain: "LynxProvider", code: 501,
+                            userInfo: [NSLocalizedDescriptionKey: "Resource path lookup is not supported"])
+        callback(nil, error)
+        return {}
+    }
+
+    private func loadData(url: String?) -> (data: Data?, error: NSError?) {
+        guard let url = url,
+              let bundleUrl = Bundle.main.url(forResource: url, withExtension: nil),
+              let data = try? Data(contentsOf: bundleUrl) else {
+            let err = NSError(domain: "LynxProvider", code: 404,
+                              userInfo: [NSLocalizedDescriptionKey: "Bundle not found: \\(url ?? "nil")"])
+            return (nil, err)
+        }
+        return (data, nil)
     }
 }
 	`);
@@ -5015,6 +5085,32 @@ private enum TamerNavLynxRuntime {
         option.enableJSGroupThread = true
         return LynxGroup(name: "TamerNav", with: option)
     }()
+
+    private static var viewGroups: [String: LynxViewGroup] = [:]
+
+    static func viewGroup(src: String, provider: DevTemplateProvider) -> LynxViewGroup {
+        let key = src.isEmpty ? "main.lynx.bundle" : src
+        if let existing = viewGroups[key] {
+            return existing
+        }
+        let group = LynxViewGroup(url: key, templateFetcher: provider)
+        group.group = sharedGroup
+        group.enableGenericResourceFetcher = .true
+        group.config = LynxConfig(provider: provider)
+        group.templateResourceFetcher = provider
+        group.genericResourceFetcher = provider
+        viewGroups[key] = group
+        return group
+    }
+
+    static func configureBuilder(_ builder: LynxViewBuilder, src: String, provider: DevTemplateProvider) {
+        builder.lynxViewGroup = viewGroup(src: src, provider: provider)
+        builder.group = sharedGroup
+        builder.enableGenericResourceFetcher = .true
+        builder.config = LynxConfig(provider: provider)
+        builder.templateResourceFetcher = provider
+        builder.genericResourceFetcher = provider
+    }
 }
 
 class ProjectViewController: UIViewController {
@@ -5116,12 +5212,13 @@ class ProjectViewController: UIViewController {
         let lv = LynxView { builder in
             let provider = DevTemplateProvider()
 #if canImport(tamernavigation)
-            builder.group = TamerNavLynxRuntime.sharedGroup
-#endif
+            TamerNavLynxRuntime.configureBuilder(builder, src: "main.lynx.bundle", provider: provider)
+#else
             builder.enableGenericResourceFetcher = .true
             builder.config = LynxConfig(provider: provider)
             builder.templateResourceFetcher = provider
             builder.genericResourceFetcher = provider
+#endif
             builder.screenSize = size
             builder.fontScale = 1.0
         }
@@ -5136,6 +5233,10 @@ class ProjectViewController: UIViewController {
         NSLog("[ProjectVC] setupLynxView devUrl=%@", DevServerPrefs.getUrl() ?? "")
 #if canImport(tamernavigation)
         TamerNavHost.configureSharedGroup(TamerNavLynxRuntime.sharedGroup)
+        TamerNavHost.configureSpokeBuilder = { builder, src in
+            let provider = DevTemplateProvider()
+            TamerNavLynxRuntime.configureBuilder(builder, src: src, provider: provider)
+        }
 #endif
         let lv = buildLynxView()
         lv.backgroundColor = .black
@@ -5627,6 +5728,32 @@ private enum TamerNavLynxRuntime {
         option.enableJSGroupThread = true
         return LynxGroup(name: "TamerNav", with: option)
     }()
+
+    private static var viewGroups: [String: LynxViewGroup] = [:]
+
+    static func viewGroup(src: String, provider: LynxProvider) -> LynxViewGroup {
+        let key = src.isEmpty ? "main.lynx.bundle" : src
+        if let existing = viewGroups[key] {
+            return existing
+        }
+        let group = LynxViewGroup(url: key, templateFetcher: provider)
+        group.group = sharedGroup
+        group.enableGenericResourceFetcher = .true
+        group.config = LynxConfig(provider: provider)
+        group.templateResourceFetcher = provider
+        group.genericResourceFetcher = provider
+        viewGroups[key] = group
+        return group
+    }
+
+    static func configureBuilder(_ builder: LynxViewBuilder, src: String, provider: LynxProvider) {
+        builder.lynxViewGroup = viewGroup(src: src, provider: provider)
+        builder.group = sharedGroup
+        builder.enableGenericResourceFetcher = .true
+        builder.config = LynxConfig(provider: provider)
+        builder.templateResourceFetcher = provider
+        builder.genericResourceFetcher = provider
+    }
 }
 
 class ViewController: UIViewController {
@@ -5665,10 +5792,15 @@ class ViewController: UIViewController {
     private func buildLynxView() -> LynxView {
         let bounds = view.bounds
         let lv = LynxView { builder in
+            let provider = LynxProvider()
 #if canImport(tamernavigation)
-            builder.group = TamerNavLynxRuntime.sharedGroup
+            TamerNavLynxRuntime.configureBuilder(builder, src: "main.lynx.bundle", provider: provider)
+#else
+            builder.enableGenericResourceFetcher = .true
+            builder.config = LynxConfig(provider: provider)
+            builder.templateResourceFetcher = provider
+            builder.genericResourceFetcher = provider
 #endif
-            builder.config = LynxConfig(provider: LynxProvider())
             builder.screenSize = bounds.size
             builder.fontScale = 1.0
         }
@@ -5682,6 +5814,10 @@ class ViewController: UIViewController {
     private func setupLynxView() {
 #if canImport(tamernavigation)
         TamerNavHost.configureSharedGroup(TamerNavLynxRuntime.sharedGroup)
+        TamerNavHost.configureSpokeBuilder = { builder, src in
+            let provider = LynxProvider()
+            TamerNavLynxRuntime.configureBuilder(builder, src: src, provider: provider)
+        }
 #endif
         let lv = buildLynxView()
         view.addSubview(lv)
@@ -5758,19 +5894,52 @@ function getSimpleLynxProviderSwift() {
   return `import Foundation
 import Lynx
 
-class LynxProvider: NSObject, LynxTemplateProvider {
+class LynxProvider: NSObject, LynxTemplateProvider, LynxTemplateResourceFetcher, LynxGenericResourceFetcher {
     func loadTemplate(withUrl url: String!, onComplete callback: LynxTemplateLoadBlock!) {
         DispatchQueue.global(qos: .background).async {
-            guard let url = url,
-                  let bundleUrl = Bundle.main.url(forResource: url, withExtension: nil),
-                  let data = try? Data(contentsOf: bundleUrl) else {
-                let err = NSError(domain: "LynxProvider", code: 404,
-                                  userInfo: [NSLocalizedDescriptionKey: "Bundle not found: \\(url ?? "nil")"])
-                callback?(nil, err)
-                return
-            }
-            callback?(data, nil)
+            let result = self.loadData(url: url)
+            callback?(result.data, result.error)
         }
+    }
+
+    func fetchTemplate(_ request: LynxResourceRequest, onComplete callback: @escaping LynxTemplateResourceCompletionBlock) {
+        DispatchQueue.global(qos: .background).async {
+            let result = self.loadData(url: request.url)
+            callback(result.data.map { LynxTemplateResource(nsData: $0) }, result.error)
+        }
+    }
+
+    func fetchSSRData(_ request: LynxResourceRequest, onComplete callback: @escaping LynxSSRResourceCompletionBlock) {
+        DispatchQueue.global(qos: .background).async {
+            let result = self.loadData(url: request.url)
+            callback(result.data, result.error)
+        }
+    }
+
+    func fetchResource(_ request: LynxResourceRequest, onComplete callback: @escaping LynxGenericResourceCompletionBlock) -> (() -> Void) {
+        DispatchQueue.global(qos: .background).async {
+            let result = self.loadData(url: request.url)
+            callback(result.data, result.error)
+        }
+        return {}
+    }
+
+    func fetchResourcePath(_ request: LynxResourceRequest, onComplete callback: @escaping LynxGenericResourcePathCompletionBlock) -> (() -> Void) {
+        let error = NSError(domain: "LynxProvider", code: 501,
+                            userInfo: [NSLocalizedDescriptionKey: "Resource path lookup is not supported"])
+        callback(nil, error)
+        return {}
+    }
+
+    private func loadData(url: String?) -> (data: Data?, error: NSError?) {
+        guard let url = url,
+              let bundleUrl = Bundle.main.url(forResource: url, withExtension: nil),
+              let data = try? Data(contentsOf: bundleUrl) else {
+            let err = NSError(domain: "LynxProvider", code: 404,
+                              userInfo: [NSLocalizedDescriptionKey: "Bundle not found: \\(url ?? "nil")"])
+            return (nil, err)
+        }
+        return (data, nil)
     }
 }
 `;
@@ -8962,27 +9131,37 @@ import { promisify } from "util";
 import semver from "semver";
 var execFileAsync = promisify(execFile);
 var CORE_PACKAGES = [
+  "@tamer4lynx/tamer-host",
+  "@tamer4lynx/tamer-navigation",
+  // not yet on npm — skipped automatically until published
+  "@tamer4lynx/tamer-plugin",
+  "@tamer4lynx/tamer-router",
   "@tamer4lynx/tamer-app-shell",
   "@tamer4lynx/tamer-screen",
-  "@tamer4lynx/tamer-router",
   "@tamer4lynx/tamer-insets",
-  "@tamer4lynx/tamer-transports",
   "@tamer4lynx/tamer-system-ui",
   "@tamer4lynx/tamer-icons",
+  "@tamer4lynx/tamer-transports",
   "@tamer4lynx/tamer-env"
 ];
 var DEV_STACK_PACKAGES = [
-  "@tamer4lynx/tamer-dev-app",
-  "@tamer4lynx/tamer-dev-client",
-  "@tamer4lynx/tamer-app-shell",
-  "@tamer4lynx/tamer-icons",
-  "@tamer4lynx/tamer-insets",
-  "@tamer4lynx/tamer-linking",
+  // core
+  "@tamer4lynx/tamer-host",
   "@tamer4lynx/tamer-navigation",
+  // not yet on npm — skipped automatically until published
   "@tamer4lynx/tamer-plugin",
   "@tamer4lynx/tamer-router",
+  "@tamer4lynx/tamer-app-shell",
   "@tamer4lynx/tamer-screen",
-  "@tamer4lynx/tamer-system-ui"
+  "@tamer4lynx/tamer-insets",
+  "@tamer4lynx/tamer-system-ui",
+  "@tamer4lynx/tamer-icons",
+  "@tamer4lynx/tamer-transports",
+  "@tamer4lynx/tamer-env",
+  // dev additions
+  "@tamer4lynx/tamer-dev-app",
+  "@tamer4lynx/tamer-dev-client",
+  "@tamer4lynx/tamer-linking"
 ];
 var PACKAGE_JSON_DEP_SECTIONS = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];
 function isNonRegistryTamerDep(versionSpec) {
@@ -9038,8 +9217,8 @@ async function normalizeTamerInstallSpec(pkg) {
   if (highest) {
     return `${pkg}@${highest}`;
   }
-  console.warn(`\u26A0\uFE0F  Could not resolve published versions for ${pkg}; using @prerelease`);
-  return `${pkg}@prerelease`;
+  console.warn(`\u26A0\uFE0F  ${pkg} not found on npm \u2014 skipping (will be included once published)`);
+  return null;
 }
 function detectPackageManager2(cwd) {
   const dir = path33.resolve(cwd);
@@ -9060,7 +9239,7 @@ async function addCore() {
   const { lynxProjectDir } = resolveHostPaths();
   const pm = detectPackageManager2(lynxProjectDir);
   console.log(`Resolving latest published versions (npm)\u2026`);
-  const resolved = await Promise.all(CORE_PACKAGES.map(normalizeTamerInstallSpec));
+  const resolved = (await Promise.all(CORE_PACKAGES.map(normalizeTamerInstallSpec))).filter((s) => s !== null);
   console.log(`Adding core packages to ${lynxProjectDir} (using ${pm})\u2026`);
   runInstall(lynxProjectDir, resolved, pm);
   console.log("\u2705 Core packages installed. Run `t4l link` to link native modules.");
@@ -9069,8 +9248,8 @@ async function addDev() {
   const { lynxProjectDir } = resolveHostPaths();
   const pm = detectPackageManager2(lynxProjectDir);
   console.log(`Resolving latest published versions (npm)\u2026`);
-  const resolved = await Promise.all([...DEV_STACK_PACKAGES].map(normalizeTamerInstallSpec));
-  console.log(`Adding dev stack (${DEV_STACK_PACKAGES.length} @tamer4lynx packages) to ${lynxProjectDir} (using ${pm})\u2026`);
+  const resolved = (await Promise.all([...DEV_STACK_PACKAGES].map(normalizeTamerInstallSpec))).filter((s) => s !== null);
+  console.log(`Adding dev stack to ${lynxProjectDir} (using ${pm})\u2026`);
   runInstall(lynxProjectDir, resolved, pm);
   console.log("\u2705 Dev stack installed. Run `t4l link` to link native modules.");
 }
@@ -9085,8 +9264,8 @@ async function updateTamerPackages() {
   }
   const pm = detectPackageManager2(lynxProjectDir);
   console.log(`Resolving latest published versions (npm)\u2026`);
-  const resolved = await Promise.all(tamerPkgs.map(normalizeTamerInstallSpec));
-  console.log(`Updating ${tamerPkgs.length} @tamer4lynx packages in ${lynxProjectDir} (using ${pm})\u2026`);
+  const resolved = (await Promise.all(tamerPkgs.map(normalizeTamerInstallSpec))).filter((s) => s !== null);
+  console.log(`Updating ${resolved.length} @tamer4lynx packages in ${lynxProjectDir} (using ${pm})\u2026`);
   runInstall(lynxProjectDir, resolved, pm);
   console.log("\u2705 Tamer packages updated. Run `t4l link` to link native modules.");
 }
@@ -9102,12 +9281,12 @@ async function add(packages = []) {
   const { lynxProjectDir } = resolveHostPaths();
   const pm = detectPackageManager2(lynxProjectDir);
   console.log(`Resolving latest published versions (npm)\u2026`);
-  const normalized = await Promise.all(
+  const normalized = (await Promise.all(
     list.map(async (p) => {
       const spec = p.startsWith("@") ? p : PACKAGE_ALIASES[p] ?? `@tamer4lynx/${p}`;
       return normalizeTamerInstallSpec(spec);
     })
-  );
+  )).filter((s) => s !== null);
   console.log(`Adding ${normalized.join(", ")} to ${lynxProjectDir} (using ${pm})\u2026`);
   runInstall(lynxProjectDir, normalized, pm);
   console.log("\u2705 Packages installed. Run `t4l link` to link native modules.");

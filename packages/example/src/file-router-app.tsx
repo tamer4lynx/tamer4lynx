@@ -5,9 +5,13 @@ import {
   DetailsRecoilProvider,
   detailsRecoilProviderConnector,
 } from "./details-recoil-state.js";
+import { connectorsProviderRegistry } from "./connectors-state.js";
 import { useExamplePalette } from "./examplePalette.js";
 
-const bridgeProviderConnector = [detailsRecoilProviderConnector];
+const bridgeProviderConnector = [
+  detailsRecoilProviderConnector,
+  ...connectorsProviderRegistry,
+];
 
 export function FileRouterApp() {
   useExamplePalette();

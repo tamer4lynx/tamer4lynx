@@ -240,6 +240,32 @@ private enum TamerNavLynxRuntime {
 	option.enableJSGroupThread = true
 	return LynxGroup(name: "TamerNav", with: option)
   }()
+
+  private static var viewGroups: [String: LynxViewGroup] = [:]
+
+  static func viewGroup(src: String, provider: LynxProvider) -> LynxViewGroup {
+	let key = src.isEmpty ? "main.lynx.bundle" : src
+	if let existing = viewGroups[key] {
+	  return existing
+	}
+	let group = LynxViewGroup(url: key, templateFetcher: provider)
+	group.group = sharedGroup
+	group.enableGenericResourceFetcher = .true
+	group.config = LynxConfig(provider: provider)
+	group.templateResourceFetcher = provider
+	group.genericResourceFetcher = provider
+	viewGroups[key] = group
+	return group
+  }
+
+  static func configureBuilder(_ builder: LynxViewBuilder, src: String, provider: LynxProvider) {
+	builder.lynxViewGroup = viewGroup(src: src, provider: provider)
+	builder.group = sharedGroup
+	builder.enableGenericResourceFetcher = .true
+	builder.config = LynxConfig(provider: provider)
+	builder.templateResourceFetcher = provider
+	builder.genericResourceFetcher = provider
+  }
 }
 
 class ViewController: UIViewController {
@@ -278,10 +304,15 @@ class ViewController: UIViewController {
   private func buildLynxView() -> LynxView {
 	let bounds = view.bounds
 	let lv = LynxView { builder in
+	  let provider = LynxProvider()
 #if canImport(tamernavigation)
-	  builder.group = TamerNavLynxRuntime.sharedGroup
+	  TamerNavLynxRuntime.configureBuilder(builder, src: "main.lynx.bundle", provider: provider)
+#else
+	  builder.enableGenericResourceFetcher = .true
+	  builder.config = LynxConfig(provider: provider)
+	  builder.templateResourceFetcher = provider
+	  builder.genericResourceFetcher = provider
 #endif
-	  builder.config = LynxConfig(provider: LynxProvider())
 	  builder.screenSize = bounds.size
 	  builder.fontScale = 1.0
 	}
@@ -295,6 +326,10 @@ class ViewController: UIViewController {
   private func setupLynxView() {
 #if canImport(tamernavigation)
 	TamerNavHost.configureSharedGroup(TamerNavLynxRuntime.sharedGroup)
+	TamerNavHost.configureSpokeBuilder = { builder, src in
+	  let provider = LynxProvider()
+	  TamerNavLynxRuntime.configureBuilder(builder, src: src, provider: provider)
+	}
 #endif
 	let lv = buildLynxView()
 	view.addSubview(lv)
@@ -321,20 +356,54 @@ class ViewController: UIViewController {
 	`);
 		writeFile(path.join(projectDir, "LynxProvider.swift"), `
 import Foundation
+import Lynx
 
-class LynxProvider: NSObject, LynxTemplateProvider {
+class LynxProvider: NSObject, LynxTemplateProvider, LynxTemplateResourceFetcher, LynxGenericResourceFetcher {
     func loadTemplate(withUrl url: String!, onComplete callback: LynxTemplateLoadBlock!) {
         DispatchQueue.global(qos: .background).async {
-            guard let url = url,
-                  let bundleUrl = Bundle.main.url(forResource: url, withExtension: nil),
-                  let data = try? Data(contentsOf: bundleUrl) else {
-                let err = NSError(domain: "LynxProvider", code: 404,
-                                  userInfo: [NSLocalizedDescriptionKey: "Bundle not found: \\(url ?? "nil")"])
-                callback?(nil, err)
-                return
-            }
-            callback?(data, nil)
+            let result = self.loadData(url: url)
+            callback?(result.data, result.error)
         }
+    }
+
+    func fetchTemplate(_ request: LynxResourceRequest, onComplete callback: @escaping LynxTemplateResourceCompletionBlock) {
+        DispatchQueue.global(qos: .background).async {
+            let result = self.loadData(url: request.url)
+            callback(result.data.map { LynxTemplateResource(nsData: $0) }, result.error)
+        }
+    }
+
+    func fetchSSRData(_ request: LynxResourceRequest, onComplete callback: @escaping LynxSSRResourceCompletionBlock) {
+        DispatchQueue.global(qos: .background).async {
+            let result = self.loadData(url: request.url)
+            callback(result.data, result.error)
+        }
+    }
+
+    func fetchResource(_ request: LynxResourceRequest, onComplete callback: @escaping LynxGenericResourceCompletionBlock) -> (() -> Void) {
+        DispatchQueue.global(qos: .background).async {
+            let result = self.loadData(url: request.url)
+            callback(result.data, result.error)
+        }
+        return {}
+    }
+
+    func fetchResourcePath(_ request: LynxResourceRequest, onComplete callback: @escaping LynxGenericResourcePathCompletionBlock) -> (() -> Void) {
+        let error = NSError(domain: "LynxProvider", code: 501,
+                            userInfo: [NSLocalizedDescriptionKey: "Resource path lookup is not supported"])
+        callback(nil, error)
+        return {}
+    }
+
+    private func loadData(url: String?) -> (data: Data?, error: NSError?) {
+        guard let url = url,
+              let bundleUrl = Bundle.main.url(forResource: url, withExtension: nil),
+              let data = try? Data(contentsOf: bundleUrl) else {
+            let err = NSError(domain: "LynxProvider", code: 404,
+                              userInfo: [NSLocalizedDescriptionKey: "Bundle not found: \\(url ?? "nil")"])
+            return (nil, err)
+        }
+        return (data, nil)
     }
 }
 	`);

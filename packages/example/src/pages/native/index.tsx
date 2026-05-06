@@ -39,6 +39,10 @@ export default function DevIndex() {
     "background only";
     push("/native/details/42");
   }, [push]);
+  const goConnectors = useCallback(() => {
+    "background only";
+    push("/connectors");
+  }, [push]);
 
   const entries = useMemo(
     () =>
@@ -86,10 +90,18 @@ export default function DevIndex() {
             "Same _layout chain: edit without extra native push; provider bridge",
           onTap: goInnerStackDemo,
         },
+        {
+          itemKey: "native-menu-connectors",
+          title: "State sync connectors",
+          subtitle:
+            "Zustand · Redux · TanStack · Apollo · SWR · Jotai · i18next · Theme",
+          onTap: goConnectors,
+        },
       ] as const,
     [
       goAuth,
       goBrowser,
+      goConnectors,
       goInnerStackDemo,
       goLinking,
       goStorage,

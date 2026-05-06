@@ -7,34 +7,47 @@ import { resolveHostPaths } from './hostConfig';
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * Installed by `t4l add-core`. The minimum set to run a Tamer app in production
+ * (no dev client, no dev launcher). tamer-navigation will be included once published to npm.
+ */
 const CORE_PACKAGES = [
+  '@tamer4lynx/tamer-host',
+  '@tamer4lynx/tamer-navigation', // not yet on npm — skipped automatically until published
+  '@tamer4lynx/tamer-plugin',
+  '@tamer4lynx/tamer-router',
   '@tamer4lynx/tamer-app-shell',
   '@tamer4lynx/tamer-screen',
-  '@tamer4lynx/tamer-router',
   '@tamer4lynx/tamer-insets',
-  '@tamer4lynx/tamer-transports',
   '@tamer4lynx/tamer-system-ui',
   '@tamer4lynx/tamer-icons',
+  '@tamer4lynx/tamer-transports',
   '@tamer4lynx/tamer-env',
 ];
 
 /**
- * Installed by `t4l add-dev`. Each name is resolved to the highest published semver via `normalizeTamerInstallSpec`
+ * Installed by `t4l add-dev`. Superset of CORE_PACKAGES plus the dev launcher stack.
+ * Each name is resolved to the highest published semver via `normalizeTamerInstallSpec`
  * so hosts do not rely on transitive installs alone (avoids stale or mismatched versions).
- * Align with `packages/tamer-dev-client/package.json` dependencies + `lynx.config` aliases (screen, icons).
+ * Packages not yet published to npm are skipped automatically.
  */
 const DEV_STACK_PACKAGES = [
-  '@tamer4lynx/tamer-dev-app',
-  '@tamer4lynx/tamer-dev-client',
-  '@tamer4lynx/tamer-app-shell',
-  '@tamer4lynx/tamer-icons',
-  '@tamer4lynx/tamer-insets',
-  '@tamer4lynx/tamer-linking',
-  '@tamer4lynx/tamer-navigation',
+  // core
+  '@tamer4lynx/tamer-host',
+  '@tamer4lynx/tamer-navigation', // not yet on npm — skipped automatically until published
   '@tamer4lynx/tamer-plugin',
   '@tamer4lynx/tamer-router',
+  '@tamer4lynx/tamer-app-shell',
   '@tamer4lynx/tamer-screen',
+  '@tamer4lynx/tamer-insets',
   '@tamer4lynx/tamer-system-ui',
+  '@tamer4lynx/tamer-icons',
+  '@tamer4lynx/tamer-transports',
+  '@tamer4lynx/tamer-env',
+  // dev additions
+  '@tamer4lynx/tamer-dev-app',
+  '@tamer4lynx/tamer-dev-client',
+  '@tamer4lynx/tamer-linking',
 ] as const
 
 const PACKAGE_JSON_DEP_SECTIONS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const
@@ -96,16 +109,17 @@ async function getHighestPublishedVersion(fullName: string): Promise<string | nu
   }
 }
 
-/** Picks the highest semver published on npm for @tamer4lynx/* (npm `latest` / dist-tags can lag). */
-async function normalizeTamerInstallSpec(pkg: string): Promise<string> {
+/** Picks the highest semver published on npm for @tamer4lynx/*.
+ *  Returns null if the package is not yet published — callers must filter nulls out. */
+async function normalizeTamerInstallSpec(pkg: string): Promise<string | null> {
   if (!pkg.startsWith('@tamer4lynx/')) return pkg;
   if (/^@[^/]+\/[^@]+@/.test(pkg)) return pkg;
   const highest = await getHighestPublishedVersion(pkg);
   if (highest) {
     return `${pkg}@${highest}`;
   }
-  console.warn(`⚠️  Could not resolve published versions for ${pkg}; using @prerelease`);
-  return `${pkg}@prerelease`;
+  console.warn(`⚠️  ${pkg} not found on npm — skipping (will be included once published)`);
+  return null;
 }
 
 function detectPackageManager(cwd: string): 'npm' | 'pnpm' | 'bun' {
@@ -130,7 +144,7 @@ export async function addCore() {
   const { lynxProjectDir } = resolveHostPaths();
   const pm = detectPackageManager(lynxProjectDir);
   console.log(`Resolving latest published versions (npm)…`);
-  const resolved = await Promise.all(CORE_PACKAGES.map(normalizeTamerInstallSpec));
+  const resolved = (await Promise.all(CORE_PACKAGES.map(normalizeTamerInstallSpec))).filter((s): s is string => s !== null);
   console.log(`Adding core packages to ${lynxProjectDir} (using ${pm})…`);
   runInstall(lynxProjectDir, resolved, pm);
   console.log('✅ Core packages installed. Run `t4l link` to link native modules.');
@@ -140,8 +154,8 @@ export async function addDev() {
   const { lynxProjectDir } = resolveHostPaths();
   const pm = detectPackageManager(lynxProjectDir);
   console.log(`Resolving latest published versions (npm)…`);
-  const resolved = await Promise.all([...DEV_STACK_PACKAGES].map(normalizeTamerInstallSpec));
-  console.log(`Adding dev stack (${DEV_STACK_PACKAGES.length} @tamer4lynx packages) to ${lynxProjectDir} (using ${pm})…`);
+  const resolved = (await Promise.all([...DEV_STACK_PACKAGES].map(normalizeTamerInstallSpec))).filter((s): s is string => s !== null);
+  console.log(`Adding dev stack to ${lynxProjectDir} (using ${pm})…`);
   runInstall(lynxProjectDir, resolved, pm);
   console.log('✅ Dev stack installed. Run `t4l link` to link native modules.');
 }
@@ -158,8 +172,8 @@ export async function updateTamerPackages() {
   }
   const pm = detectPackageManager(lynxProjectDir);
   console.log(`Resolving latest published versions (npm)…`);
-  const resolved = await Promise.all(tamerPkgs.map(normalizeTamerInstallSpec));
-  console.log(`Updating ${tamerPkgs.length} @tamer4lynx packages in ${lynxProjectDir} (using ${pm})…`);
+  const resolved = (await Promise.all(tamerPkgs.map(normalizeTamerInstallSpec))).filter((s): s is string => s !== null);
+  console.log(`Updating ${resolved.length} @tamer4lynx packages in ${lynxProjectDir} (using ${pm})…`);
   runInstall(lynxProjectDir, resolved, pm);
   console.log('✅ Tamer packages updated. Run `t4l link` to link native modules.');
 }
@@ -176,12 +190,12 @@ export async function add(packages: string[] = []) {
   const { lynxProjectDir } = resolveHostPaths();
   const pm = detectPackageManager(lynxProjectDir);
   console.log(`Resolving latest published versions (npm)…`);
-  const normalized = await Promise.all(
+  const normalized = (await Promise.all(
     list.map(async (p) => {
       const spec = p.startsWith('@') ? p : PACKAGE_ALIASES[p] ?? `@tamer4lynx/${p}`;
       return normalizeTamerInstallSpec(spec);
     })
-  );
+  )).filter((s): s is string => s !== null);
   console.log(`Adding ${normalized.join(', ')} to ${lynxProjectDir} (using ${pm})…`);
   runInstall(lynxProjectDir, normalized, pm);
   console.log('✅ Packages installed. Run `t4l link` to link native modules.');
