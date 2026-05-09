@@ -67,7 +67,8 @@
     "prepublishOnly": "npm run build",
     "publish:packages": "npm run build && npm run build --workspaces --if-present && node scripts/publish-packages.mjs",
     "publish:cli": "npm publish",
-    "publish:all": "npm run publish:packages && npm run publish:cli"
+    "publish:all": "npm run publish:packages && npm run publish:cli",
+    "release:binaries": "node scripts/release-binaries.mjs"
   },
   "devDependencies": {
     "@types/adm-zip": "^0.5.7",
