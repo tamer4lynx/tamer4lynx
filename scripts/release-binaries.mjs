@@ -111,9 +111,11 @@ function buildAndroid() {
 
     const androidDir = join(DEV_APP, 'android');
     const gradlew = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
-    run(`${gradlew} assembleRelease`, { cwd: androidDir, env });
+    // Use assembleDebug — the dev app needs LynxDevtool gates, long-press menu,
+    // and #if DEBUG hooks active. Release strips them.
+    run(`${gradlew} assembleDebug`, { cwd: androidDir, env });
 
-    const apk = join(androidDir, 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk');
+    const apk = join(androidDir, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
     if (!existsSync(apk)) {
         throw new Error(`APK not found at ${apk}`);
     }
@@ -141,14 +143,16 @@ function buildIosSimulator() {
         rmSync(join(derived, 'Build'), { recursive: true, force: true });
     }
 
+    // Use Debug — needed for #if DEBUG gates that wire LynxDevtool, long-press menu,
+    // and shake-to-open. Release strips them and we get a white-screen-ish launcher.
     const cmd =
-        `xcodebuild ${flag} "${xcproject}" -scheme TamerDevApp -configuration Release` +
+        `xcodebuild ${flag} "${xcproject}" -scheme TamerDevApp -configuration Debug` +
         ` -sdk iphonesimulator -arch arm64 -arch x86_64 ONLY_ACTIVE_ARCH=NO` +
         ` -derivedDataPath "${derived}"` +
         ` CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""`;
     run(cmd, { cwd: iosDir });
 
-    const appDir = join(derived, 'Build', 'Products', 'Release-iphonesimulator');
+    const appDir = join(derived, 'Build', 'Products', 'Debug-iphonesimulator');
     const app = join(appDir, 'TamerDevApp.app');
     if (!existsSync(app)) {
         throw new Error(`.app not found at ${app}`);
@@ -179,14 +183,15 @@ function buildIosDevice() {
         rmSync(join(derived, 'Build'), { recursive: true, force: true });
     }
 
+    // Debug config so devtool / long-press menu / shake fire on device.
     const cmd =
-        `xcodebuild ${flag} "${xcproject}" -scheme TamerDevApp -configuration Release` +
+        `xcodebuild ${flag} "${xcproject}" -scheme TamerDevApp -configuration Debug` +
         ` -sdk iphoneos -arch arm64 ONLY_ACTIVE_ARCH=NO` +
         ` -derivedDataPath "${derived}"` +
         ` CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" CODE_SIGN_ENTITLEMENTS=""`;
     run(cmd, { cwd: iosDir });
 
-    const appDir = join(derived, 'Build', 'Products', 'Release-iphoneos');
+    const appDir = join(derived, 'Build', 'Products', 'Debug-iphoneos');
     const app = join(appDir, 'TamerDevApp.app');
     if (!existsSync(app)) {
         throw new Error(`.app not found at ${app}`);

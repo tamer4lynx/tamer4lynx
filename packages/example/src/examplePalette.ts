@@ -1,6 +1,9 @@
 import { useMemo } from '@lynx-js/react';
 import type { ThemeColors } from '@tamer4lynx/tamer-system-ui';
-import { useThemeColors, readBootstrapThemeColors } from '@tamer4lynx/tamer-system-ui';
+import {
+  readBootstrapThemeColors,
+  useThemeColors,
+} from '@tamer4lynx/tamer-system-ui';
 
 const FALLBACK: {
   surface: string;
@@ -47,6 +50,12 @@ export interface ExamplePalette {
   onSecondaryContainer: string;
   barBackground: string;
   barForeground: string;
+  /** Background of an elevated Card on this surface. */
+  cardSurface: string;
+  /** Foreground that meets WCAG AA against `cardSurface` (≥ 4.5:1). */
+  onCardSurface: string;
+  /** Subtler text on cards (still meets large-text 3:1). */
+  onCardSurfaceVariant: string;
 }
 
 export function useExamplePalette(): ExamplePalette {
@@ -62,6 +71,16 @@ export function useExamplePalette(): ExamplePalette {
       theme?.secondaryContainer ?? FALLBACK.secondaryContainer;
     const onSecondaryContainer =
       theme?.onSecondaryContainer ?? FALLBACK.onSecondaryContainer;
+    // Cards (elevated variant in tamer-app-shell) sit on `surfaceContainerLow` when
+    // the theme provides it, else fall back to `surfaceContainer`. The theme is
+    // already contrast-validated by `tamer-system-ui`, so `onSurface` /
+    // `onSurfaceVariant` are guaranteed to read against any of the surface tones.
+    const cardSurface =
+      ((theme as ThemeColors | null) as { surfaceContainerLow?: string } | null)
+        ?.surfaceContainerLow ??
+      surfaceContainer;
+    const onCardSurface = onSurface;
+    const onCardSurfaceVariant = onSurfaceVariant;
     return {
       theme,
       surface,
@@ -74,6 +93,9 @@ export function useExamplePalette(): ExamplePalette {
       onSecondaryContainer,
       barBackground: surfaceContainer,
       barForeground: onSurface,
+      cardSurface,
+      onCardSurface,
+      onCardSurfaceVariant,
     };
   }, [os]);
 }

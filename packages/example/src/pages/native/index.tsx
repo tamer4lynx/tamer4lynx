@@ -158,7 +158,7 @@ export default function DevIndex() {
               >
                 <text
                   style={{
-                    color: "#e8e8e8",
+                    color: p.onCardSurface,
                     fontSize: px(16),
                     fontWeight: "600",
                     textAlign: "center",
@@ -169,7 +169,7 @@ export default function DevIndex() {
                 {e.subtitle ? (
                   <text
                     style={{
-                      color: "#c8c8c8",
+                      color: p.onCardSurfaceVariant,
                       fontSize: px(13),
                       lineHeight: px(18),
                       textAlign: "center",

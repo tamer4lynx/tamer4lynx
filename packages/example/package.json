@@ -15,7 +15,7 @@
   "dependencies": {
     "@lynx-js/react": ">=0.112.0",
     "@tamer4lynx/jiggle": "^0.0.3",
-    "@tamer4lynx/tamer-app-shell": "^0.0.5",
+    "@tamer4lynx/tamer-app-shell": "file:../tamer-app-shell",
     "@tamer4lynx/tamer-auth": "^0.0.4",
     "@tamer4lynx/tamer-biometric": "^0.0.2",
     "@tamer4lynx/tamer-dev-client": "file:../tamer-dev-client",
@@ -30,7 +30,7 @@
     "@tamer4lynx/tamer-router": "^0.0.13",
     "@tamer4lynx/tamer-screen": "^0.0.5",
     "@tamer4lynx/tamer-secure-store": "^0.0.3",
-    "@tamer4lynx/tamer-system-ui": "^0.0.3",
+    "@tamer4lynx/tamer-system-ui": "file:../tamer-system-ui",
     "@tamer4lynx/tamer-transports": "file:../tamer-transports",
     "@tamer4lynx/tamer-webview": "file:../tamer-webview",
     "react-router": "^6.28.0",
