@@ -127,6 +127,31 @@ text {
   margin: 15rpx;
 }
 
+.VibrateButton {
+  min-width: 132px;
+  height: 42px;
+  margin: 8px 0;
+  padding: 0 18px;
+  border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.16);
+  border-width: 1px;
+  border-style: solid;
+  border-color: rgba(255, 255, 255, 0.32);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.VibrateButtonText {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.VibrateButtonText--active {
+  color: #7cffd0;
+}
+
 .Hint {
   font-size: 12px;
   margin: 5px;

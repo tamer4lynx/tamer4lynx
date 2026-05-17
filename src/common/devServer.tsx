@@ -4,7 +4,7 @@ import fs from 'fs';
 import http from 'http';
 import os from 'os';
 import path from 'path';
-import { render, useInput, useApp } from 'ink';
+import { render, useInput, useApp, useStdin } from 'ink';
 import { WebSocket, WebSocketServer } from 'ws';
 import { discoverNativeExtensions } from './config';
 import { resolveHostPaths, resolveIconPaths } from './hostConfig';
@@ -36,31 +36,54 @@ function sendFileFromDisk(res: http.ServerResponse, absPath: string) {
       return;
     }
     const ext = path.extname(absPath).toLowerCase();
-    res.setHeader('Content-Type', STATIC_MIME[ext] ?? 'application/octet-stream');
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    setDevHeaders(res, STATIC_MIME[ext] ?? 'application/octet-stream');
     res.end(data);
   });
 }
 
-function isPortInUse(port: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const server = http.createServer();
-    server.once('error', (err: NodeJS.ErrnoException) => {
-      resolve(err.code === 'EADDRINUSE');
-    });
-    server.once('listening', () => {
-      server.close(() => resolve(false));
-    });
-    server.listen(port, '127.0.0.1');
+function setDevHeaders(res: http.ServerResponse, contentType?: string) {
+  if (contentType) res.setHeader('Content-Type', contentType);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+}
+
+function listenOnPort(server: http.Server, port: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      server.off('error', onError);
+      server.off('listening', onListening);
+    };
+    const onError = (err: NodeJS.ErrnoException) => {
+      cleanup();
+      reject(err);
+    };
+    const onListening = () => {
+      cleanup();
+      resolve();
+    };
+    server.once('error', onError);
+    server.once('listening', onListening);
+    server.listen(port, '0.0.0.0');
   });
 }
 
-async function findAvailablePort(preferred: number, maxAttempts = 10): Promise<number> {
+async function listenOnAvailablePort(server: http.Server, preferred: number, maxAttempts = 20): Promise<number> {
+  let lastError: unknown;
   for (let i = 0; i < maxAttempts; i++) {
     const port = preferred + i;
-    if (!(await isPortInUse(port))) return port;
+    try {
+      await listenOnPort(server, port);
+      return port;
+    } catch (err) {
+      lastError = err;
+      if ((err as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw err;
+    }
   }
-  throw new Error(`No available port in range ${preferred}-${preferred + maxAttempts - 1}`);
+  const end = preferred + maxAttempts - 1;
+  const suffix = lastError instanceof Error && lastError.message ? `: ${lastError.message}` : '';
+  throw new Error(`No available port in range ${preferred}-${end}${suffix}`);
 }
 
 function getLanIp(): string {
@@ -88,6 +111,7 @@ type DevUiState = {
   startError?: string;
   projectName: string;
   port: number;
+  preferredPort: number;
   lanIp: string;
   devUrl: string;
   wsUrl: string;
@@ -107,6 +131,7 @@ const initialUi = (): DevUiState => ({
   phase: 'starting',
   projectName: '',
   port: 0,
+  preferredPort: DEFAULT_PORT,
   lanIp: 'localhost',
   devUrl: '',
   wsUrl: '',
@@ -130,8 +155,39 @@ function probeKindFromRequest(req: http.IncomingMessage, reqPath: string): 'stat
   return null
 }
 
+function DevServerKeyboard({
+  onQuit,
+  onRebuild,
+  onClear,
+}: {
+  onQuit: () => void;
+  onRebuild: () => void;
+  onClear: () => void;
+}) {
+  useInput((input, key) => {
+    if (key.ctrl && input === 'c') {
+      onQuit();
+      return;
+    }
+    if (input === 'q') {
+      onQuit();
+      return;
+    }
+    if (input === 'r') {
+      onRebuild();
+      return;
+    }
+    if (input === 'c') {
+      onClear();
+      return;
+    }
+  });
+  return null;
+}
+
 function DevServerApp({ verbose }: { verbose: boolean }) {
   const { exit } = useApp();
+  const { isRawModeSupported } = useStdin();
   const [ui, setUi] = useState<DevUiState>(() => {
     const s = initialUi();
     s.verbose = verbose;
@@ -164,25 +220,6 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
     exit();
   }, [exit]);
 
-  useInput((input, key) => {
-    if (key.ctrl && input === 'c') {
-      handleQuit();
-      return;
-    }
-    if (input === 'q') {
-      handleQuit();
-      return;
-    }
-    if (input === 'r') {
-      void rebuildRef.current();
-      return;
-    }
-    if (input === 'c') {
-      setUi((s) => ({ ...s, logLines: [] }));
-      return;
-    }
-  });
-
   useEffect(() => {
     const onSig = () => {
       handleQuit();
@@ -212,10 +249,7 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
         setUi((s) => ({ ...s, projectName, lynxBundleFile }));
 
         const preferredPort = config.devServer?.port ?? config.devServer?.httpPort ?? DEFAULT_PORT;
-        const port = await findAvailablePort(preferredPort);
-        if (port !== preferredPort) {
-          appendLog(`Port ${preferredPort} in use, using ${port}`);
-        }
+        let port = preferredPort;
 
         const iconPaths = resolveIconPaths(projectRoot, config);
         let iconFilePath: string | null = null;
@@ -276,8 +310,7 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
             setUi((s) => ({ ...s, metaProbeCount: s.metaProbeCount + 1 }))
           }
           if (reqPath === `${basePath}/status`) {
-            res.setHeader('Content-Type', 'text/plain');
-            res.setHeader('Access-Control-Allow-Origin', '*');
+            setDevHeaders(res, 'text/plain');
             res.end('packager-status:running');
             return;
           }
@@ -315,8 +348,7 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
             if (iconFilePath) {
               meta.icon = `http://${lanIp}:${port}${basePath}/icon${iconExt}`;
             }
-            res.setHeader('Content-Type', 'application/json');
-            res.setHeader('Access-Control-Allow-Origin', '*');
+            setDevHeaders(res, 'application/json');
             res.end(JSON.stringify(meta, null, 2));
             return;
           }
@@ -327,8 +359,7 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
                 res.end();
                 return;
               }
-              res.setHeader('Content-Type', STATIC_MIME[iconExt] ?? 'image/png');
-              res.setHeader('Access-Control-Allow-Origin', '*');
+              setDevHeaders(res, STATIC_MIME[iconExt] ?? 'image/png');
               res.end(data);
             });
             return;
@@ -387,8 +418,7 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
               res.end('Not found');
               return;
             }
-            res.setHeader('Access-Control-Allow-Origin', '*');
-            res.setHeader('Content-Type', reqPath.endsWith('.bundle') ? 'application/octet-stream' : 'application/javascript');
+            setDevHeaders(res, reqPath.endsWith('.bundle') ? 'application/octet-stream' : 'application/javascript');
             res.end(data);
           });
         });
@@ -477,8 +507,10 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
               ignoreInitial: true,
               awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
             });
-            w.on('change', () => {
-              watchRebuild.schedule();
+            w.on('all', (eventName) => {
+              if (eventName === 'add' || eventName === 'change' || eventName === 'unlink') {
+                watchRebuild.schedule();
+              }
             });
             watcher = {
               close: async () => {
@@ -492,12 +524,10 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
         await doBuild();
         if (!alive) return;
 
-        await new Promise<void>((listenResolve, listenReject) => {
-          httpSrv.listen(port, '0.0.0.0', () => {
-            listenResolve();
-          });
-          httpSrv.once('error', (err) => listenReject(err));
-        });
+        port = await listenOnAvailablePort(httpSrv, preferredPort);
+        if (port !== preferredPort) {
+          appendLog(`Port ${preferredPort} was unavailable; using ${port} for this session.`);
+        }
 
         if (!alive) return;
 
@@ -525,6 +555,7 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
           ...s,
           phase: 'running',
           port,
+          preferredPort,
           lanIp,
           devUrl,
           wsUrl,
@@ -567,26 +598,38 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
   }, [appendLog, appendLogLine, verbose]);
 
   return (
-    <ServerDashboard
-      cliVersion={TAMER_CLI_VERSION}
-      projectName={ui.projectName}
-      port={ui.port}
-      lanIp={ui.lanIp}
-      devUrl={ui.devUrl}
-      wsUrl={ui.wsUrl}
-      lynxBundleFile={ui.lynxBundleFile}
-      bonjour={ui.bonjour}
-      verbose={ui.verbose}
-      buildPhase={ui.buildPhase}
-      buildError={ui.buildError}
-      wsConnections={ui.wsConnections}
-      statusProbeCount={ui.statusProbeCount}
-      metaProbeCount={ui.metaProbeCount}
-      logLines={ui.logLines}
-      qrLines={ui.qrLines}
-      phase={ui.phase}
-      startError={ui.startError}
-    />
+    <>
+      {isRawModeSupported ? (
+        <DevServerKeyboard
+          onQuit={handleQuit}
+          onRebuild={() => {
+            void rebuildRef.current();
+          }}
+          onClear={() => setUi((s) => ({ ...s, logLines: [] }))}
+        />
+      ) : null}
+      <ServerDashboard
+        cliVersion={TAMER_CLI_VERSION}
+        projectName={ui.projectName}
+        port={ui.port}
+        preferredPort={ui.preferredPort}
+        lanIp={ui.lanIp}
+        devUrl={ui.devUrl}
+        wsUrl={ui.wsUrl}
+        lynxBundleFile={ui.lynxBundleFile}
+        bonjour={ui.bonjour}
+        verbose={ui.verbose}
+        buildPhase={ui.buildPhase}
+        buildError={ui.buildError}
+        wsConnections={ui.wsConnections}
+        statusProbeCount={ui.statusProbeCount}
+        metaProbeCount={ui.metaProbeCount}
+        logLines={ui.logLines}
+        qrLines={ui.qrLines}
+        phase={ui.phase}
+        startError={ui.startError}
+      />
+    </>
   );
 }
 

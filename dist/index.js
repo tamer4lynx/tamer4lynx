@@ -3856,6 +3856,7 @@ function ServerDashboard({
   cliVersion,
   projectName,
   port,
+  preferredPort,
   lanIp,
   devUrl,
   wsUrl,
@@ -3917,6 +3918,13 @@ function ServerDashboard({
               " \xB7 LAN: ",
               /* @__PURE__ */ jsx9(Text9, { color: "cyan", children: lanIp })
             ] }),
+            preferredPort > 0 && port > 0 && port !== preferredPort ? /* @__PURE__ */ jsxs9(Text9, { color: "yellow", children: [
+              "Configured/default port ",
+              preferredPort,
+              " was unavailable; using ",
+              port,
+              " for this session."
+            ] }) : null,
             /* @__PURE__ */ jsx9(Text9, { dimColor: true, wrap: "truncate-end", children: bundlePath }),
             /* @__PURE__ */ jsxs9(Text9, { dimColor: true, wrap: "truncate-end", children: [
               devUrl,
@@ -8715,7 +8723,7 @@ import fs31 from "fs";
 import http from "http";
 import os7 from "os";
 import path31 from "path";
-import { render as render3, useInput as useInput2, useApp } from "ink";
+import { render as render3, useInput as useInput2, useApp, useStdin } from "ink";
 import { WebSocket, WebSocketServer } from "ws";
 
 // src/common/watchRebuild.ts
@@ -8742,7 +8750,7 @@ function createDebouncedSerialRebuild(run4, debounceMs) {
 var WATCH_REBUILD_DEBOUNCE_MS = 400;
 
 // src/common/devServer.tsx
-import { jsx as jsx12 } from "react/jsx-runtime";
+import { Fragment, jsx as jsx12, jsxs as jsxs11 } from "react/jsx-runtime";
 var DEFAULT_PORT = 3e3;
 var TAMER_CLI_VERSION = getCliVersion();
 var MAX_LOG_LINES = 800;
@@ -8764,29 +8772,51 @@ function sendFileFromDisk(res, absPath) {
       return;
     }
     const ext = path31.extname(absPath).toLowerCase();
-    res.setHeader("Content-Type", STATIC_MIME[ext] ?? "application/octet-stream");
-    res.setHeader("Access-Control-Allow-Origin", "*");
+    setDevHeaders(res, STATIC_MIME[ext] ?? "application/octet-stream");
     res.end(data);
   });
 }
-function isPortInUse(port) {
-  return new Promise((resolve) => {
-    const server = http.createServer();
-    server.once("error", (err) => {
-      resolve(err.code === "EADDRINUSE");
-    });
-    server.once("listening", () => {
-      server.close(() => resolve(false));
-    });
-    server.listen(port, "127.0.0.1");
+function setDevHeaders(res, contentType) {
+  if (contentType) res.setHeader("Content-Type", contentType);
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+}
+function listenOnPort(server, port) {
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      server.off("error", onError);
+      server.off("listening", onListening);
+    };
+    const onError = (err) => {
+      cleanup();
+      reject(err);
+    };
+    const onListening = () => {
+      cleanup();
+      resolve();
+    };
+    server.once("error", onError);
+    server.once("listening", onListening);
+    server.listen(port, "0.0.0.0");
   });
 }
-async function findAvailablePort(preferred, maxAttempts = 10) {
+async function listenOnAvailablePort(server, preferred, maxAttempts = 20) {
+  let lastError;
   for (let i = 0; i < maxAttempts; i++) {
     const port = preferred + i;
-    if (!await isPortInUse(port)) return port;
+    try {
+      await listenOnPort(server, port);
+      return port;
+    } catch (err) {
+      lastError = err;
+      if (err.code !== "EADDRINUSE") throw err;
+    }
   }
-  throw new Error(`No available port in range ${preferred}-${preferred + maxAttempts - 1}`);
+  const end = preferred + maxAttempts - 1;
+  const suffix = lastError instanceof Error && lastError.message ? `: ${lastError.message}` : "";
+  throw new Error(`No available port in range ${preferred}-${end}${suffix}`);
 }
 function getLanIp() {
   const nets = os7.networkInterfaces();
@@ -8810,6 +8840,7 @@ var initialUi = () => ({
   phase: "starting",
   projectName: "",
   port: 0,
+  preferredPort: DEFAULT_PORT,
   lanIp: "localhost",
   devUrl: "",
   wsUrl: "",
@@ -8831,8 +8862,34 @@ function probeKindFromRequest(req, reqPath) {
   if (reqPath.endsWith("/meta.json") || reqPath === "/meta.json") return "meta";
   return null;
 }
+function DevServerKeyboard({
+  onQuit,
+  onRebuild,
+  onClear
+}) {
+  useInput2((input, key) => {
+    if (key.ctrl && input === "c") {
+      onQuit();
+      return;
+    }
+    if (input === "q") {
+      onQuit();
+      return;
+    }
+    if (input === "r") {
+      onRebuild();
+      return;
+    }
+    if (input === "c") {
+      onClear();
+      return;
+    }
+  });
+  return null;
+}
 function DevServerApp({ verbose }) {
   const { exit } = useApp();
+  const { isRawModeSupported } = useStdin();
   const [ui, setUi] = useState6(() => {
     const s = initialUi();
     s.verbose = verbose;
@@ -8861,24 +8918,6 @@ function DevServerApp({ verbose }) {
     void cleanupRef.current?.();
     exit();
   }, [exit]);
-  useInput2((input, key) => {
-    if (key.ctrl && input === "c") {
-      handleQuit();
-      return;
-    }
-    if (input === "q") {
-      handleQuit();
-      return;
-    }
-    if (input === "r") {
-      void rebuildRef.current();
-      return;
-    }
-    if (input === "c") {
-      setUi((s) => ({ ...s, logLines: [] }));
-      return;
-    }
-  });
   useEffect3(() => {
     const onSig = () => {
       handleQuit();
@@ -8904,10 +8943,7 @@ function DevServerApp({ verbose }) {
         const basePath = `/${projectName}`;
         setUi((s) => ({ ...s, projectName, lynxBundleFile }));
         const preferredPort = config.devServer?.port ?? config.devServer?.httpPort ?? DEFAULT_PORT;
-        const port = await findAvailablePort(preferredPort);
-        if (port !== preferredPort) {
-          appendLog(`Port ${preferredPort} in use, using ${port}`);
-        }
+        let port = preferredPort;
         const iconPaths = resolveIconPaths(projectRoot, config);
         let iconFilePath = null;
         if (iconPaths?.source && fs31.statSync(iconPaths.source).isFile()) {
@@ -8964,8 +9000,7 @@ function DevServerApp({ verbose }) {
             setUi((s) => ({ ...s, metaProbeCount: s.metaProbeCount + 1 }));
           }
           if (reqPath === `${basePath}/status`) {
-            res.setHeader("Content-Type", "text/plain");
-            res.setHeader("Access-Control-Allow-Origin", "*");
+            setDevHeaders(res, "text/plain");
             res.end("packager-status:running");
             return;
           }
@@ -9003,8 +9038,7 @@ function DevServerApp({ verbose }) {
             if (iconFilePath) {
               meta.icon = `http://${lanIp2}:${port}${basePath}/icon${iconExt}`;
             }
-            res.setHeader("Content-Type", "application/json");
-            res.setHeader("Access-Control-Allow-Origin", "*");
+            setDevHeaders(res, "application/json");
             res.end(JSON.stringify(meta, null, 2));
             return;
           }
@@ -9015,8 +9049,7 @@ function DevServerApp({ verbose }) {
                 res.end();
                 return;
               }
-              res.setHeader("Content-Type", STATIC_MIME[iconExt] ?? "image/png");
-              res.setHeader("Access-Control-Allow-Origin", "*");
+              setDevHeaders(res, STATIC_MIME[iconExt] ?? "image/png");
               res.end(data);
             });
             return;
@@ -9075,8 +9108,7 @@ function DevServerApp({ verbose }) {
               res.end("Not found");
               return;
             }
-            res.setHeader("Access-Control-Allow-Origin", "*");
-            res.setHeader("Content-Type", reqPath.endsWith(".bundle") ? "application/octet-stream" : "application/javascript");
+            setDevHeaders(res, reqPath.endsWith(".bundle") ? "application/octet-stream" : "application/javascript");
             res.end(data);
           });
         });
@@ -9154,8 +9186,10 @@ function DevServerApp({ verbose }) {
               ignoreInitial: true,
               awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 }
             });
-            w.on("change", () => {
-              watchRebuild.schedule();
+            w.on("all", (eventName) => {
+              if (eventName === "add" || eventName === "change" || eventName === "unlink") {
+                watchRebuild.schedule();
+              }
             });
             watcher = {
               close: async () => {
@@ -9167,12 +9201,10 @@ function DevServerApp({ verbose }) {
         }
         await doBuild();
         if (!alive) return;
-        await new Promise((listenResolve, listenReject) => {
-          httpSrv.listen(port, "0.0.0.0", () => {
-            listenResolve();
-          });
-          httpSrv.once("error", (err) => listenReject(err));
-        });
+        port = await listenOnAvailablePort(httpSrv, preferredPort);
+        if (port !== preferredPort) {
+          appendLog(`Port ${preferredPort} was unavailable; using ${port} for this session.`);
+        }
         if (!alive) return;
         void import("dnssd-advertise").then(({ advertise }) => {
           stopBonjour = advertise({
@@ -9195,6 +9227,7 @@ function DevServerApp({ verbose }) {
           ...s,
           phase: "running",
           port,
+          preferredPort,
           lanIp,
           devUrl,
           wsUrl
@@ -9231,29 +9264,42 @@ function DevServerApp({ verbose }) {
       void cleanupRef.current?.();
     };
   }, [appendLog, appendLogLine, verbose]);
-  return /* @__PURE__ */ jsx12(
-    ServerDashboard,
-    {
-      cliVersion: TAMER_CLI_VERSION,
-      projectName: ui.projectName,
-      port: ui.port,
-      lanIp: ui.lanIp,
-      devUrl: ui.devUrl,
-      wsUrl: ui.wsUrl,
-      lynxBundleFile: ui.lynxBundleFile,
-      bonjour: ui.bonjour,
-      verbose: ui.verbose,
-      buildPhase: ui.buildPhase,
-      buildError: ui.buildError,
-      wsConnections: ui.wsConnections,
-      statusProbeCount: ui.statusProbeCount,
-      metaProbeCount: ui.metaProbeCount,
-      logLines: ui.logLines,
-      qrLines: ui.qrLines,
-      phase: ui.phase,
-      startError: ui.startError
-    }
-  );
+  return /* @__PURE__ */ jsxs11(Fragment, { children: [
+    isRawModeSupported ? /* @__PURE__ */ jsx12(
+      DevServerKeyboard,
+      {
+        onQuit: handleQuit,
+        onRebuild: () => {
+          void rebuildRef.current();
+        },
+        onClear: () => setUi((s) => ({ ...s, logLines: [] }))
+      }
+    ) : null,
+    /* @__PURE__ */ jsx12(
+      ServerDashboard,
+      {
+        cliVersion: TAMER_CLI_VERSION,
+        projectName: ui.projectName,
+        port: ui.port,
+        preferredPort: ui.preferredPort,
+        lanIp: ui.lanIp,
+        devUrl: ui.devUrl,
+        wsUrl: ui.wsUrl,
+        lynxBundleFile: ui.lynxBundleFile,
+        bonjour: ui.bonjour,
+        verbose: ui.verbose,
+        buildPhase: ui.buildPhase,
+        buildError: ui.buildError,
+        wsConnections: ui.wsConnections,
+        statusProbeCount: ui.statusProbeCount,
+        metaProbeCount: ui.metaProbeCount,
+        logLines: ui.logLines,
+        qrLines: ui.qrLines,
+        phase: ui.phase,
+        startError: ui.startError
+      }
+    )
+  ] });
 }
 async function startDevServer(opts) {
   const verbose = opts?.verbose ?? false;
@@ -9917,7 +9963,7 @@ function appendEnvVarsIfMissing(projectRoot, vars) {
 }
 
 // src/common/signing.tsx
-import { Fragment, jsx as jsx13, jsxs as jsxs11 } from "react/jsx-runtime";
+import { Fragment as Fragment2, jsx as jsx13, jsxs as jsxs12 } from "react/jsx-runtime";
 function AndroidKeystoreModeSelect({
   onSelect
 }) {
@@ -9931,7 +9977,7 @@ function AndroidKeystoreModeSelect({
       value: "existing"
     }
   ];
-  return /* @__PURE__ */ jsxs11(Box10, { flexDirection: "column", children: [
+  return /* @__PURE__ */ jsxs12(Box10, { flexDirection: "column", children: [
     /* @__PURE__ */ jsx13(
       TuiSelectInput,
       {
@@ -9956,7 +10002,7 @@ function IosIdentitySelectStep({
     return rows;
   }, [identities]);
   if (identities.length === 0) {
-    return /* @__PURE__ */ jsxs11(Box10, { flexDirection: "column", children: [
+    return /* @__PURE__ */ jsxs12(Box10, { flexDirection: "column", children: [
       /* @__PURE__ */ jsx13(Text11, { color: "yellow", children: "No code signing identities found in Keychain." }),
       /* @__PURE__ */ jsx13(Text11, { dimColor: true, children: "Install a certificate or sign in to Xcode with your Apple ID." }),
       /* @__PURE__ */ jsx13(
@@ -10269,60 +10315,60 @@ ${addition}
     }
   };
   if (state.step === "done") {
-    return /* @__PURE__ */ jsxs11(Box10, { flexDirection: "column", children: [
+    return /* @__PURE__ */ jsxs12(Box10, { flexDirection: "column", children: [
       /* @__PURE__ */ jsx13(Text11, { color: "green", children: "\u2705 Signing configuration saved to tamer.config.json" }),
-      (state.platform === "android" || state.platform === "both") && /* @__PURE__ */ jsxs11(Box10, { flexDirection: "column", marginTop: 1, children: [
+      (state.platform === "android" || state.platform === "both") && /* @__PURE__ */ jsxs12(Box10, { flexDirection: "column", marginTop: 1, children: [
         /* @__PURE__ */ jsx13(Text11, { children: "Android signing configured:" }),
-        /* @__PURE__ */ jsxs11(Text11, { dimColor: true, children: [
+        /* @__PURE__ */ jsxs12(Text11, { dimColor: true, children: [
           "  Keystore: ",
           state.android.keystoreFile
         ] }),
-        /* @__PURE__ */ jsxs11(Text11, { dimColor: true, children: [
+        /* @__PURE__ */ jsxs12(Text11, { dimColor: true, children: [
           "  Alias: ",
           state.android.keyAlias
         ] }),
-        state.androidEnvAppend?.keys.length ? /* @__PURE__ */ jsxs11(Text11, { children: [
+        state.androidEnvAppend?.keys.length ? /* @__PURE__ */ jsxs12(Text11, { children: [
           "Appended ",
           state.androidEnvAppend.keys.join(", "),
           " to ",
           state.androidEnvAppend.file,
           " (existing keys left unchanged)."
-        ] }) : state.androidEnvAppend?.skippedAll ? /* @__PURE__ */ jsxs11(Text11, { dimColor: true, children: [
+        ] }) : state.androidEnvAppend?.skippedAll ? /* @__PURE__ */ jsxs12(Text11, { dimColor: true, children: [
           state.androidEnvAppend.file,
           " already defines the signing env vars; left unchanged."
-        ] }) : /* @__PURE__ */ jsxs11(Fragment, { children: [
+        ] }) : /* @__PURE__ */ jsxs12(Fragment2, { children: [
           /* @__PURE__ */ jsx13(Text11, { children: "Set environment variables (or add them to .env / .env.local):" }),
-          /* @__PURE__ */ jsxs11(Text11, { dimColor: true, children: [
+          /* @__PURE__ */ jsxs12(Text11, { dimColor: true, children: [
             "  export ",
             state.android.storePasswordEnv,
             '="your-keystore-password"'
           ] }),
-          /* @__PURE__ */ jsxs11(Text11, { dimColor: true, children: [
+          /* @__PURE__ */ jsxs12(Text11, { dimColor: true, children: [
             "  export ",
             state.android.keyPasswordEnv,
             '="your-key-password"'
           ] })
         ] })
       ] }),
-      (state.platform === "ios" || state.platform === "both") && /* @__PURE__ */ jsxs11(Box10, { flexDirection: "column", marginTop: 1, children: [
+      (state.platform === "ios" || state.platform === "both") && /* @__PURE__ */ jsxs12(Box10, { flexDirection: "column", marginTop: 1, children: [
         /* @__PURE__ */ jsx13(Text11, { children: "iOS signing configured:" }),
-        /* @__PURE__ */ jsxs11(Text11, { dimColor: true, children: [
+        /* @__PURE__ */ jsxs12(Text11, { dimColor: true, children: [
           "  Team ID: ",
           state.ios.developmentTeam
         ] }),
-        state.ios.codeSignIdentity ? /* @__PURE__ */ jsxs11(Text11, { dimColor: true, children: [
+        state.ios.codeSignIdentity ? /* @__PURE__ */ jsxs12(Text11, { dimColor: true, children: [
           "  Identity: ",
           state.ios.codeSignIdentity
         ] }) : null,
-        state.ios.provisioningProfileSpecifier ? /* @__PURE__ */ jsxs11(Text11, { dimColor: true, children: [
+        state.ios.provisioningProfileSpecifier ? /* @__PURE__ */ jsxs12(Text11, { dimColor: true, children: [
           "  Provisioning profile: ",
           state.ios.provisioningProfileSpecifier
         ] }) : null
       ] }),
-      /* @__PURE__ */ jsxs11(Box10, { flexDirection: "column", marginTop: 1, children: [
+      /* @__PURE__ */ jsxs12(Box10, { flexDirection: "column", marginTop: 1, children: [
         state.platform === "android" && /* @__PURE__ */ jsx13(Text11, { children: "Run `t4l build android -p` to build with signing." }),
         state.platform === "ios" && /* @__PURE__ */ jsx13(Text11, { children: "Run `t4l build ios -p` to build with signing." }),
-        state.platform === "both" && /* @__PURE__ */ jsx13(Fragment, { children: /* @__PURE__ */ jsx13(Text11, { children: "Run `t4l build android -p` and `t4l build ios -p` separately (one platform per command)." }) })
+        state.platform === "both" && /* @__PURE__ */ jsx13(Fragment2, { children: /* @__PURE__ */ jsx13(Text11, { children: "Run `t4l build android -p` and `t4l build ios -p` separately (one platform per command)." }) })
       ] })
     ] });
   }
@@ -10332,7 +10378,7 @@ ${addition}
   if (state.step === "android-generating") {
     return /* @__PURE__ */ jsx13(Box10, { flexDirection: "column", children: /* @__PURE__ */ jsx13(TuiSpinner, { label: "Running keytool to create release keystore..." }) });
   }
-  return /* @__PURE__ */ jsxs11(Box10, { flexDirection: "column", children: [
+  return /* @__PURE__ */ jsxs12(Box10, { flexDirection: "column", children: [
     state.step === "platform" && /* @__PURE__ */ jsx13(
       TuiSelectInput,
       {
@@ -10384,7 +10430,7 @@ ${addition}
         onSubmit: nextStep
       }
     ),
-    state.step === "android-gen-password" && /* @__PURE__ */ jsxs11(Box10, { flexDirection: "column", children: [
+    state.step === "android-gen-password" && /* @__PURE__ */ jsxs12(Box10, { flexDirection: "column", children: [
       state.generateError ? /* @__PURE__ */ jsx13(Text11, { color: "red", children: state.generateError }) : null,
       /* @__PURE__ */ jsx13(
         TuiTextInput,

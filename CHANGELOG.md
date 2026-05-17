@@ -18,6 +18,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **`t4l init`** — Now acts as the practical first-run bootstrap: it can detect root/nested Lynx apps, scaffold Rspeedy or Vue-Lynx when missing, create/merge root workspaces for nested apps, install from the workspace root, install selected Tamer package stacks, inject `pluginTamer()` into `lynx.config.*` when possible, derive defaults from the root folder name, and reuse Android identity defaults for iOS unless customized.
+
+- **`t4l start`** — If the configured/default dev-server port is unavailable, it now tries the next port numbers until bind succeeds and shows that the active port differs from the configured/default port.
+
 - **`t4l build`** — **Breaking:** requires an explicit platform: **`t4l build ios`** or **`t4l build android`** (no default “both”). Embeddable: **`t4l build android --embeddable`** only. **`t4l signing ios`** now discovers **code signing identities** and **provisioning profiles** from the Mac (pickers); Team ID is derived from the chosen certificate when possible. Production iOS builds pass **`DEVELOPMENT_TEAM`** / signing settings from `tamer.config.json` to **`xcodebuild`**. **`t4l build ios -p -i`** uses **`xcrun devicectl --device <UDID>`**; with multiple connected devices, an interactive picker runs (single device: install without prompt). Android **`t4l build android -i`** sets **`ANDROID_SERIAL`** / uses **`adb -s`** after a picker when multiple devices are connected. **`t4l build ios -p --ipa`** archives and exports an IPA under **`ios/build/ipa-export/`**.
 
 - **`@tamer4lynx/tamer-router`** — Re-exports **`useLocation`**, **`useNavigate`**, **`useOutlet`**, **`useParams`** from react-router (same pattern as **`Outlet`** / **`Slot`**).

@@ -10,6 +10,7 @@ export type ServerDashboardProps = {
   cliVersion: string;
   projectName: string;
   port: number;
+  preferredPort: number;
   lanIp: string;
   devUrl: string;
   wsUrl: string;
@@ -31,6 +32,7 @@ export function ServerDashboard({
   cliVersion,
   projectName,
   port,
+  preferredPort,
   lanIp,
   devUrl,
   wsUrl,
@@ -103,6 +105,11 @@ export function ServerDashboard({
           <Text>
             Port: <Text color="cyan">{port}</Text> · LAN: <Text color="cyan">{lanIp}</Text>
           </Text>
+          {preferredPort > 0 && port > 0 && port !== preferredPort ? (
+            <Text color="yellow">
+              Configured/default port {preferredPort} was unavailable; using {port} for this session.
+            </Text>
+          ) : null}
           <Text dimColor wrap="truncate-end">
             {bundlePath}
           </Text>

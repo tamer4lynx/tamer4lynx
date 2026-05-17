@@ -30,31 +30,54 @@ function sendFileFromDisk(res: http.ServerResponse, absPath: string) {
       return;
     }
     const ext = path.extname(absPath).toLowerCase();
-    res.setHeader('Content-Type', STATIC_MIME[ext] ?? 'application/octet-stream');
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    setDevHeaders(res, STATIC_MIME[ext] ?? 'application/octet-stream');
     res.end(data);
   });
 }
 
-function isPortInUse(port: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const server = http.createServer();
-    server.once('error', (err: NodeJS.ErrnoException) => {
-      resolve(err.code === 'EADDRINUSE');
-    });
-    server.once('listening', () => {
-      server.close(() => resolve(false));
-    });
-    server.listen(port, '127.0.0.1');
+function setDevHeaders(res: http.ServerResponse, contentType?: string) {
+  if (contentType) res.setHeader('Content-Type', contentType);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+}
+
+function listenOnPort(server: http.Server, port: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      server.off('error', onError);
+      server.off('listening', onListening);
+    };
+    const onError = (err: NodeJS.ErrnoException) => {
+      cleanup();
+      reject(err);
+    };
+    const onListening = () => {
+      cleanup();
+      resolve();
+    };
+    server.once('error', onError);
+    server.once('listening', onListening);
+    server.listen(port, '0.0.0.0');
   });
 }
 
-async function findAvailablePort(preferred: number, maxAttempts = 10): Promise<number> {
+async function listenOnAvailablePort(server: http.Server, preferred: number, maxAttempts = 20): Promise<number> {
+  let lastError: unknown;
   for (let i = 0; i < maxAttempts; i++) {
     const port = preferred + i;
-    if (!(await isPortInUse(port))) return port;
+    try {
+      await listenOnPort(server, port);
+      return port;
+    } catch (err) {
+      lastError = err;
+      if ((err as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw err;
+    }
   }
-  throw new Error(`No available port in range ${preferred}-${preferred + maxAttempts - 1}`);
+  const end = preferred + maxAttempts - 1;
+  const suffix = lastError instanceof Error && lastError.message ? `: ${lastError.message}` : '';
+  throw new Error(`No available port in range ${preferred}-${end}${suffix}`);
 }
 
 function getLanIp(): string {
@@ -112,10 +135,7 @@ async function startDevServer(opts?: { verbose?: boolean }) {
   }
 
   const preferredPort = config.devServer?.port ?? config.devServer?.httpPort ?? DEFAULT_PORT;
-  const port = await findAvailablePort(preferredPort);
-  if (port !== preferredPort) {
-    console.log(`\x1b[33m⚠ Port ${preferredPort} in use, using ${port}\x1b[0m`);
-  }
+  let port = preferredPort;
 
   const projectName = path.basename(lynxProjectDir);
   const basePath = `/${projectName}`;
@@ -155,8 +175,7 @@ async function startDevServer(opts?: { verbose?: boolean }) {
       logConnections();
     }
     if (reqPath === `${basePath}/status`) {
-      res.setHeader('Content-Type', 'text/plain');
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      setDevHeaders(res, 'text/plain');
       res.end('packager-status:running');
       return;
     }
@@ -200,8 +219,7 @@ async function startDevServer(opts?: { verbose?: boolean }) {
       if (iconFilePath) {
         meta.icon = `http://${lanIp}:${port}${basePath}/icon${iconExt}`;
       }
-      res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      setDevHeaders(res, 'application/json');
       res.end(JSON.stringify(meta, null, 2));
       return;
     }
@@ -212,8 +230,7 @@ async function startDevServer(opts?: { verbose?: boolean }) {
           res.end();
           return;
         }
-        res.setHeader('Content-Type', STATIC_MIME[iconExt] ?? 'image/png');
-        res.setHeader('Access-Control-Allow-Origin', '*');
+        setDevHeaders(res, STATIC_MIME[iconExt] ?? 'image/png');
         res.end(data);
       });
       return;
@@ -272,8 +289,7 @@ async function startDevServer(opts?: { verbose?: boolean }) {
         res.end('Not found');
         return;
       }
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Content-Type', reqPath.endsWith('.bundle') ? 'application/octet-stream' : 'application/javascript');
+      setDevHeaders(res, reqPath.endsWith('.bundle') ? 'application/octet-stream' : 'application/javascript');
       res.end(data);
     });
   });
@@ -355,8 +371,10 @@ async function startDevServer(opts?: { verbose?: boolean }) {
         awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
       });
       fileWatcher = watcher;
-      watcher.on('change', () => {
-        watchRebuild.schedule();
+      watcher.on('all', (eventName) => {
+        if (eventName === 'add' || eventName === 'change' || eventName === 'unlink') {
+          watchRebuild.schedule();
+        }
       });
     }
   }
@@ -370,7 +388,12 @@ async function startDevServer(opts?: { verbose?: boolean }) {
 
   let stopBonjour: (() => Promise<void>) | undefined;
 
-  httpServer.listen(port, '0.0.0.0', () => {
+  port = await listenOnAvailablePort(httpServer, preferredPort);
+  if (port !== preferredPort) {
+    console.log(`\x1b[33m⚠ Configured/default port ${preferredPort} was unavailable; using ${port} for this session.\x1b[0m`);
+  }
+
+  {
     void import('dnssd-advertise').then(({ advertise }) => {
       stopBonjour = advertise({
         name: projectName,
@@ -435,7 +458,7 @@ async function startDevServer(opts?: { verbose?: boolean }) {
         }
       });
     }
-  });
+  }
 
   const cleanup = async () => {
     cancelWatchRebuild?.();

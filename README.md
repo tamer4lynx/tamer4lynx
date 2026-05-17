@@ -14,11 +14,11 @@ npm i -g @tamer4lynx/cli@latest
 ## Quick start
 
 ```bash
-t4l init              # create/open Lynx app, install selected Tamer packages, write config
+t4l init              # create/detect Lynx app, install selected Tamer packages, write config
 t4l create ios        # scaffold iOS project
 t4l create android    # scaffold Android project
 t4l link              # wire native modules
-t4l start             # dev server + QR
+t4l start             # dev server + QR, auto-falls forward if the port is busy
 t4l build ios -d -i   # debug build → simulator
 t4l build android -d -i
 ```
@@ -36,7 +36,7 @@ bun run cli -- init   # uses tsx directly
 ## Commands
 
 ```
-t4l init [--yes] [--template rspeedy|vue-lynx] [--dir <path>]
+t4l init [--yes] [--template rspeedy|vue-lynx] [--dir <path>] [--install core|dev|none] [--pm npm|pnpm|bun]
                                 Bootstrap/configure a Lynx + Tamer project
 t4l create ios|android|module|element|service|combo
 t4l build <ios|android> [-d|-r|-p] [-i] [--ipa] [--embeddable]
@@ -44,7 +44,7 @@ t4l link [ios|android]          Wire native modules (runs pod install on iOS)
 t4l bundle [ios|android]        Build Lynx bundle and copy to native project
 t4l inject ios|android [-f]     Inject tamer-host templates
 t4l sync [android]              Sync dev client files
-t4l start [-v]                  Dev server with HMR
+t4l start [-v]                  Dev server with HMR; tries the next port when busy
 t4l add [packages...]           Add @tamer4lynx packages
 t4l add-core                    Production stack: host, navigation, plugin, router,
                                 app-shell, screen, insets, system-ui, icons, transports, env
@@ -58,6 +58,10 @@ t4l codegen                     Generate code from @lynxmodule declarations
 **Build flags:** `-d` debug (dev client included if tamer-dev-client installed), `-r` release (no dev client, unsigned), `-p` production (signed). `-i` installs after build: simulator with `-d`, physical device with `-p`. `--ipa` exports IPA after `-p` build on iOS. `--embeddable` outputs embeddable artifacts (Android only).
 
 **Platform-first form:** `t4l ios create`, `t4l android build -d -i`, etc.
+
+**Init defaults:** `t4l init --yes` uses Rspeedy React TypeScript + Biome, derives the app name from the root folder, defaults the native id to `com.<project_name>`, installs core Tamer packages, injects `pluginTamer()` into `lynx.config.*` when possible, and reuses the Android app name/package ID for iOS unless you choose to customize iOS.
+
+**Nested apps:** when the Lynx app is nested, `t4l init` writes `lynxProject`, creates or merges a root workspace, and installs from the root so there is one `node_modules`.
 
 ## Configuration files
 
