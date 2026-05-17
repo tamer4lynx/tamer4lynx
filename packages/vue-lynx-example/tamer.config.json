@@ -1,0 +1,16 @@
+{
+  "android": {
+    "appName": "VueLynxExample",
+    "packageName": "com.vuelynxexample",
+    "sdk": "/Volumes/Storage/Library/Android/sdk"
+  },
+  "ios": {
+    "appName": "VueLynxExample",
+    "bundleId": "com.vuelynxexample"
+  },
+  "paths": {
+    "androidDir": "android",
+    "iosDir": "ios"
+  },
+  "syncTamerComponentTypes": true
+}

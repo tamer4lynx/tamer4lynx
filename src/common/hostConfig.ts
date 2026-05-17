@@ -560,7 +560,7 @@ export function resolveIconPaths(projectRoot: string, config: HostConfig): Resol
 export function resolveDevAppPaths(searchRoot: string): ResolvedPaths & { config: HostConfig } {
   const devAppDir = findDevAppPackage(searchRoot) ?? findDevAppPackage(findRepoRoot(searchRoot));
   if (!devAppDir) {
-    throw new Error('tamer-dev-app not found. Add @tamer4lynx/tamer-dev-app to dependencies, or run from the tamer4lynx monorepo.');
+    throw new Error('tamer-dev-app not found. Run this from the tamer4lynx monorepo (or another checkout that includes the dev app workspace).');
   }
   const configPath = path.join(devAppDir, 'tamer.config.json');
   if (!fs.existsSync(configPath)) {
@@ -578,7 +578,7 @@ export function resolveDevAppPaths(searchRoot: string): ResolvedPaths & { config
     (fs.existsSync(path.join(inDevAppScoped, 'package.json')) ? inDevAppScoped : null) ??
     (fs.existsSync(path.join(inDevAppFlat, 'package.json')) ? inDevAppFlat : null);
   if (!devClientDir || !fs.existsSync(devClientDir)) {
-    throw new Error('tamer-dev-client not found. Add @tamer4lynx/tamer-dev-client (or tamer-dev-app pulls it in).');
+    throw new Error('tamer-dev-client not found. Add @tamer4lynx/tamer-dev-client, or install workspace dependencies in the monorepo.');
   }
   const lynxBundlePath = path.join(devClientDir, DEFAULT_BUNDLE_ROOT, 'dev-client.lynx.bundle');
   return {

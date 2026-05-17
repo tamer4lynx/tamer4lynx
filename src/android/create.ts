@@ -29,7 +29,7 @@ const create = async (opts: { target?: string } = {}) => {
     if (target === "dev-app") {
       const devAppDir = findDevAppPackage(origCwd) ?? findDevAppPackage(findRepoRoot(origCwd));
       if (!devAppDir || !fs.existsSync(path.join(devAppDir, "tamer.config.json"))) {
-        console.error("❌ tamer-dev-app not found. Add @tamer4lynx/tamer-dev-app to dependencies.");
+        console.error("❌ tamer-dev-app not found. Run this from the tamer4lynx monorepo (or another checkout that includes the dev app workspace).");
         process.exit(1);
       }
       process.chdir(devAppDir);

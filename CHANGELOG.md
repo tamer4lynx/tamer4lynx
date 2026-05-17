@@ -26,7 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **`@tamer4lynx/tamer-dev-app`** — `package.json` depends only on **`@tamer4lynx/tamer-dev-client`** (removed unused `@tamer4lynx/*` packages not required by **tamer-dev-client**’s JS sources). Autolink for the dev app now only wires native modules in that npm dependency tree (not every hoisted workspace package under root `node_modules`).
 
-- **`t4l add-dev`** — Installs **tamer-dev-app**, **tamer-dev-client**, and **app-shell / icons / insets / plugin / router / screen / system-ui** explicitly so each is resolved to the **highest published semver** (same version-pinning goal as **`t4l add-core`** / **`t4l add`**, not only transitive installs).
+- **`t4l add-dev`** — Installs **tamer-dev-client** plus **app-shell / icons / insets / plugin / router / screen / system-ui / linking** explicitly so each is resolved to npm’s default installable line (same version-pinning goal as **`t4l add-core`** / **`t4l add`**, not only transitive installs).
 
 - **`@tamer4lynx/tamer-dev-app` (Android)** — `gradle/libs.versions.toml`: **Lynx `3.6.0`**, **PrimJS `3.6.1`**, aligned with iOS pods and `t4l android create` / embeddable (was 3.3.1 / 2.12.0).
 
@@ -65,7 +65,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **`@tamer4lynx/tamer-dev-client`** (0.0.12) — `npm run build` uses `rspeedy build --config lynx.config.mjs` so Node 22+ does not load `lynx.config.ts` from `node_modules` (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`). Published `0.0.10` only shipped `lynx.config.ts`; the tarball now includes `lynx.config.mjs` only.
 - **`t4l init`** — if `tsconfig.json` is strict JSON with trailing commas (common after formatters), patch the `include` array after stripping trailing commas before `}` / `]`.
-- **`t4l add` / `t4l add-core`** — when no version is given, query **`npm view … versions`**, take the **highest semver** published, and install `pkg@that-version` (parallel per package). Falls back to `@prerelease` only if the registry query fails. Avoids relying on npm’s `latest` tag or a single dist-tag when they lag behind the newest publish.
+- **`t4l add` / `t4l add-core`** — when no version is given, resolve npm’s default installable version first (normally the **`latest`** dist-tag), then fall back to the highest published semver only if `latest` is missing. This keeps installs on the published line users can actually resolve while still handling packages that have versions but no `latest` tag yet.
 - **`t4l link`** — now calls `syncHostIos` before autolinking, so generated Swift files (`ViewController.swift`, `ProjectViewController.swift`, etc.) are always overwritten with the current templates. Previously only `t4l build ios` / `t4l bundle ios` refreshed those files.
 - **CLI** — `t4l --version` reads `package.json` at runtime (next to `dist/index.js` or repo root when using `index.ts`) so bumping the package version no longer requires a rebuild to fix stale embedded versions.
 

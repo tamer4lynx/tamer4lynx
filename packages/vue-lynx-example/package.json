@@ -1,0 +1,38 @@
+{
+  "name": "vue-lynx-example",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "rspeedy build",
+    "check": "biome check --write",
+    "dev": "rspeedy dev",
+    "format": "biome format --write",
+    "preview": "rspeedy preview"
+  },
+  "dependencies": {
+    "@tamer4lynx/tamer-app-shell": "^0.0.5",
+    "@tamer4lynx/tamer-env": "^0.0.2",
+    "@tamer4lynx/tamer-host": "^0.0.3",
+    "@tamer4lynx/tamer-icons": "^0.0.7",
+    "@tamer4lynx/tamer-insets": "^0.0.5",
+    "@tamer4lynx/tamer-navigation": "^0.0.1",
+    "@tamer4lynx/tamer-plugin": "^0.0.5",
+    "@tamer4lynx/tamer-router": "^0.0.13",
+    "@tamer4lynx/tamer-screen": "^0.0.5",
+    "@tamer4lynx/tamer-system-ui": "^0.0.3",
+    "@tamer4lynx/tamer-transports": "^0.0.9",
+    "vue": "^3.5.0",
+    "vue-lynx": "0.4.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.11",
+    "@lynx-js/qrcode-rsbuild-plugin": "^0.4.6",
+    "@lynx-js/rspeedy": "^0.13.5",
+    "@rsbuild/plugin-vue": "^1.2.6",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "private": true
+}

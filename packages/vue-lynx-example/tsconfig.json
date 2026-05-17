@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "module": "node16",
+    "moduleResolution": "node16",
+    "erasableSyntaxOnly": true,
+    "lib": [
+      "es2023"
+    ],
+    "target": "es2022",
+    "types": [
+      "vue-lynx/types"
+    ],
+    "noEmit": true
+  },
+  "include": [
+    "lynx.config.ts",
+    "src/.*.ts",
+    "src/.*.vue",
+    ".tamer/tamer-components.d.ts"
+  ]
+}

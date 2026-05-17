@@ -6,6 +6,7 @@ const ROOT = join(import.meta.dirname, '..');
 
 const PUBLISH_ORDER = [
   'packages/jiggle',
+  'packages/lynxwebsockets',
   'packages/tamer-host',
   'packages/tamer-plugin',
   'packages/tamer-env',
@@ -23,12 +24,25 @@ const PUBLISH_ORDER = [
   'packages/tamer-app-shell',
   'packages/tamer-router',
   'packages/tamer-dev-client',
-  'packages/tamer-dev-app',
 ];
 
 function publish(pkgPath) {
   const pkg = JSON.parse(readFileSync(join(ROOT, pkgPath, 'package.json'), 'utf8'));
   if (pkg.private) return;
+  let versions = [];
+  try {
+    versions = JSON.parse(execSync(`npm view ${pkg.name} versions --json`, {
+      cwd: ROOT,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim());
+  } catch {
+    versions = [];
+  }
+  if (Array.isArray(versions) && versions.includes(pkg.version)) {
+    console.log(`↩️  ${pkg.name}@${pkg.version} already on npm`);
+    return;
+  }
   console.log(`\n📦 Publishing ${pkg.name}@${pkg.version}...`);
   try {
     execSync(`npm publish -w ${pkg.name}`, {

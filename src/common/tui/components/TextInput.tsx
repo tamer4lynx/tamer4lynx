@@ -8,6 +8,12 @@ export type TuiTextInputProps = {
   value?: string;
   /** Uncontrolled initial value; internal state updates until submit. */
   defaultValue?: string;
+  /** Placeholder shown when the input is empty. */
+  placeholder?: string;
+  /** Submit `defaultValue` when the field is left blank. */
+  submitDefaultOnEmpty?: boolean;
+  /** Value to submit on blank when it differs from `defaultValue`. */
+  emptySubmitValue?: string;
   onChange?: (v: string) => void;
   /** Called when Enter is pressed. Return `false` to skip `onSubmit` (e.g. validation failed). */
   onSubmitValue?: (v: string) => void | boolean;
@@ -20,6 +26,9 @@ export function TuiTextInput({
   label,
   value: valueProp,
   defaultValue = '',
+  placeholder,
+  submitDefaultOnEmpty = false,
+  emptySubmitValue,
   onChange: onChangeProp,
   onSubmitValue,
   onSubmit,
@@ -43,9 +52,11 @@ export function TuiTextInput({
       {label ? <Text>{label}</Text> : null}
       <InkTextInput
         value={value}
+        placeholder={placeholder}
         onChange={onChange}
         onSubmit={() => {
-          const r = onSubmitValue?.(value);
+          const submitValue = submitDefaultOnEmpty && value.trim() === '' ? (emptySubmitValue ?? defaultValue) : value;
+          const r = onSubmitValue?.(submitValue);
           if (r === false) return;
           onSubmit();
         }}

@@ -63,9 +63,14 @@ program
 
 program
     .command('init')
-    .description('Initialize tamer.config.json interactively')
-    .action(() => {
-        init();
+    .description('Initialize or bootstrap a Tamer4Lynx project')
+    .option('--template <template>', 'Starter template: rspeedy | vue-lynx')
+    .option('--dir <path>', 'Lynx project directory')
+    .option('--install <stack>', 'Install Tamer packages: core | dev | none')
+    .option('--pm <pm>', 'Package manager: npm | pnpm | bun')
+    .option('-y, --yes', 'Accept defaults for non-interactive setup')
+    .action(async (opts) => {
+        await init(opts);
     });
 
 program
@@ -281,7 +286,7 @@ program
 
 program
     .command('add-dev')
-    .description('Add dev-app, dev-client, and their dependencies')
+    .description('Add dev-client and its dependencies')
     .action(async () => {
         await addDev();
     });

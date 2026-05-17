@@ -6,6 +6,8 @@ export { TuiPasswordInput } from './components/PasswordInput';
 export type { TuiPasswordInputProps } from './components/PasswordInput';
 export { TuiConfirmInput } from './components/ConfirmInput';
 export type { TuiConfirmInputProps } from './components/ConfirmInput';
+export { TuiMultiSelectInput } from './components/MultiSelectInput';
+export type { TuiMultiSelectInputProps, MultiSelectItem } from './components/MultiSelectInput';
 export { TuiSpinner } from './components/Spinner';
 export type { TuiSpinnerProps } from './components/Spinner';
 export { StatusBox } from './components/StatusBox';

@@ -14,8 +14,7 @@ npm i -g @tamer4lynx/cli@latest
 ## Quick start
 
 ```bash
-t4l init              # create tamer.config.json (interactive)
-t4l add-core          # install routing, UI, host, navigation packages
+t4l init              # create/open Lynx app, install selected Tamer packages, write config
 t4l create ios        # scaffold iOS project
 t4l create android    # scaffold Android project
 t4l link              # wire native modules
@@ -37,7 +36,8 @@ bun run cli -- init   # uses tsx directly
 ## Commands
 
 ```
-t4l init                        Interactive config setup
+t4l init [--yes] [--template rspeedy|vue-lynx] [--dir <path>]
+                                Bootstrap/configure a Lynx + Tamer project
 t4l create ios|android|module|element|service|combo
 t4l build <ios|android> [-d|-r|-p] [-i] [--ipa] [--embeddable]
 t4l link [ios|android]          Wire native modules (runs pod install on iOS)
@@ -48,8 +48,8 @@ t4l start [-v]                  Dev server with HMR
 t4l add [packages...]           Add @tamer4lynx packages
 t4l add-core                    Production stack: host, navigation, plugin, router,
                                 app-shell, screen, insets, system-ui, icons, transports, env
-t4l add-dev                     Dev stack: add-core + dev-client, dev-app, linking
-t4l update                      Update all @tamer4lynx/* to latest published versions
+t4l add-dev                     Dev stack: add-core + dev-client, linking
+t4l update                      Update all @tamer4lynx/* to the default installable npm versions
 t4l signing [ios|android]       Configure signing (interactive)
 t4l autolink-toggle             Toggle postinstall autolink in tamer.config.json
 t4l codegen                     Generate code from @lynxmodule declarations
@@ -80,7 +80,6 @@ Install with `t4l add <name>` or `t4l add-core` / `t4l add-dev`. Always run `t4l
 | `@tamer4lynx/tamer-router` | File-based routing, Stack/Tabs, `useBackHandler`, cross-spoke state bridge |
 | `@tamer4lynx/tamer-app-shell` | AppBar, TabBar, Content navigation chrome |
 | `@tamer4lynx/tamer-dev-client` | Dev launcher (QR scan, mDNS discovery, HMR, compatibility check) |
-| `@tamer4lynx/tamer-dev-app` | Standalone dev launcher app |
 
 ### UI
 | Package | Description |

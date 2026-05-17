@@ -8,7 +8,6 @@ PACKAGES=(
   tamer-navigation
   tamer-host
   tamer-dev-client
-  tamer-dev-app
   tamer-insets
   tamer-icons
   tamer-router
@@ -31,7 +30,6 @@ DESCRIPTIONS=(
   ["tamer-navigation"]="Native stack transport for Tamer4Lynx (TamerNav push/pop/dispatch)"
   ["tamer-host"]="Production Lynx host templates for existing iOS/Android apps"
   ["tamer-dev-client"]="Dev launcher module for Tamer4Lynx (QR scan, discovery, HMR)"
-  ["tamer-dev-app"]="Standalone dev launcher app for Tamer4Lynx"
   ["tamer-insets"]="Safe area insets and keyboard state for Lynx"
   ["tamer-icons"]="Native icon element for Lynx (Material Icons, Font Awesome)"
   ["tamer-router"]="File-based routing for Lynx with Stack/Tabs and cross-spoke state"
