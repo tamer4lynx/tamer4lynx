@@ -52,7 +52,7 @@ export async function fetchAndPatchApplication(vars: PatchVars): Promise<string>
   );
   out = out.replace(/\n\s*\/\/ merge it into InitProcessor later\.\s*\n/, "\n");
   out = out.replace(
-    /LynxServiceCenter\.inst\(\)\.registerService\(LynxDevToolService\.getINSTANCE\(\)\);\s*\n\s*\/\/ enable all sessions debug[\s\S]*?LynxDevToolService\.getINSTANCE\(\)\.setLoadV8Bridge\(true\);\s*/,
+    /LynxServiceCenter\.inst\(\)\.registerService\(LynxDevToolService\.getINSTANCE\(\)\);\s*\n\s*\/\/ enable (?:all sessions )?debug(?:ging)?[\s\S]*?LynxDevToolService\.getINSTANCE\(\)\.setLoadV8Bridge\(true\);\s*/,
     ""
   );
 
@@ -353,10 +353,35 @@ ${embeddedHelpers}
     private String normalizeAssetPath(String url) {
         if (url == null) return "";
         String s = url.trim();
+        int hash = s.indexOf('#');
+        if (hash >= 0) s = s.substring(0, hash);
         int query = s.indexOf('?');
         if (query >= 0) s = s.substring(0, query);
+        try {
+            java.net.URI uri = new java.net.URI(s);
+            if (uri.getScheme() != null && uri.getPath() != null && !uri.getPath().isEmpty()) {
+                s = uri.getPath();
+            }
+        } catch (Exception ignored) {
+        }
+        s = s.replace('\\\\', '/');
         while (s.startsWith("/")) s = s.substring(1);
-        return java.nio.file.Paths.get(s).normalize().toString().replace('\\\\', '/');
+        s = stripBeforeMarker(s, ".lynx.bundle/");
+        s = stripBeforeMarker(s, ".web.bundle/");
+        s = stripBeforeMarker(s, "static/");
+        s = stripBeforeMarker(s, "assets/");
+        s = stripBeforeMarker(s, "tamer-assets.json");
+        String normalized = java.nio.file.Paths.get(s).normalize().toString().replace('\\\\', '/');
+        if (normalized.equals("..") || normalized.startsWith("../")) return "";
+        return normalized;
+    }
+
+    private static String stripBeforeMarker(String value, String marker) {
+        int index = value.indexOf(marker);
+        if (index < 0) return value;
+        if (index == 0) return value;
+        if (marker.endsWith("/")) return value.substring(index + marker.length());
+        return value.substring(index);
     }
 }
 `;
@@ -501,26 +526,29 @@ export function getProjectActivity(vars: PatchVars): string {
 
   const devClientInit = hasDevClient
     ? `
-        DevClientModule.attachHostActivity(this)
-        DevClientModule.attachLynxView(lynxView)
-        DevClientModule.attachReloadProjectLauncher { reloadProjectView() }
+        bindProjectCallbacks()
+        activeProjectUrl = DevServerPrefs.getUrl(this)?.trim()
         devClientManager = DevClientManager(this) { reloadProjectView() }
         devClientManager?.connect()
 `
     : "";
   const devClientField = hasDevClient ? `    private var devClientManager: DevClientManager? = null
+    private var activeProjectUrl: String? = null
 ` : "";
   const devClientCleanup = hasDevClient
     ? `
+        TamerNavHost.spokeTemplateSrcNormalizer = null
         DevClientModule.attachHostActivity(null)
         DevClientModule.attachLynxView(null)
         DevClientModule.attachReloadProjectLauncher(null)
+        DevClientModule.attachOpenProjectDirectLauncher(null)
         devClientManager?.disconnect()
 `
     : "";
   const devClientImports = hasDevClient
     ? `
 import ${vars.packageName}.DevClientManager
+import ${vars.packageName}.DevServerPrefs
 import com.nanofuxion.tamerdevclient.DevClientDebugPanel
 import com.nanofuxion.tamerdevclient.DevClientModule`
     : "";
@@ -530,6 +558,8 @@ import com.nanofuxion.tamerdevclient.DevClientModule`
   const reloadMethod = hasDevClient
     ? `
     private fun reloadProjectView() {
+        activeProjectUrl = DevServerPrefs.getUrl(this)?.trim()
+        devClientManager?.disconnect()
         GeneratedActivityLifecycle.onViewDetached()
         GeneratedLynxExtensions.onHostViewChanged(null)
         lynxView?.destroy()
@@ -539,9 +569,19 @@ import com.nanofuxion.tamerdevclient.DevClientModule`
         setContentView(nextView)
         GeneratedActivityLifecycle.onViewAttached(nextView)
         GeneratedLynxExtensions.onHostViewChanged(nextView)
-        nextView.renderTemplateUrl("main.lynx.bundle", DevClientModule.getProjectInitDataJson(this))
+        nextView.renderTemplateUrl(projectTemplateKey(), DevClientModule.getProjectInitDataJson(this))
         DevClientModule.attachLynxView(nextView)
         GeneratedActivityLifecycle.onCreateDelayed(handler)
+        devClientManager?.connect()
+    }
+
+    private fun handleProjectOpenIntent(intent: Intent) {
+        val newUrl = intent.getStringExtra("bundleUrl")
+            ?: intent.data?.getQueryParameter("bundleUrl")
+            ?: return
+        if (newUrl.isBlank()) return
+        DevServerPrefs.setUrl(this, newUrl.trim())
+        reloadProjectView()
     }
 `
     : "";
@@ -577,6 +617,16 @@ ${devClientField}    private val handler = Handler(Looper.getMainLooper())
             }
         }
     }
+${hasDevClient ? `
+
+    private fun bindProjectCallbacks() {
+        DevClientModule.attachHostActivity(this)
+        DevClientModule.attachLynxView(lynxView)
+        DevClientModule.attachReloadProjectLauncher { reloadProjectView() }
+        DevClientModule.attachOpenProjectDirectLauncher { bundleUrl ->
+            handleProjectOpenIntent(Intent().putExtra("bundleUrl", bundleUrl))
+        }
+    }` : ""}
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -589,7 +639,7 @@ ${devClientField}    private val handler = Handler(Looper.getMainLooper())
         setContentView(lynxView)
         GeneratedActivityLifecycle.onViewAttached(lynxView)
         GeneratedLynxExtensions.onHostViewChanged(lynxView)
-        lynxView?.renderTemplateUrl("main.lynx.bundle", ${hasDevClient ? "DevClientModule.getProjectInitDataJson(this)" : '""'})${devClientInit}
+        lynxView?.renderTemplateUrl(${hasDevClient ? "projectTemplateKey()" : '"main.lynx.bundle"'}, ${hasDevClient ? "DevClientModule.getProjectInitDataJson(this)" : '""'})${devClientInit}
         GeneratedActivityLifecycle.onCreateDelayed(handler)
         onBackPressedDispatcher.addCallback(this, backCallback)
     }
@@ -601,17 +651,19 @@ ${devClientField}    private val handler = Handler(Looper.getMainLooper())
 ${reloadMethod}
     override fun onResume() {
         super.onResume()
-        ${hasDevClient ? "DevClientModule.startShakeDetection(this) { DevClientDebugPanel.show(this) }\n        " : ""}GeneratedActivityLifecycle.onResume()
+        ${hasDevClient ? "DevClientModule.setProjectActive(true)\n        DevClientModule.startShakeDetection(this) { DevClientDebugPanel.show(this) }\n        bindProjectCallbacks()\n        val savedUrl = DevServerPrefs.getUrl(this)?.trim()\n        if (!savedUrl.isNullOrBlank() && savedUrl != activeProjectUrl) {\n            reloadProjectView()\n        }\n        " : ""}GeneratedActivityLifecycle.onResume()
     }
 
     override fun onPause() {
         ${hasDevClient ? "DevClientModule.stopShakeDetection()\n        " : ""}super.onPause()
+        GeneratedActivityLifecycle.onPause()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         GeneratedActivityLifecycle.onNewIntent(intent)
+        ${hasDevClient ? "handleProjectOpenIntent(intent)" : ""}
     }
 
     override fun onDestroy() {
@@ -622,16 +674,25 @@ ${reloadMethod}
         super.onDestroy()
     }
 
-${projectInstallNativeStack}    private fun buildLynxView(): LynxView {
+${projectInstallNativeStack}${hasDevClient ? `    private fun projectTemplateKey(): String = DevServerPrefs.projectLynxTemplateKey(this)
+
+` : ""}    private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
-        TamerNavLynxRuntime.configureBuilder(this, viewBuilder, "main.lynx.bundle")
+        TamerNavLynxRuntime.configureBuilder(this, viewBuilder, ${hasDevClient ? "projectTemplateKey()" : '"main.lynx.bundle"'})
         GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
     }
 
     private fun configureTamerNavSpokeBuilder() {
         TamerNavHost.configureSharedLynxGroup(TamerNavLynxRuntime.group)
-        TamerNavHost.sourceSpokeBuilder = { ctx, src ->
+${hasDevClient ? `        TamerNavHost.spokeTemplateSrcNormalizer = { ctx, s ->
+            if (s.isBlank() || s.equals("main.lynx.bundle", ignoreCase = true)) {
+                DevServerPrefs.projectLynxTemplateKey(ctx)
+            } else {
+                s
+            }
+        }
+` : ""}        TamerNavHost.sourceSpokeBuilder = { ctx, src ->
             val viewBuilder = LynxViewBuilder()
             TamerNavLynxRuntime.configureBuilder(ctx, viewBuilder, src)
             GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
@@ -663,8 +724,10 @@ import com.lynx.tasm.LynxView
 import com.lynx.tasm.LynxViewBuilder
 import com.lynx.tasm.LynxBooleanOption
 import ${packageName}.DevClientManager
+import ${packageName}.DevServerPrefs
 import com.nanofuxion.tamerdevclient.DevClientModule
 import com.nanofuxion.tamerdevclient.LynxDevToolBootstrap
+import com.nanofuxion.tamerinsets.TamerInsetsModule
 import com.nanofuxion.tamernavigation.stack.TamerNavHost
 import ${packageName}.generated.GeneratedLynxExtensions
 import ${packageName}.generated.GeneratedActivityLifecycle
@@ -673,6 +736,7 @@ import com.nanofuxion.tamerdevclient.DevClientDebugPanel
 class ProjectActivity : AppCompatActivity() {
     private var lynxView: LynxView? = null
     private var devClientManager: DevClientManager? = null
+    private var activeProjectUrl: String? = null
     private val handler = Handler(Looper.getMainLooper())
     private val backCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
@@ -683,6 +747,15 @@ class ProjectActivity : AppCompatActivity() {
                     isEnabled = true
                 }
             }
+        }
+    }
+
+    private fun bindProjectCallbacks() {
+        DevClientModule.attachHostActivity(this)
+        DevClientModule.attachLynxView(lynxView)
+        DevClientModule.attachReloadProjectLauncher { reloadProjectView() }
+        DevClientModule.attachOpenProjectDirectLauncher { bundleUrl ->
+            handleProjectOpenIntent(Intent().putExtra("bundleUrl", bundleUrl))
         }
     }
 
@@ -698,12 +771,10 @@ class ProjectActivity : AppCompatActivity() {
         setContentView(lynxView)
         GeneratedActivityLifecycle.onViewAttached(lynxView)
         GeneratedLynxExtensions.onHostViewChanged(lynxView)
-        lynxView?.renderTemplateUrl("main.lynx.bundle", "")
-        DevClientModule.attachHostActivity(this)
-        DevClientModule.attachLynxView(lynxView)
-        DevClientModule.attachReloadProjectLauncher { reloadProjectView() }
-        val bundleUrl = intent.getStringExtra("bundleUrl")
-        devClientManager = DevClientManager(this, bundleUrl) { reloadProjectView() }
+        lynxView?.renderTemplateUrl(projectTemplateKey(), projectInitDataWithInsetsSnapshot(this))
+        bindProjectCallbacks()
+        activeProjectUrl = DevServerPrefs.getUrl(this)?.trim()
+        devClientManager = DevClientManager(this) { reloadProjectView() }
         devClientManager?.connect()
         GeneratedActivityLifecycle.onCreateDelayed(handler)
         onBackPressedDispatcher.addCallback(this, backCallback)
@@ -712,9 +783,12 @@ class ProjectActivity : AppCompatActivity() {
     override fun onPause() {
         DevClientModule.stopShakeDetection()
         super.onPause()
+        GeneratedActivityLifecycle.onPause()
     }
 
     private fun reloadProjectView() {
+        activeProjectUrl = DevServerPrefs.getUrl(this)?.trim()
+        devClientManager?.disconnect()
         GeneratedActivityLifecycle.onViewDetached()
         GeneratedLynxExtensions.onHostViewChanged(null)
         lynxView?.destroy()
@@ -724,9 +798,10 @@ class ProjectActivity : AppCompatActivity() {
         setContentView(nextView)
         GeneratedActivityLifecycle.onViewAttached(nextView)
         GeneratedLynxExtensions.onHostViewChanged(nextView)
-        nextView.renderTemplateUrl("main.lynx.bundle", "")
+        nextView.renderTemplateUrl(projectTemplateKey(), projectInitDataWithInsetsSnapshot(this))
         DevClientModule.attachLynxView(nextView)
         GeneratedActivityLifecycle.onCreateDelayed(handler)
+        devClientManager?.connect()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -736,7 +811,13 @@ class ProjectActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        DevClientModule.setProjectActive(true)
         DevClientModule.startShakeDetection(this) { DevClientDebugPanel.show(this) }
+        bindProjectCallbacks()
+        val savedUrl = DevServerPrefs.getUrl(this)?.trim()
+        if (!savedUrl.isNullOrBlank() && savedUrl != activeProjectUrl) {
+            reloadProjectView()
+        }
         GeneratedActivityLifecycle.onResume()
     }
 
@@ -744,12 +825,25 @@ class ProjectActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         GeneratedActivityLifecycle.onNewIntent(intent)
+        handleProjectOpenIntent(intent)
+    }
+
+    private fun handleProjectOpenIntent(intent: Intent) {
+        val newUrl = intent.getStringExtra("bundleUrl")
+            ?: intent.data?.getQueryParameter("bundleUrl")
+            ?: return
+        if (newUrl.isBlank()) return
+        DevServerPrefs.setUrl(this, newUrl.trim())
+        reloadProjectView()
     }
 
     override fun onDestroy() {
+        DevClientModule.setProjectActive(false)
+        TamerNavHost.spokeTemplateSrcNormalizer = null
         DevClientModule.attachHostActivity(null)
         DevClientModule.attachLynxView(null)
         DevClientModule.attachReloadProjectLauncher(null)
+        DevClientModule.attachOpenProjectDirectLauncher(null)
         GeneratedActivityLifecycle.onViewDetached()
         GeneratedLynxExtensions.onHostViewChanged(null)
         lynxView?.destroy()
@@ -758,15 +852,39 @@ class ProjectActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
+    private fun projectTemplateKey(): String = DevServerPrefs.projectLynxTemplateKey(this)
+
+    private fun projectInitDataWithInsetsSnapshot(ctx: android.content.Context): String {
+        val baseJson = DevClientModule.getProjectInitDataJson(ctx)
+        val snapshot = TamerInsetsModule.currentInsetsSnapshotJson() ?: return baseJson
+        val trimmed = baseJson.trim()
+        val injection = "\\"__tamerInsetsSnapshot\\":$snapshot"
+        return when {
+            trimmed.isEmpty() || trimmed == "{}" -> "{$injection}"
+            trimmed.startsWith("{") && trimmed.endsWith("}") -> {
+                val inner = trimmed.substring(1, trimmed.length - 1).trim()
+                if (inner.isEmpty()) "{$injection}" else "{$injection,$inner}"
+            }
+            else -> baseJson
+        }
+    }
+
     private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
-        TamerNavLynxRuntime.configureBuilder(this, viewBuilder, "main.lynx.bundle")
+        TamerNavLynxRuntime.configureBuilder(this, viewBuilder, projectTemplateKey())
         GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
     }
 
     private fun configureTamerNavSpokeBuilder() {
         TamerNavHost.configureSharedLynxGroup(TamerNavLynxRuntime.group)
+        TamerNavHost.spokeTemplateSrcNormalizer = { ctx, s ->
+            if (s.isBlank() || s.equals("main.lynx.bundle", ignoreCase = true)) {
+                DevServerPrefs.projectLynxTemplateKey(ctx)
+            } else {
+                s
+            }
+        }
         TamerNavHost.sourceSpokeBuilder = { ctx, src ->
             val viewBuilder = LynxViewBuilder()
             TamerNavLynxRuntime.configureBuilder(ctx, viewBuilder, src)
@@ -808,6 +926,7 @@ import com.nanofuxion.tamerdevclient.DevClientModule
     ? `
         DevClientModule.attachHostActivity(this)
         DevClientModule.attachLynxView(lynxView)
+        bindLauncherCallbacks()
         DevClientModule.attachCameraPermissionRequester { onGranted ->
             pendingScanOnPermissionGranted = onGranted
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
@@ -815,24 +934,11 @@ import com.nanofuxion.tamerdevclient.DevClientModule
         DevClientModule.attachScanLauncher {
             scanResultLauncher.launch(IntentIntegrator(this).setCaptureActivity(PortraitCaptureActivity::class.java).setPrompt("Scan dev server QR").createScanIntent())
         }
-        DevClientModule.attachReloadProjectLauncher {
-            startActivity(Intent(this@MainActivity, ProjectActivity::class.java).addFlags(
-                Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            ))
-        }
-        DevClientModule.attachOpenProjectDirectLauncher { bundleUrl ->
-            startActivity(Intent(this@MainActivity, ProjectActivity::class.java).apply {
-                putExtra("bundleUrl", bundleUrl)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            })
-        }
         reloadReceiver = object : BroadcastReceiver() {
             override fun onReceive(ctx: Context, intent: Intent) {
                 if (intent.action == DevClientModule.ACTION_RELOAD_PROJECT) {
                     runOnUiThread {
-                        startActivity(Intent(this@MainActivity, ProjectActivity::class.java).addFlags(
-                            Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                        ))
+                        launchProjectActivity()
                     }
                 }
             }
@@ -904,6 +1010,7 @@ import com.nanofuxion.tamerdevclient.DevClientModule
 
   return `package ${vars.packageName}
 
+import android.app.ActivityManager
 import android.os.Build
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
@@ -918,6 +1025,35 @@ import ${vars.packageName}.generated.GeneratedActivityLifecycle
 
 class MainActivity : AppCompatActivity() {
 ${devClientField}    private var lynxView: LynxView? = null${!hasDevClient ? '\n    private val handler = android.os.Handler(android.os.Looper.getMainLooper())' : ''}
+
+${hasDevClient ? `    private fun launchProjectActivity(bundleUrl: String? = null) {
+        val activityManager = getSystemService(ActivityManager::class.java)
+        val existingTask = activityManager?.appTasks?.firstOrNull { task ->
+            val info = task.taskInfo
+            info.baseActivity?.className == ProjectActivity::class.java.name
+                || info.topActivity?.className == ProjectActivity::class.java.name
+        }
+        val intent = Intent(this@MainActivity, ProjectActivity::class.java).apply {
+            if (!bundleUrl.isNullOrBlank()) {
+                putExtra("bundleUrl", bundleUrl)
+            }
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        if (existingTask != null) {
+            existingTask.moveToFront()
+        }
+        startActivity(intent)
+    }
+
+    private fun bindLauncherCallbacks() {
+        DevClientModule.attachReloadProjectLauncher {
+            launchProjectActivity()
+        }
+        DevClientModule.attachOpenProjectDirectLauncher { bundleUrl ->
+            launchProjectActivity(bundleUrl)
+        }
+    }
+` : ""}
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -948,6 +1084,7 @@ ${devClientField}    private var lynxView: LynxView? = null${!hasDevClient ? '\n
         GeneratedActivityLifecycle.onResume()${hasDevClient ? `
         DevClientModule.attachHostActivity(this)
         DevClientModule.attachLynxView(lynxView)
+        bindLauncherCallbacks()
         GeneratedLynxExtensions.onHostViewChanged(lynxView)` : ""}
     }
 
@@ -962,7 +1099,11 @@ ${devClientField}    private var lynxView: LynxView? = null${!hasDevClient ? '\n
 
 ${mainInstallNativeStack}    private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
-        TamerNavLynxRuntime.configureBuilder(this, viewBuilder, currentUri)
+        ${
+          hasDevClient
+            ? `TamerNavLynxRuntime.configureBuilder(this, viewBuilder, currentUri)`
+            : `TamerNavLynxRuntime.configureBuilder(this, viewBuilder, "main.lynx.bundle")`
+        }
         GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
     }

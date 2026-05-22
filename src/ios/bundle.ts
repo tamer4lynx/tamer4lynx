@@ -6,7 +6,22 @@ import { fixTsconfigReferencesForBuild } from '../common/tsconfigUtils';
 import { applyIosAppIconAssets } from '../common/syncAppIcons';
 import { copyDistAssets } from '../common/copyDistAssets';
 import ios_autolink from './autolink';
-import { addResourceToXcodeProject } from './syncHost';
+import { addResourceFolderToXcodeProject, addResourceToXcodeProject } from './syncHost';
+import { isDevAppProject } from '../common/hostConfig';
+
+function buildEnvWithOfficialAppMetadata(projectRoot: string): NodeJS.ProcessEnv {
+    if (!isDevAppProject(projectRoot)) return process.env;
+    const officialAppJsonPath = path.join(projectRoot, 'official-app.json');
+    if (!fs.existsSync(officialAppJsonPath)) return process.env;
+    try {
+        const metadata = fs.readFileSync(officialAppJsonPath, 'utf8');
+        JSON.parse(metadata); // validate
+        return { ...process.env, TAMER_DEV_CLIENT_OFFICIAL_APP_METADATA_JSON: metadata };
+    } catch {
+        console.warn('⚠ Could not read official-app.json; building without official app metadata.');
+        return process.env;
+    }
+}
 
 function bundleAndDeploy(opts: { release?: boolean; production?: boolean } = {}) {
     const release = opts.release === true || opts.production === true;
@@ -24,9 +39,14 @@ function bundleAndDeploy(opts: { release?: boolean; production?: boolean } = {})
     const devClientPkg = findDevClientPackage(resolved.projectRoot);
     const includeDevClient = !release && !!devClientPkg;
 
-    const appName = resolved.config.ios!.appName!;
+    let appName = resolved.config.ios!.appName!;
     const { lynxProjectDir, lynxBundleFiles, lynxBundleRootRel } = resolved;
     const sourceBundlePath = resolved.lynxBundlePath;
+    // Discover actual Xcode project name — may differ from display appName (e.g. "Tamer App" vs "TamerDevApp")
+    if (fs.existsSync(resolved.iosDir)) {
+        const xcodeproj = fs.readdirSync(resolved.iosDir).find(f => f.endsWith('.xcodeproj'));
+        if (xcodeproj) appName = path.basename(xcodeproj, '.xcodeproj');
+    }
     const destinationDir = path.join(resolved.iosDir, appName);
     const destinationBundlePath = path.join(destinationDir, resolved.lynxBundleFile);
 
@@ -46,7 +66,8 @@ function bundleAndDeploy(opts: { release?: boolean; production?: boolean } = {})
             fixTsconfigReferencesForBuild(lynxTsconfig);
         }
         console.log('📦 Building Lynx bundle...');
-        execSync('npm run build', { stdio: 'inherit', cwd: resolved.lynxProjectDir });
+        const buildEnv = buildEnvWithOfficialAppMetadata(resolved.projectRoot);
+        execSync('npm run build', { stdio: 'inherit', cwd: resolved.lynxProjectDir, env: buildEnv });
         console.log('✅ Build completed successfully.');
     } catch (error) {
         console.error('❌ Build process failed. Please check the errors above.');
@@ -76,8 +97,13 @@ function bundleAndDeploy(opts: { release?: boolean; production?: boolean } = {})
         if (fs.existsSync(pbxprojPath)) {
             const skip = new Set(['.rspeedy', 'stats.json']);
             for (const entry of fs.readdirSync(distDir)) {
-                if (skip.has(entry) || fs.statSync(path.join(distDir, entry)).isDirectory()) continue;
-                addResourceToXcodeProject(pbxprojPath, appName, entry);
+                if (skip.has(entry)) continue;
+                const entryPath = path.join(distDir, entry);
+                if (fs.statSync(entryPath).isDirectory()) {
+                    addResourceFolderToXcodeProject(pbxprojPath, appName, entry);
+                } else {
+                    addResourceToXcodeProject(pbxprojPath, appName, entry);
+                }
             }
         }
 

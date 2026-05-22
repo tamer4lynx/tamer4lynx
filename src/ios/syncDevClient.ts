@@ -2,9 +2,12 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 import { randomBytes } from 'crypto';
-import { resolveDevAppPaths, findDevClientPackage } from '../common/hostConfig';
+import { resolveDevAppPaths, findDevClientPackage, resolveIconPaths, type HostConfig } from '../common/hostConfig';
+import { copyDistAssets } from '../common/copyDistAssets';
+import { applyIosAppIconAssets } from '../common/syncAppIcons';
 import { setupCocoaPods } from './getPod';
 import ios_autolink from './autolink';
+import { addResourceFolderToXcodeProject, addResourceToXcodeProject } from './syncHost';
 import { PODFILE_POST_INSTALL_BUILD_SPEED_RUBY } from './iosBuildSpeed';
 
 function readAndSubstituteTemplate(
@@ -190,6 +193,7 @@ class ProjectViewController: UIViewController {
             self?.reloadLynxView()
         })
         devClientManager?.connect()
+        TamerRelogLogService.connect()
 #if DEBUG
         view.addGestureRecognizer(projectDevMenuGesture)
 #endif
@@ -458,6 +462,7 @@ class ProjectViewController: UIViewController {
         guard isBeingDismissed || isMovingFromParent else { return }
         dismissProjectDevMenu()
         devClientManager?.disconnect()
+        TamerRelogLogService.disconnect()
 #if canImport(tamerrouter)
         TamerRouterNativeModule.attachHostView(nil)
 #endif
@@ -487,7 +492,7 @@ function getDevTemplateProviderSwift(): string {
 import Lynx
 import tamerdevclient
 
-class DevTemplateProvider: NSObject, LynxTemplateProvider {
+class DevTemplateProvider: NSObject, LynxTemplateProvider, LynxTemplateResourceFetcher, LynxGenericResourceFetcher {
     private static let devClientBundle = "dev-client.lynx.bundle"
     private static let tamerDebugBundle = "tamer-debug.lynx.bundle"
 
@@ -528,16 +533,134 @@ class DevTemplateProvider: NSObject, LynxTemplateProvider {
         }
     }
 
+    func fetchTemplate(_ request: LynxResourceRequest, onComplete callback: @escaping LynxTemplateResourceCompletionBlock) {
+        DispatchQueue.global(qos: .background).async {
+            let result = self.loadData(url: request.url)
+            callback(result.data.map { LynxTemplateResource(nsData: $0) }, result.error)
+        }
+    }
+
+    func fetchSSRData(_ request: LynxResourceRequest, onComplete callback: @escaping LynxSSRResourceCompletionBlock) {
+        DispatchQueue.global(qos: .background).async {
+            let result = self.loadData(url: request.url)
+            callback(result.data, result.error)
+        }
+    }
+
+    func fetchResource(_ request: LynxResourceRequest, onComplete callback: @escaping LynxGenericResourceCompletionBlock) -> (() -> Void) {
+        DispatchQueue.global(qos: .background).async {
+            let result = self.loadData(url: request.url)
+            callback(result.data, result.error)
+        }
+        return {}
+    }
+
+    func fetchResourcePath(_ request: LynxResourceRequest, onComplete callback: @escaping LynxGenericResourcePathCompletionBlock) -> (() -> Void) {
+        let error = NSError(domain: "DevTemplateProvider", code: 501,
+                            userInfo: [NSLocalizedDescriptionKey: "Resource path lookup is not supported"])
+        callback(nil, error)
+        return {}
+    }
+
+    private func loadData(url: String?) -> (data: Data?, error: NSError?) {
+        if url == Self.tamerDebugBundle || url?.hasSuffix("/" + Self.tamerDebugBundle) == true || url?.contains(Self.tamerDebugBundle) == true {
+            return loadFromBundle(url: Self.tamerDebugBundle)
+        }
+        if url == Self.devClientBundle || url?.hasSuffix("/" + Self.devClientBundle) == true || url?.contains(Self.devClientBundle) == true {
+            return loadFromBundle(url: Self.devClientBundle)
+        }
+        if let data = loadFromDevServer(url: url) {
+            return (data, nil)
+        }
+        return loadFromBundle(url: url)
+    }
+
     private func loadFromBundle(url: String?, callback: LynxTemplateLoadBlock!) {
-        guard let url = url,
-              let bundleUrl = Bundle.main.url(forResource: url, withExtension: nil),
-              let data = try? Data(contentsOf: bundleUrl) else {
+        let result = loadFromBundle(url: url)
+        callback?(result.data, result.error)
+    }
+
+    private func loadFromBundle(url: String?) -> (data: Data?, error: NSError?) {
+        guard let normalized = normalizeBundlePath(url),
+              let resourcePath = Bundle.main.resourcePath else {
             let err = NSError(domain: "DevTemplateProvider", code: 404,
                               userInfo: [NSLocalizedDescriptionKey: "Bundle not found: \\(url ?? "nil")"])
-            callback?(nil, err)
-            return
+            return (nil, err)
         }
-        callback?(data, nil)
+        let abs = (resourcePath as NSString).appendingPathComponent(normalized)
+        guard FileManager.default.fileExists(atPath: abs),
+              let data = try? Data(contentsOf: URL(fileURLWithPath: abs)) else {
+            let err = NSError(domain: "DevTemplateProvider", code: 404,
+                              userInfo: [NSLocalizedDescriptionKey: "Bundle not found: \\(normalized)"])
+            return (nil, err)
+        }
+        return (data, nil)
+    }
+
+    private func loadFromDevServer(url: String?) -> Data? {
+        guard let normalized = normalizeBundlePath(url),
+              let devUrl = DevServerPrefs.getUrl(),
+              !devUrl.isEmpty else { return nil }
+
+        let origin: String
+        let configuredPath: String
+        if let parsed = URL(string: devUrl) {
+            let scheme = parsed.scheme ?? "http"
+            let host = parsed.host ?? "localhost"
+            let port = parsed.port.map { ":\\($0)" } ?? ""
+            origin = "\\(scheme)://\\(host)\\(port)"
+            configuredPath = parsed.path.replacingOccurrences(of: "/+$", with: "", options: .regularExpression)
+        } else {
+            origin = devUrl
+            configuredPath = ""
+        }
+
+        var candidates: [String] = []
+        if !configuredPath.isEmpty {
+            candidates.append("\\(configuredPath)/\\(normalized)")
+        }
+        candidates.append("/example/\\(normalized)")
+        candidates.append("/\\(normalized)")
+        for candidate in candidates {
+            if let data = self.httpFetch(url: origin + candidate) {
+                return data
+            }
+        }
+        return nil
+    }
+
+    private func normalizeBundlePath(_ url: String?) -> String? {
+        guard var s = url?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else { return nil }
+        if let fragment = s.firstIndex(of: "#") {
+            s = String(s[..<fragment])
+        }
+        if let query = s.firstIndex(of: "?") {
+            s = String(s[..<query])
+        }
+        if let parsed = URL(string: s), parsed.scheme != nil, !parsed.path.isEmpty {
+            s = parsed.path
+        }
+        s = s.replacingOccurrences(of: "\\\\", with: "/")
+        while s.hasPrefix("/") {
+            s.removeFirst()
+        }
+        s = stripBeforeMarker(s, marker: ".lynx.bundle/")
+        s = stripBeforeMarker(s, marker: ".web.bundle/")
+        s = stripBeforeMarker(s, marker: "static/")
+        s = stripBeforeMarker(s, marker: "assets/")
+        s = stripBeforeMarker(s, marker: "tamer-assets.json")
+        let normalized = (s as NSString).standardizingPath
+        if normalized == ".." || normalized.hasPrefix("../") { return nil }
+        return normalized
+    }
+
+    private func stripBeforeMarker(_ value: String, marker: String) -> String {
+        guard let range = value.range(of: marker) else { return value }
+        if range.lowerBound == value.startIndex { return value }
+        if marker.hasSuffix("/") {
+            return String(value[range.upperBound...])
+        }
+        return String(value[range.lowerBound...])
     }
 
     private func httpFetch(url: String) -> Data? {
@@ -643,6 +766,141 @@ class DevClientManager {
         webSocketTask = nil
         session?.invalidateAndCancel()
         session = nil
+    }
+}
+`;
+}
+
+function getLynxPushViewControllerSwift(): string {
+    return `import UIKit
+import Lynx
+import tamerdevclient
+#if canImport(tamerinsets)
+import tamerinsets
+#endif
+#if canImport(tamerrouter)
+import tamerrouter
+#endif
+#if canImport(tamerlinking)
+import tamerlinking
+#endif
+
+/// Presents a Lynx bundle loaded from a URL-scheme deep link or an openProjectDirect call.
+/// Equivalent to Android's LynxPushActivity — receives bundleUrl + optional initData,
+/// loads a full-screen LynxView, and dismisses on back/swipe.
+class LynxPushViewController: UIViewController {
+    private let bundleUrl: String
+    private let initDataJson: String
+    private var lynxView: LynxView?
+
+    init(bundleUrl: String, initDataJson: String = "") {
+        self.bundleUrl = bundleUrl
+        self.initDataJson = initDataJson
+        super.init(nibName: nil, bundle: nil)
+        modalPresentationStyle = .fullScreen
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) not supported") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        edgesForExtendedLayout = .all
+        extendedLayoutIncludesOpaqueBars = true
+        additionalSafeAreaInsets = .zero
+        view.insetsLayoutMarginsFromSafeArea = false
+        view.preservesSuperviewLayoutMargins = false
+        if #available(iOS 15.0, *) {
+            viewRespectsSystemMinimumLayoutMargins = false
+        }
+#if canImport(tamerlinking)
+        if !bundleUrl.isEmpty {
+            LinkingModule.setInitialUrl(bundleUrl)
+        }
+#endif
+        setupLynxView()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        if let lv = lynxView { applyFullscreenLayout(to: lv) }
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+#if canImport(tamerinsets)
+        TamerInsetsModule.reRequestInsets()
+#endif
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        guard isBeingDismissed || isMovingFromParent else { return }
+#if canImport(tamerrouter)
+        TamerRouterNativeModule.attachHostView(nil)
+#endif
+#if canImport(tamerinsets)
+        TamerInsetsModule.attachHostView(nil)
+#endif
+        DevClientModule.attachLynxView(nil)
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        guard isBeingDismissed || isMovingFromParent else { return }
+        lynxView?.removeFromSuperview()
+        lynxView = nil
+    }
+
+    private func setupLynxView() {
+        let bounds = fullscreenBounds()
+        let size = bounds.size
+        let provider = DevTemplateProvider()
+        let lv = LynxView { builder in
+            builder.enableGenericResourceFetcher = .true
+            builder.config = LynxConfig(provider: provider)
+            builder.templateResourceFetcher = provider
+            builder.genericResourceFetcher = provider
+            builder.screenSize = size
+            builder.fontScale = 1.0
+        }
+        lv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        lv.insetsLayoutMarginsFromSafeArea = false
+        lv.preservesSuperviewLayoutMargins = false
+        view.addSubview(lv)
+        applyFullscreenLayout(to: lv)
+#if canImport(tamerinsets)
+        TamerInsetsModule.attachHostView(lv)
+#endif
+#if canImport(tamerrouter)
+        TamerRouterNativeModule.attachHostView(lv)
+#endif
+        DevClientModule.attachLynxView(lv)
+        let initData = initDataJson.isEmpty ? nil : LynxTemplateData(json: initDataJson)
+        lv.loadTemplate(fromURL: bundleUrl, initData: initData)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self, weak lv] in
+            guard let self, let lv else { return }
+            self.applyFullscreenLayout(to: lv)
+        }
+        self.lynxView = lv
+    }
+
+    private func applyFullscreenLayout(to lv: LynxView) {
+        let bounds = fullscreenBounds()
+        let size = bounds.size
+        lv.frame = bounds
+        lv.updateScreenMetrics(withWidth: size.width, height: size.height)
+        lv.updateViewport(withPreferredLayoutWidth: size.width, preferredLayoutHeight: size.height, needLayout: true)
+        lv.preferredLayoutWidth = size.width
+        lv.preferredLayoutHeight = size.height
+        lv.layoutWidthMode = .exact
+        lv.layoutHeightMode = .exact
+    }
+
+    private func fullscreenBounds() -> CGRect {
+        let b = view.bounds
+        if b.width > 0, b.height > 0 { return b }
+        return UIScreen.main.bounds
     }
 }
 `;
@@ -812,6 +1070,8 @@ function getInfoPlist(): string {
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleDisplayName</key>
+	<string>Tamer App</string>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
@@ -1032,6 +1292,9 @@ function getLaunchScreenStoryboard(): string {
 }
 
 function generatePbxproj(ids: Record<string, string>): string {
+    const srcRoot = '${SRCROOT}';
+    const builtProductsDir = '${BUILT_PRODUCTS_DIR}';
+    const productName = '${PRODUCT_NAME}';
     return `// !$*UTF8*$!
 {
 	archiveVersion = 1;
@@ -1199,7 +1462,7 @@ function generatePbxproj(ids: Record<string, string>): string {
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "FONTS_SRC=\\"${SRCROOT}/../../tamer-icons/fonts\\"\\nif [ -d \\"$FONTS_SRC\\" ]; then\\n  cp -f \\"$FONTS_SRC/MaterialSymbolsOutlined.ttf\\" \\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/\\" 2>/dev/null || true\\n  cp -f \\"$FONTS_SRC/fa-solid-900.ttf\\" \\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/\\" 2>/dev/null || true\\nfi\\nCP_SRC=\\"${SRCROOT}/../../tamer-icons/android/src/main/assets/fonts/material-codepoints.txt\\"\\n[ -f \\"$CP_SRC\\" ] && cp -f \\"$CP_SRC\\" \\"${BUILT_PRODUCTS_DIR}/${PRODUCT_NAME}.app/\\" 2>/dev/null || true\\n";
+			shellScript = "FONTS_SRC=\\"${srcRoot}/../../tamer-icons/fonts\\"\\nif [ -d \\"$FONTS_SRC\\" ]; then\\n  cp -f \\"$FONTS_SRC/MaterialSymbolsOutlined.ttf\\" \\"${builtProductsDir}/${productName}.app/\\" 2>/dev/null || true\\n  cp -f \\"$FONTS_SRC/fa-solid-900.ttf\\" \\"${builtProductsDir}/${productName}.app/\\" 2>/dev/null || true\\nfi\\nCP_SRC=\\"${srcRoot}/../../tamer-icons/android/src/main/assets/fonts/material-codepoints.txt\\"\\n[ -f \\"$CP_SRC\\" ] && cp -f \\"$CP_SRC\\" \\"${builtProductsDir}/${productName}.app/\\" 2>/dev/null || true\\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -1390,7 +1653,7 @@ async function createDevAppProject(iosDir: string, repoRoot: string): Promise<vo
                 switch (f) {
                     case 'DevLauncherViewController.swift': return getDevLauncherViewControllerSwift();
                     case 'ProjectViewController.swift': return getProjectViewControllerSwift();
-                    case 'LynxPushViewController.swift': return '';
+                    case 'LynxPushViewController.swift': return getLynxPushViewControllerSwift();
                     case 'DevTemplateProvider.swift': return getDevTemplateProviderSwift();
                     case 'DevClientManager.swift': return getDevClientManagerSwift();
                     case 'QRScannerViewController.swift': return getQRScannerViewControllerSwift();
@@ -1405,10 +1668,24 @@ async function createDevAppProject(iosDir: string, repoRoot: string): Promise<vo
     writeFile(path.join(projectDir, 'Info.plist'), getInfoPlist());
     writeFile(path.join(projectDir, 'Base.lproj', 'Main.storyboard'), getMainStoryboard());
     writeFile(path.join(projectDir, 'Base.lproj', 'LaunchScreen.storyboard'), getLaunchScreenStoryboard());
-    writeFile(
-        path.join(projectDir, 'Assets.xcassets', 'AppIcon.appiconset', 'Contents.json'),
-        JSON.stringify({ images: [{ idiom: 'universal', platform: 'ios', size: '1024x1024' }], info: { author: 'xcode', version: 1 } }, null, 2)
-    );
+    const appIconDir = path.join(projectDir, 'Assets.xcassets', 'AppIcon.appiconset');
+    fs.mkdirSync(appIconDir, { recursive: true });
+    let iconApplied = false;
+    try {
+        const resolved = resolveDevAppPaths(process.cwd());
+        const iconPaths = resolveIconPaths(resolved.projectRoot, resolved.config);
+        if (iconPaths && applyIosAppIconAssets(appIconDir, iconPaths)) {
+            iconApplied = true;
+        }
+    } catch {
+        // fall through to placeholder
+    }
+    if (!iconApplied) {
+        writeFile(
+            path.join(appIconDir, 'Contents.json'),
+            JSON.stringify({ images: [{ idiom: 'universal', platform: 'ios', size: '1024x1024' }], info: { author: 'xcode', version: 1 } }, null, 2)
+        );
+    }
     writeFile(
         path.join(projectDir, 'Assets.xcassets', 'Contents.json'),
         JSON.stringify({ info: { author: 'xcode', version: 1 } }, null, 2)
@@ -1417,8 +1694,13 @@ async function createDevAppProject(iosDir: string, repoRoot: string): Promise<vo
     // Placeholder bundle file — replaced when building
     writeFile(path.join(projectDir, 'dev-client.lynx.bundle'), '');
 
-    fs.mkdirSync(xcodeprojDir, { recursive: true });
-    writeFile(path.join(xcodeprojDir, 'project.pbxproj'), generatePbxproj(ids));
+    try {
+        fs.mkdirSync(xcodeprojDir, { recursive: true });
+        writeFile(path.join(xcodeprojDir, 'project.pbxproj'), generatePbxproj(ids));
+    } catch (error: any) {
+        console.error(`❌ Failed to write TamerDevApp Xcode project: ${error?.message ?? error}`);
+        throw error;
+    }
 
     console.log(`✅ TamerDevApp iOS project created at ${iosDir}`);
     await setupCocoaPods(iosDir);
@@ -1481,9 +1763,12 @@ async function syncDevClientIos(): Promise<void> {
     const iosDir = resolved.iosDir;
     const workspacePath = path.join(iosDir, `${APP_NAME}.xcworkspace`);
     const projectDir = path.join(iosDir, APP_NAME);
-    const hasCommittedSource = fs.existsSync(path.join(projectDir, 'AppDelegate.swift'));
+    const pbxprojPath = path.join(iosDir, `${APP_NAME}.xcodeproj`, 'project.pbxproj');
+    const hasGeneratedProject =
+        fs.existsSync(path.join(projectDir, 'AppDelegate.swift')) &&
+        fs.existsSync(pbxprojPath);
 
-    if (!hasCommittedSource) {
+    if (!hasGeneratedProject) {
         await createDevAppProject(iosDir, repoRoot);
     } else if (!fs.existsSync(workspacePath)) {
         await setupCocoaPods(iosDir);
@@ -1508,15 +1793,20 @@ async function syncDevClientIos(): Promise<void> {
     console.log('📦 Building dev-client Lynx bundle...');
     execSync('npm run build', { stdio: 'inherit', cwd: devClientDir });
 
-    // Copy bundle into iOS project
-    for (const bundleName of resolved.lynxBundleFiles) {
-        const bundleSrc = path.join(devClientDir, resolved.lynxBundleRootRel, bundleName);
-        const bundleDst = path.join(iosDir, APP_NAME, bundleName);
-        if (fs.existsSync(bundleSrc)) {
-            fs.copyFileSync(bundleSrc, bundleDst);
-            console.log(`✨ Copied ${bundleName} to iOS project`);
-        } else {
-            console.warn(`⚠️  Bundle not found at ${bundleSrc}`);
+    const distDir = path.join(devClientDir, resolved.lynxBundleRootRel);
+    copyDistAssets(distDir, projectDir, resolved.lynxBundleFile);
+    console.log('✨ Copied dev-client bundle and assets to iOS project');
+
+    if (fs.existsSync(pbxprojPath)) {
+        const skip = new Set(['.rspeedy', 'stats.json']);
+        for (const entry of fs.readdirSync(distDir)) {
+            if (skip.has(entry)) continue;
+            const entryPath = path.join(distDir, entry);
+            if (fs.statSync(entryPath).isDirectory()) {
+                addResourceFolderToXcodeProject(pbxprojPath, APP_NAME, entry);
+            } else {
+                addResourceToXcodeProject(pbxprojPath, APP_NAME, entry);
+            }
         }
     }
 }

@@ -6,8 +6,8 @@ const ROOT = join(import.meta.dirname, '..');
 
 const PUBLISH_ORDER = [
   'packages/jiggle',
-  'packages/lynxwebsockets',
   'packages/tamer-host',
+  'packages/tamer-asset',
   'packages/tamer-plugin',
   'packages/tamer-env',
   'packages/tamer-transports',

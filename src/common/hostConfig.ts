@@ -330,8 +330,10 @@ export function findDevClientPackage(projectRoot: string): string | null {
 
 export function findTamerHostPackage(projectRoot: string): string | null {
   const candidates = [
+    path.join(projectRoot, 'node_modules', '@tamer4lynx', 'tamer-host'),
     path.join(projectRoot, 'node_modules', 'tamer-host'),
     path.join(projectRoot, 'packages', 'tamer-host'),
+    path.join(path.dirname(projectRoot), 'tamer-host'),
   ];
   for (const pkg of candidates) {
     if (fs.existsSync(pkg) && fs.existsSync(path.join(pkg, 'package.json'))) {
@@ -450,6 +452,8 @@ export type ResolvedIconPaths = {
   /** Normalized `#AARRGGBB` for generated `ic_launcher_background` shape drawable. */
   androidAdaptiveBackgroundColor?: string;
   androidAdaptiveForegroundLayout?: ResolvedAdaptiveForegroundLayout;
+  /** Hex color (`#RRGGBB`) to use as the iOS icon background when compositing from `source`. */
+  iosBackgroundColor?: string;
 };
 
 function formatAdaptiveInsetValue(v: number | string | undefined, fallback: string): string {
@@ -554,6 +558,17 @@ export function resolveIconPaths(projectRoot: string, config: HostConfig): Resol
       }
     }
   }
+  // Derive iOS background color from androidAdaptive when no explicit ios icon is set.
+  if (!out.ios && !raw.iosBackgroundColor && ad?.backgroundColor) {
+    const hex = ad.backgroundColor.trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(hex) || /^#[0-9a-fA-F]{8}$/.test(hex)) {
+      out.iosBackgroundColor = hex.length === 9 ? `#${hex.slice(3)}` : hex;
+    }
+  }
+  if (!out.ios && (raw as { iosBackgroundColor?: string }).iosBackgroundColor) {
+    const hex = ((raw as { iosBackgroundColor?: string }).iosBackgroundColor ?? '').trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(hex)) out.iosBackgroundColor = hex;
+  }
   return Object.keys(out).length ? out : null;
 }
 
@@ -591,7 +606,7 @@ export function resolveDevAppPaths(searchRoot: string): ResolvedPaths & { config
     lynxProjectDir: devClientDir,
     lynxBundlePath,
     lynxBundleFile: 'dev-client.lynx.bundle',
-    lynxBundleFiles: ['dev-client.lynx.bundle'],
+    lynxBundleFiles: ['dev-client.lynx.bundle', 'tamer-debug.lynx.bundle'],
     lynxBundleRootRel: DEFAULT_BUNDLE_ROOT,
     devMode: 'embedded',
     devClientBundlePath: undefined,

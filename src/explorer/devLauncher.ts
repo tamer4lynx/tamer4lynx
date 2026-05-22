@@ -3,6 +3,7 @@ export function getDevServerPrefs(vars: { packageName: string }): string {
 
 import android.content.Context
 import android.content.SharedPreferences
+import java.security.MessageDigest
 import org.json.JSONArray
 
 object DevServerPrefs {
@@ -12,6 +13,31 @@ object DevServerPrefs {
 
     fun getUrl(context: Context): String? {
         return prefs(context).getString(KEY_URL, null)
+    }
+
+    /**
+     * Lynx caches ILynxViewGroup by URL key. Using a fixed "main.lynx.bundle" made the first dev
+     * server win forever after URL changes. Prefix with a stable id derived from the saved URL.
+     */
+    fun projectLynxTemplateKey(context: Context): String {
+        if (!BuildConfig.DEBUG) return "main.lynx.bundle"
+        val u = getUrl(context)?.trim() ?: return "main.lynx.bundle"
+        if (u.isEmpty()) return "main.lynx.bundle"
+        return sha12Hex(u) + "/main.lynx.bundle"
+    }
+
+    private fun sha12Hex(s: String): String {
+        return try {
+            val md = MessageDigest.getInstance("SHA-256")
+            val d = md.digest(s.toByteArray(Charsets.UTF_8))
+            buildString(12) {
+                for (i in 0 until 6) {
+                    append(String.format("%02x", d[i].toInt() and 0xff))
+                }
+            }
+        } catch (_: Exception) {
+            "000000000000"
+        }
     }
 
     fun setUrl(context: Context, url: String) {

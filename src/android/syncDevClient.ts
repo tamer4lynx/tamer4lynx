@@ -81,10 +81,20 @@ async function syncDevClient(opts?: { forceProduction?: boolean; includeDevClien
     : undefined;
 
   const vars = { packageName, appName, devMode, devServer, projectRoot: resolved.projectRoot };
-
-  const [templateProviderSource] = await Promise.all([
-    fetchAndPatchTemplateProvider(vars),
-  ]);
+  const projectSegment = resolved.projectRoot.replace(/\\/g, "/").split("/").filter(Boolean).pop() ?? "";
+  let templateProviderSource: string;
+  const templateProviderPath = hasDevClient
+    ? path.join(String(hasDevClient), "android", "templates", "TemplateProvider.java")
+    : "";
+  if (templateProviderPath && fs.existsSync(templateProviderPath)) {
+    templateProviderSource = readAndSubstituteTemplate(templateProviderPath, {
+      PACKAGE_NAME: packageName,
+      APP_NAME: appName,
+      PROJECT_BUNDLE_SEGMENT: projectSegment,
+    });
+  } else {
+    templateProviderSource = await fetchAndPatchTemplateProvider(vars);
+  }
 
   fs.writeFileSync(path.join(javaDir, "TemplateProvider.java"), templateProviderSource);
   fs.writeFileSync(path.join(kotlinDir, "TamerNavLynxRuntime.kt"), getTamerNavLynxRuntime(vars));
@@ -132,7 +142,7 @@ async function syncDevClient(opts?: { forceProduction?: boolean; includeDevClien
       }
     }
     let manifest = fs.readFileSync(manifestPath, "utf-8");
-    const projectActivityEntry = '        <activity android:name=".ProjectActivity" android:exported="false" android:taskAffinity="" android:launchMode="singleTask" android:documentLaunchMode="always" android:windowSoftInputMode="adjustResize" />';
+    const projectActivityEntry = `        <activity android:name=".ProjectActivity" android:exported="false" android:taskAffinity="${packageName}.project" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize" />`;
     const portraitCaptureEntry = '        <activity android:name=".PortraitCaptureActivity" android:screenOrientation="portrait" android:stateNotNeeded="true" android:theme="@style/zxing_CaptureTheme" android:windowSoftInputMode="stateAlwaysHidden" />';
     if (!manifest.includes("ProjectActivity")) {
       manifest = manifest.replace(/(\s*)(<\/application>)/, `${projectActivityEntry}\n$1$2`);
@@ -156,10 +166,22 @@ async function syncDevClient(opts?: { forceProduction?: boolean; includeDevClien
       manifest = manifest.replace(/(\s*)(<\/application>)/, `${lynxPushActivityEntry}\n$1$2`);
     }
     const mainActivityTag = manifest.match(/<activity[^>]*android:name="\.MainActivity"[^>]*>/);
-    if (mainActivityTag && !mainActivityTag[0].includes("windowSoftInputMode")) {
+    if (mainActivityTag) {
       manifest = manifest.replace(
         /(<activity\s+android:name="\.MainActivity"[^>]*)(>)/,
-        "$1 android:windowSoftInputMode=\"adjustResize\"$2"
+        (_match, prefix, suffix) => {
+          let next = prefix as string;
+          if (!next.includes('android:windowSoftInputMode=')) {
+            next += ' android:windowSoftInputMode="adjustResize"';
+          }
+          if (!next.includes('android:launchMode=')) {
+            next += ' android:launchMode="singleTask"';
+          }
+          if (!next.includes('android:taskAffinity=')) {
+            next += ` android:taskAffinity="${packageName}.launcher"`;
+          }
+          return `${next}${suffix}`;
+        }
       );
     }
     fs.writeFileSync(manifestPath, manifest);

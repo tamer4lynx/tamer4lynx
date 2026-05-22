@@ -43,7 +43,9 @@ t4l build <ios|android> [-d|-r|-p] [-i] [--ipa] [--embeddable]
 t4l link [ios|android]          Wire native modules (runs pod install on iOS)
 t4l bundle [ios|android]        Build Lynx bundle and copy to native project
 t4l inject ios|android [-f]     Inject tamer-host templates
-t4l sync [android]              Sync dev client files
+t4l sync [android|ios|both]     Sync dev client files (default: android)
+t4l build-dev-app [--platform android|ios|all] [--install]
+                                Build the Tamer Dev App; --install deploys after build
 t4l start [-v]                  Dev server with HMR; tries the next port when busy
 t4l add [packages...]           Add @tamer4lynx packages
 t4l add-core                    Production stack: host, navigation, plugin, router,
@@ -62,6 +64,8 @@ t4l codegen                     Generate code from @lynxmodule declarations
 **Init defaults:** `t4l init --yes` uses Rspeedy React TypeScript + Biome, derives the app name from the root folder, defaults the native id to `com.<project_name>`, installs core Tamer packages, injects `pluginTamer()` into `lynx.config.*` when possible, and reuses the Android app name/package ID for iOS unless you choose to customize iOS.
 
 **Nested apps:** when the Lynx app is nested, `t4l init` writes `lynxProject`, creates or merges a root workspace, and installs from the root so there is one `node_modules`.
+
+**Assets:** import assets the normal Rspeedy way (`import img from './img.png'`, CSS `url()`, `?url`, `?inline`). `pluginTamer()` emits `dist/tamer-assets.json`, and `t4l bundle` / `t4l build` copies the full `dist` tree into Android and iOS hosts so embedded apps can resolve `static/...` offline. `@tamer4lynx/tamer-plugin/assets` provides an optional `Asset.fromModule(importedImage).uri` shim; the native loading is provided by `tamer-host`, `tamer-dev-client`, `tamer-dev-app`, and generated host templates.
 
 ## Configuration files
 

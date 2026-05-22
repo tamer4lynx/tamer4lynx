@@ -47,6 +47,7 @@ import ios_create from './src/ios/create';
 import ios_autolink from './src/ios/autolink';
 import ios_bundle from './src/ios/bundle';
 import ios_build from './src/ios/build';
+import ios_syncDevClient from './src/ios/syncDevClient';
 import init from './src/common/init';
 import create from './src/common/create';
 import codegen from './src/common/codegen';
@@ -237,14 +238,19 @@ program
 
 program
     .command('sync [platform]')
-    .description('Sync dev client. Platform: android (default)')
+    .description('Sync dev client. Platform: android | ios | both (default: android)')
     .action(async (platform: string | undefined) => {
-        const p = (platform ?? 'android').toLowerCase();
-        if (p !== 'android') {
-            console.error('sync only supports android.');
+        const p = parsePlatform(platform ?? 'android');
+        if (!p) {
+            console.error('Invalid sync platform. Use: android | ios | both');
             process.exit(1);
         }
-        await android_syncDevClient();
+        if (p === 'android' || p === 'all') {
+            await android_syncDevClient();
+        }
+        if (p === 'ios' || p === 'all') {
+            await ios_syncDevClient();
+        }
     });
 
 program
@@ -396,6 +402,10 @@ program
             ios_autolink();
             return;
         }
+        if (sub === 'sync') {
+            await ios_syncDevClient();
+            return;
+        }
         if (sub === 'bundle') {
             validateBuildMode(opts.debug, opts.release, opts.production);
             const release = opts.release === true || opts.production === true;
@@ -431,7 +441,7 @@ program
             await injectHostIos({ force: opts.force });
             return;
         }
-        console.error(`Unknown ios subcommand: ${subcommand}. Use: create | link | bundle | build | inject`);
+        console.error(`Unknown ios subcommand: ${subcommand}. Use: create | link | bundle | build | sync | inject`);
         process.exit(1);
     });
 

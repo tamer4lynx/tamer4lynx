@@ -7,8 +7,8 @@ process.on("warning", (w) => {
 });
 
 // index.ts
-import fs38 from "fs";
-import path38 from "path";
+import fs39 from "fs";
+import path39 from "path";
 import { program } from "commander";
 
 // src/common/cliVersion.ts
@@ -305,8 +305,10 @@ function findDevClientPackage(projectRoot) {
 }
 function findTamerHostPackage(projectRoot) {
   const candidates = [
+    path4.join(projectRoot, "node_modules", "@tamer4lynx", "tamer-host"),
     path4.join(projectRoot, "node_modules", "tamer-host"),
-    path4.join(projectRoot, "packages", "tamer-host")
+    path4.join(projectRoot, "packages", "tamer-host"),
+    path4.join(path4.dirname(projectRoot), "tamer-host")
   ];
   for (const pkg of candidates) {
     if (fs4.existsSync(pkg) && fs4.existsSync(path4.join(pkg, "package.json"))) {
@@ -487,6 +489,16 @@ function resolveIconPaths(projectRoot, config) {
       }
     }
   }
+  if (!out.ios && !raw.iosBackgroundColor && ad?.backgroundColor) {
+    const hex = ad.backgroundColor.trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(hex) || /^#[0-9a-fA-F]{8}$/.test(hex)) {
+      out.iosBackgroundColor = hex.length === 9 ? `#${hex.slice(3)}` : hex;
+    }
+  }
+  if (!out.ios && raw.iosBackgroundColor) {
+    const hex = (raw.iosBackgroundColor ?? "").trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(hex)) out.iosBackgroundColor = hex;
+  }
   return Object.keys(out).length ? out : null;
 }
 function resolveDevAppPaths(searchRoot) {
@@ -519,7 +531,7 @@ function resolveDevAppPaths(searchRoot) {
     lynxProjectDir: devClientDir,
     lynxBundlePath,
     lynxBundleFile: "dev-client.lynx.bundle",
-    lynxBundleFiles: ["dev-client.lynx.bundle"],
+    lynxBundleFiles: ["dev-client.lynx.bundle", "tamer-debug.lynx.bundle"],
     lynxBundleRootRel: DEFAULT_BUNDLE_ROOT,
     devMode: "embedded",
     devClientBundlePath: void 0,
@@ -709,12 +721,34 @@ function applyIosAppIconAssets(appIconDir, iconPaths) {
   if (iconPaths.source) {
     const icon1024 = "Icon-1024.png";
     const outputPath = path5.join(appIconDir, icon1024);
-    try {
-      execFileSync("sips", ["-s", "format", "png", "-z", "1024", "1024", iconPaths.source, "--out", outputPath], {
-        stdio: "ignore"
-      });
-    } catch {
-      fs5.copyFileSync(iconPaths.source, outputPath);
+    const bg = iconPaths.iosBackgroundColor;
+    let composited = false;
+    if (bg && /^#[0-9a-fA-F]{6}$/.test(bg)) {
+      const r = parseInt(bg.slice(1, 3), 16);
+      const g = parseInt(bg.slice(3, 5), 16);
+      const b = parseInt(bg.slice(5, 7), 16);
+      const script = [
+        "from PIL import Image",
+        `src = Image.open(${JSON.stringify(iconPaths.source)}).convert("RGBA")`,
+        `src = src.resize((1024, 1024), Image.LANCZOS)`,
+        `bg = Image.new("RGBA", (1024, 1024), (${r}, ${g}, ${b}, 255))`,
+        `bg.paste(src, (0, 0), src)`,
+        `bg.convert("RGB").save(${JSON.stringify(outputPath)}, "PNG")`
+      ].join("\n");
+      try {
+        execFileSync("python3", ["-c", script], { stdio: "ignore" });
+        composited = true;
+      } catch {
+      }
+    }
+    if (!composited) {
+      try {
+        execFileSync("sips", ["-s", "format", "png", "-z", "1024", "1024", iconPaths.source, "--out", outputPath], {
+          stdio: "ignore"
+        });
+      } catch {
+        fs5.copyFileSync(iconPaths.source, outputPath);
+      }
     }
     fs5.writeFileSync(
       path5.join(appIconDir, "Contents.json"),
@@ -769,7 +803,7 @@ async function fetchAndPatchApplication(vars) {
   );
   out = out.replace(/\n\s*\/\/ merge it into InitProcessor later\.\s*\n/, "\n");
   out = out.replace(
-    /LynxServiceCenter\.inst\(\)\.registerService\(LynxDevToolService\.getINSTANCE\(\)\);\s*\n\s*\/\/ enable all sessions debug[\s\S]*?LynxDevToolService\.getINSTANCE\(\)\.setLoadV8Bridge\(true\);\s*/,
+    /LynxServiceCenter\.inst\(\)\.registerService\(LynxDevToolService\.getINSTANCE\(\)\);\s*\n\s*\/\/ enable (?:all sessions )?debug(?:ging)?[\s\S]*?LynxDevToolService\.getINSTANCE\(\)\.setLoadV8Bridge\(true\);\s*/,
     ""
   );
   out = out.replace(
@@ -948,10 +982,35 @@ ${embeddedHelpers}
     private String normalizeAssetPath(String url) {
         if (url == null) return "";
         String s = url.trim();
+        int hash = s.indexOf('#');
+        if (hash >= 0) s = s.substring(0, hash);
         int query = s.indexOf('?');
         if (query >= 0) s = s.substring(0, query);
+        try {
+            java.net.URI uri = new java.net.URI(s);
+            if (uri.getScheme() != null && uri.getPath() != null && !uri.getPath().isEmpty()) {
+                s = uri.getPath();
+            }
+        } catch (Exception ignored) {
+        }
+        s = s.replace('\\\\', '/');
         while (s.startsWith("/")) s = s.substring(1);
-        return java.nio.file.Paths.get(s).normalize().toString().replace('\\\\', '/');
+        s = stripBeforeMarker(s, ".lynx.bundle/");
+        s = stripBeforeMarker(s, ".web.bundle/");
+        s = stripBeforeMarker(s, "static/");
+        s = stripBeforeMarker(s, "assets/");
+        s = stripBeforeMarker(s, "tamer-assets.json");
+        String normalized = java.nio.file.Paths.get(s).normalize().toString().replace('\\\\', '/');
+        if (normalized.equals("..") || normalized.startsWith("../")) return "";
+        return normalized;
+    }
+
+    private static String stripBeforeMarker(String value, String marker) {
+        int index = value.indexOf(marker);
+        if (index < 0) return value;
+        if (index == 0) return value;
+        if (marker.endsWith("/")) return value.substring(index + marker.length());
+        return value.substring(index);
     }
 }
 `;
@@ -1091,27 +1150,32 @@ class DevClientManager(private val context: Context, private val onReload: Runna
 function getProjectActivity(vars) {
   const hasDevClient = vars.devMode === "embedded";
   const devClientInit = hasDevClient ? `
-        DevClientModule.attachHostActivity(this)
-        DevClientModule.attachLynxView(lynxView)
-        DevClientModule.attachReloadProjectLauncher { reloadProjectView() }
+        bindProjectCallbacks()
+        activeProjectUrl = DevServerPrefs.getUrl(this)?.trim()
         devClientManager = DevClientManager(this) { reloadProjectView() }
         devClientManager?.connect()
 ` : "";
   const devClientField = hasDevClient ? `    private var devClientManager: DevClientManager? = null
+    private var activeProjectUrl: String? = null
 ` : "";
   const devClientCleanup = hasDevClient ? `
+        TamerNavHost.spokeTemplateSrcNormalizer = null
         DevClientModule.attachHostActivity(null)
         DevClientModule.attachLynxView(null)
         DevClientModule.attachReloadProjectLauncher(null)
+        DevClientModule.attachOpenProjectDirectLauncher(null)
         devClientManager?.disconnect()
 ` : "";
   const devClientImports = hasDevClient ? `
 import ${vars.packageName}.DevClientManager
+import ${vars.packageName}.DevServerPrefs
 import com.nanofuxion.tamerdevclient.DevClientDebugPanel
 import com.nanofuxion.tamerdevclient.DevClientModule` : "";
   const projectInstallNativeStack = "";
   const reloadMethod = hasDevClient ? `
     private fun reloadProjectView() {
+        activeProjectUrl = DevServerPrefs.getUrl(this)?.trim()
+        devClientManager?.disconnect()
         GeneratedActivityLifecycle.onViewDetached()
         GeneratedLynxExtensions.onHostViewChanged(null)
         lynxView?.destroy()
@@ -1121,9 +1185,19 @@ import com.nanofuxion.tamerdevclient.DevClientModule` : "";
         setContentView(nextView)
         GeneratedActivityLifecycle.onViewAttached(nextView)
         GeneratedLynxExtensions.onHostViewChanged(nextView)
-        nextView.renderTemplateUrl("main.lynx.bundle", DevClientModule.getProjectInitDataJson(this))
+        nextView.renderTemplateUrl(projectTemplateKey(), DevClientModule.getProjectInitDataJson(this))
         DevClientModule.attachLynxView(nextView)
         GeneratedActivityLifecycle.onCreateDelayed(handler)
+        devClientManager?.connect()
+    }
+
+    private fun handleProjectOpenIntent(intent: Intent) {
+        val newUrl = intent.getStringExtra("bundleUrl")
+            ?: intent.data?.getQueryParameter("bundleUrl")
+            ?: return
+        if (newUrl.isBlank()) return
+        DevServerPrefs.setUrl(this, newUrl.trim())
+        reloadProjectView()
     }
 ` : "";
   return `package ${vars.packageName}
@@ -1157,6 +1231,16 @@ ${devClientField}    private val handler = Handler(Looper.getMainLooper())
             }
         }
     }
+${hasDevClient ? `
+
+    private fun bindProjectCallbacks() {
+        DevClientModule.attachHostActivity(this)
+        DevClientModule.attachLynxView(lynxView)
+        DevClientModule.attachReloadProjectLauncher { reloadProjectView() }
+        DevClientModule.attachOpenProjectDirectLauncher { bundleUrl ->
+            handleProjectOpenIntent(Intent().putExtra("bundleUrl", bundleUrl))
+        }
+    }` : ""}
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -1169,7 +1253,7 @@ ${devClientField}    private val handler = Handler(Looper.getMainLooper())
         setContentView(lynxView)
         GeneratedActivityLifecycle.onViewAttached(lynxView)
         GeneratedLynxExtensions.onHostViewChanged(lynxView)
-        lynxView?.renderTemplateUrl("main.lynx.bundle", ${hasDevClient ? "DevClientModule.getProjectInitDataJson(this)" : '""'})${devClientInit}
+        lynxView?.renderTemplateUrl(${hasDevClient ? "projectTemplateKey()" : '"main.lynx.bundle"'}, ${hasDevClient ? "DevClientModule.getProjectInitDataJson(this)" : '""'})${devClientInit}
         GeneratedActivityLifecycle.onCreateDelayed(handler)
         onBackPressedDispatcher.addCallback(this, backCallback)
     }
@@ -1181,17 +1265,19 @@ ${devClientField}    private val handler = Handler(Looper.getMainLooper())
 ${reloadMethod}
     override fun onResume() {
         super.onResume()
-        ${hasDevClient ? "DevClientModule.startShakeDetection(this) { DevClientDebugPanel.show(this) }\n        " : ""}GeneratedActivityLifecycle.onResume()
+        ${hasDevClient ? "DevClientModule.setProjectActive(true)\n        DevClientModule.startShakeDetection(this) { DevClientDebugPanel.show(this) }\n        bindProjectCallbacks()\n        val savedUrl = DevServerPrefs.getUrl(this)?.trim()\n        if (!savedUrl.isNullOrBlank() && savedUrl != activeProjectUrl) {\n            reloadProjectView()\n        }\n        " : ""}GeneratedActivityLifecycle.onResume()
     }
 
     override fun onPause() {
         ${hasDevClient ? "DevClientModule.stopShakeDetection()\n        " : ""}super.onPause()
+        GeneratedActivityLifecycle.onPause()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         GeneratedActivityLifecycle.onNewIntent(intent)
+        ${hasDevClient ? "handleProjectOpenIntent(intent)" : ""}
     }
 
     override fun onDestroy() {
@@ -1202,16 +1288,25 @@ ${reloadMethod}
         super.onDestroy()
     }
 
-${projectInstallNativeStack}    private fun buildLynxView(): LynxView {
+${projectInstallNativeStack}${hasDevClient ? `    private fun projectTemplateKey(): String = DevServerPrefs.projectLynxTemplateKey(this)
+
+` : ""}    private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
-        TamerNavLynxRuntime.configureBuilder(this, viewBuilder, "main.lynx.bundle")
+        TamerNavLynxRuntime.configureBuilder(this, viewBuilder, ${hasDevClient ? "projectTemplateKey()" : '"main.lynx.bundle"'})
         GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
     }
 
     private fun configureTamerNavSpokeBuilder() {
         TamerNavHost.configureSharedLynxGroup(TamerNavLynxRuntime.group)
-        TamerNavHost.sourceSpokeBuilder = { ctx, src ->
+${hasDevClient ? `        TamerNavHost.spokeTemplateSrcNormalizer = { ctx, s ->
+            if (s.isBlank() || s.equals("main.lynx.bundle", ignoreCase = true)) {
+                DevServerPrefs.projectLynxTemplateKey(ctx)
+            } else {
+                s
+            }
+        }
+` : ""}        TamerNavHost.sourceSpokeBuilder = { ctx, src ->
             val viewBuilder = LynxViewBuilder()
             TamerNavLynxRuntime.configureBuilder(ctx, viewBuilder, src)
             GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
@@ -1236,8 +1331,10 @@ import com.lynx.tasm.LynxView
 import com.lynx.tasm.LynxViewBuilder
 import com.lynx.tasm.LynxBooleanOption
 import ${packageName}.DevClientManager
+import ${packageName}.DevServerPrefs
 import com.nanofuxion.tamerdevclient.DevClientModule
 import com.nanofuxion.tamerdevclient.LynxDevToolBootstrap
+import com.nanofuxion.tamerinsets.TamerInsetsModule
 import com.nanofuxion.tamernavigation.stack.TamerNavHost
 import ${packageName}.generated.GeneratedLynxExtensions
 import ${packageName}.generated.GeneratedActivityLifecycle
@@ -1246,6 +1343,7 @@ import com.nanofuxion.tamerdevclient.DevClientDebugPanel
 class ProjectActivity : AppCompatActivity() {
     private var lynxView: LynxView? = null
     private var devClientManager: DevClientManager? = null
+    private var activeProjectUrl: String? = null
     private val handler = Handler(Looper.getMainLooper())
     private val backCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
@@ -1256,6 +1354,15 @@ class ProjectActivity : AppCompatActivity() {
                     isEnabled = true
                 }
             }
+        }
+    }
+
+    private fun bindProjectCallbacks() {
+        DevClientModule.attachHostActivity(this)
+        DevClientModule.attachLynxView(lynxView)
+        DevClientModule.attachReloadProjectLauncher { reloadProjectView() }
+        DevClientModule.attachOpenProjectDirectLauncher { bundleUrl ->
+            handleProjectOpenIntent(Intent().putExtra("bundleUrl", bundleUrl))
         }
     }
 
@@ -1271,12 +1378,10 @@ class ProjectActivity : AppCompatActivity() {
         setContentView(lynxView)
         GeneratedActivityLifecycle.onViewAttached(lynxView)
         GeneratedLynxExtensions.onHostViewChanged(lynxView)
-        lynxView?.renderTemplateUrl("main.lynx.bundle", "")
-        DevClientModule.attachHostActivity(this)
-        DevClientModule.attachLynxView(lynxView)
-        DevClientModule.attachReloadProjectLauncher { reloadProjectView() }
-        val bundleUrl = intent.getStringExtra("bundleUrl")
-        devClientManager = DevClientManager(this, bundleUrl) { reloadProjectView() }
+        lynxView?.renderTemplateUrl(projectTemplateKey(), projectInitDataWithInsetsSnapshot(this))
+        bindProjectCallbacks()
+        activeProjectUrl = DevServerPrefs.getUrl(this)?.trim()
+        devClientManager = DevClientManager(this) { reloadProjectView() }
         devClientManager?.connect()
         GeneratedActivityLifecycle.onCreateDelayed(handler)
         onBackPressedDispatcher.addCallback(this, backCallback)
@@ -1285,9 +1390,12 @@ class ProjectActivity : AppCompatActivity() {
     override fun onPause() {
         DevClientModule.stopShakeDetection()
         super.onPause()
+        GeneratedActivityLifecycle.onPause()
     }
 
     private fun reloadProjectView() {
+        activeProjectUrl = DevServerPrefs.getUrl(this)?.trim()
+        devClientManager?.disconnect()
         GeneratedActivityLifecycle.onViewDetached()
         GeneratedLynxExtensions.onHostViewChanged(null)
         lynxView?.destroy()
@@ -1297,9 +1405,10 @@ class ProjectActivity : AppCompatActivity() {
         setContentView(nextView)
         GeneratedActivityLifecycle.onViewAttached(nextView)
         GeneratedLynxExtensions.onHostViewChanged(nextView)
-        nextView.renderTemplateUrl("main.lynx.bundle", "")
+        nextView.renderTemplateUrl(projectTemplateKey(), projectInitDataWithInsetsSnapshot(this))
         DevClientModule.attachLynxView(nextView)
         GeneratedActivityLifecycle.onCreateDelayed(handler)
+        devClientManager?.connect()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -1309,7 +1418,13 @@ class ProjectActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        DevClientModule.setProjectActive(true)
         DevClientModule.startShakeDetection(this) { DevClientDebugPanel.show(this) }
+        bindProjectCallbacks()
+        val savedUrl = DevServerPrefs.getUrl(this)?.trim()
+        if (!savedUrl.isNullOrBlank() && savedUrl != activeProjectUrl) {
+            reloadProjectView()
+        }
         GeneratedActivityLifecycle.onResume()
     }
 
@@ -1317,12 +1432,25 @@ class ProjectActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         GeneratedActivityLifecycle.onNewIntent(intent)
+        handleProjectOpenIntent(intent)
+    }
+
+    private fun handleProjectOpenIntent(intent: Intent) {
+        val newUrl = intent.getStringExtra("bundleUrl")
+            ?: intent.data?.getQueryParameter("bundleUrl")
+            ?: return
+        if (newUrl.isBlank()) return
+        DevServerPrefs.setUrl(this, newUrl.trim())
+        reloadProjectView()
     }
 
     override fun onDestroy() {
+        DevClientModule.setProjectActive(false)
+        TamerNavHost.spokeTemplateSrcNormalizer = null
         DevClientModule.attachHostActivity(null)
         DevClientModule.attachLynxView(null)
         DevClientModule.attachReloadProjectLauncher(null)
+        DevClientModule.attachOpenProjectDirectLauncher(null)
         GeneratedActivityLifecycle.onViewDetached()
         GeneratedLynxExtensions.onHostViewChanged(null)
         lynxView?.destroy()
@@ -1331,15 +1459,39 @@ class ProjectActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
+    private fun projectTemplateKey(): String = DevServerPrefs.projectLynxTemplateKey(this)
+
+    private fun projectInitDataWithInsetsSnapshot(ctx: android.content.Context): String {
+        val baseJson = DevClientModule.getProjectInitDataJson(ctx)
+        val snapshot = TamerInsetsModule.currentInsetsSnapshotJson() ?: return baseJson
+        val trimmed = baseJson.trim()
+        val injection = "\\"__tamerInsetsSnapshot\\":$snapshot"
+        return when {
+            trimmed.isEmpty() || trimmed == "{}" -> "{$injection}"
+            trimmed.startsWith("{") && trimmed.endsWith("}") -> {
+                val inner = trimmed.substring(1, trimmed.length - 1).trim()
+                if (inner.isEmpty()) "{$injection}" else "{$injection,$inner}"
+            }
+            else -> baseJson
+        }
+    }
+
     private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
-        TamerNavLynxRuntime.configureBuilder(this, viewBuilder, "main.lynx.bundle")
+        TamerNavLynxRuntime.configureBuilder(this, viewBuilder, projectTemplateKey())
         GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
     }
 
     private fun configureTamerNavSpokeBuilder() {
         TamerNavHost.configureSharedLynxGroup(TamerNavLynxRuntime.group)
+        TamerNavHost.spokeTemplateSrcNormalizer = { ctx, s ->
+            if (s.isBlank() || s.equals("main.lynx.bundle", ignoreCase = true)) {
+                DevServerPrefs.projectLynxTemplateKey(ctx)
+            } else {
+                s
+            }
+        }
         TamerNavHost.sourceSpokeBuilder = { ctx, src ->
             val viewBuilder = LynxViewBuilder()
             TamerNavLynxRuntime.configureBuilder(ctx, viewBuilder, src)
@@ -1348,6 +1500,14 @@ class ProjectActivity : AppCompatActivity() {
         }
     }
 }
+`;
+}
+function getPortraitCaptureActivity(vars) {
+  return `package ${vars.packageName}
+
+import com.journeyapps.barcodescanner.CaptureActivity
+
+class PortraitCaptureActivity : CaptureActivity()
 `;
 }
 function getStandaloneMainActivity(vars) {
@@ -1368,6 +1528,7 @@ import com.nanofuxion.tamerdevclient.DevClientModule
   const devClientInit = hasDevClient ? `
         DevClientModule.attachHostActivity(this)
         DevClientModule.attachLynxView(lynxView)
+        bindLauncherCallbacks()
         DevClientModule.attachCameraPermissionRequester { onGranted ->
             pendingScanOnPermissionGranted = onGranted
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
@@ -1375,24 +1536,11 @@ import com.nanofuxion.tamerdevclient.DevClientModule
         DevClientModule.attachScanLauncher {
             scanResultLauncher.launch(IntentIntegrator(this).setCaptureActivity(PortraitCaptureActivity::class.java).setPrompt("Scan dev server QR").createScanIntent())
         }
-        DevClientModule.attachReloadProjectLauncher {
-            startActivity(Intent(this@MainActivity, ProjectActivity::class.java).addFlags(
-                Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            ))
-        }
-        DevClientModule.attachOpenProjectDirectLauncher { bundleUrl ->
-            startActivity(Intent(this@MainActivity, ProjectActivity::class.java).apply {
-                putExtra("bundleUrl", bundleUrl)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            })
-        }
         reloadReceiver = object : BroadcastReceiver() {
             override fun onReceive(ctx: Context, intent: Intent) {
                 if (intent.action == DevClientModule.ACTION_RELOAD_PROJECT) {
                     runOnUiThread {
-                        startActivity(Intent(this@MainActivity, ProjectActivity::class.java).addFlags(
-                            Intent.FLAG_ACTIVITY_NEW_DOCUMENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                        ))
+                        launchProjectActivity()
                     }
                 }
             }
@@ -1453,6 +1601,7 @@ import com.nanofuxion.tamerdevclient.DevClientModule
 ` : "";
   return `package ${vars.packageName}
 
+import android.app.ActivityManager
 import android.os.Build
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
@@ -1467,6 +1616,35 @@ import ${vars.packageName}.generated.GeneratedActivityLifecycle
 
 class MainActivity : AppCompatActivity() {
 ${devClientField}    private var lynxView: LynxView? = null${!hasDevClient ? "\n    private val handler = android.os.Handler(android.os.Looper.getMainLooper())" : ""}
+
+${hasDevClient ? `    private fun launchProjectActivity(bundleUrl: String? = null) {
+        val activityManager = getSystemService(ActivityManager::class.java)
+        val existingTask = activityManager?.appTasks?.firstOrNull { task ->
+            val info = task.taskInfo
+            info.baseActivity?.className == ProjectActivity::class.java.name
+                || info.topActivity?.className == ProjectActivity::class.java.name
+        }
+        val intent = Intent(this@MainActivity, ProjectActivity::class.java).apply {
+            if (!bundleUrl.isNullOrBlank()) {
+                putExtra("bundleUrl", bundleUrl)
+            }
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        if (existingTask != null) {
+            existingTask.moveToFront()
+        }
+        startActivity(intent)
+    }
+
+    private fun bindLauncherCallbacks() {
+        DevClientModule.attachReloadProjectLauncher {
+            launchProjectActivity()
+        }
+        DevClientModule.attachOpenProjectDirectLauncher { bundleUrl ->
+            launchProjectActivity(bundleUrl)
+        }
+    }
+` : ""}
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -1493,6 +1671,7 @@ ${devClientField}    private var lynxView: LynxView? = null${!hasDevClient ? "\n
         GeneratedActivityLifecycle.onResume()${hasDevClient ? `
         DevClientModule.attachHostActivity(this)
         DevClientModule.attachLynxView(lynxView)
+        bindLauncherCallbacks()
         GeneratedLynxExtensions.onHostViewChanged(lynxView)` : ""}
     }
 
@@ -1507,7 +1686,7 @@ ${devClientField}    private var lynxView: LynxView? = null${!hasDevClient ? "\n
 
 ${mainInstallNativeStack}    private fun buildLynxView(): LynxView {
         val viewBuilder = LynxViewBuilder()
-        TamerNavLynxRuntime.configureBuilder(this, viewBuilder, currentUri)
+        ${hasDevClient ? `TamerNavLynxRuntime.configureBuilder(this, viewBuilder, currentUri)` : `TamerNavLynxRuntime.configureBuilder(this, viewBuilder, "main.lynx.bundle")`}
         GeneratedLynxExtensions.configureViewBuilder(viewBuilder)
         return viewBuilder.build(this)
     }
@@ -1642,6 +1821,7 @@ function getDevServerPrefs(vars) {
 
 import android.content.Context
 import android.content.SharedPreferences
+import java.security.MessageDigest
 import org.json.JSONArray
 
 object DevServerPrefs {
@@ -1651,6 +1831,31 @@ object DevServerPrefs {
 
     fun getUrl(context: Context): String? {
         return prefs(context).getString(KEY_URL, null)
+    }
+
+    /**
+     * Lynx caches ILynxViewGroup by URL key. Using a fixed "main.lynx.bundle" made the first dev
+     * server win forever after URL changes. Prefix with a stable id derived from the saved URL.
+     */
+    fun projectLynxTemplateKey(context: Context): String {
+        if (!BuildConfig.DEBUG) return "main.lynx.bundle"
+        val u = getUrl(context)?.trim() ?: return "main.lynx.bundle"
+        if (u.isEmpty()) return "main.lynx.bundle"
+        return sha12Hex(u) + "/main.lynx.bundle"
+    }
+
+    private fun sha12Hex(s: String): String {
+        return try {
+            val md = MessageDigest.getInstance("SHA-256")
+            val d = md.digest(s.toByteArray(Charsets.UTF_8))
+            buildString(12) {
+                for (i in 0 until 6) {
+                    append(String.format("%02x", d[i].toInt() and 0xff))
+                }
+            }
+        } catch (_: Exception) {
+            "000000000000"
+        }
     }
 
     fun setUrl(context: Context, url: String) {
@@ -1737,7 +1942,7 @@ var create = async (opts = {}) => {
   const assetsDir = path6.join(mainDir, "assets");
   const themesDir = path6.join(mainDir, "res", "values");
   const gradleDir = path6.join(rootDir, "gradle");
-  function writeFile2(filePath, content, options) {
+  function writeFile3(filePath, content, options) {
     fs6.mkdirSync(path6.dirname(filePath), { recursive: true });
     fs6.writeFileSync(
       filePath,
@@ -1750,7 +1955,7 @@ var create = async (opts = {}) => {
     fs6.rmSync(rootDir, { recursive: true, force: true });
   }
   console.log(`\u{1F680} Creating a new Tamer4Lynx project in: ${rootDir}`);
-  writeFile2(
+  writeFile3(
     path6.join(gradleDir, "libs.versions.toml"),
     `
 [versions]
@@ -1811,7 +2016,7 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version.ref = "kotlin" }
 `
   );
-  writeFile2(
+  writeFile3(
     path6.join(rootDir, "settings.gradle.kts"),
     `
 pluginManagement {
@@ -1845,7 +2050,7 @@ println("If you have native modules please run tamer android link")
 // GENERATED AUTOLINK END
 `
   );
-  writeFile2(
+  writeFile3(
     path6.join(rootDir, "build.gradle.kts"),
     `
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
@@ -1857,7 +2062,7 @@ plugins {
 }
 `
   );
-  writeFile2(
+  writeFile3(
     path6.join(rootDir, "gradle.properties"),
     `
 org.gradle.jvmargs=-Xmx2048m
@@ -1866,7 +2071,7 @@ kotlin.code.style=official
 android.enableJetifier=true
 `
   );
-  writeFile2(
+  writeFile3(
     path6.join(appDir, "build.gradle.kts"),
     `
 plugins {
@@ -1958,7 +2163,7 @@ dependencies {
 }
 `
   );
-  writeFile2(
+  writeFile3(
     path6.join(themesDir, "themes.xml"),
     `
 <resources>
@@ -1971,18 +2176,19 @@ dependencies {
 `
   );
   const devMode = resolveDevMode(config);
-  const hasDevLauncher = devMode === "embedded";
+  const hasDevLauncher = devMode === "embedded" || opts.target === "dev-app";
   const manifestActivities = hasDevLauncher ? `
-        <activity android:name=".MainActivity" android:exported="true" android:windowSoftInputMode="adjustResize">
+        <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask" android:taskAffinity="${packageName}.launcher" android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".ProjectActivity" android:exported="true" android:taskAffinity="" android:launchMode="singleTask" android:documentLaunchMode="always" android:windowSoftInputMode="adjustResize">
+        <activity android:name=".ProjectActivity" android:exported="true" android:taskAffinity="${packageName}.project" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize">
         <!-- GENERATED DEEP LINKS START -->
         <!-- GENERATED DEEP LINKS END -->
         </activity>
+        <activity android:name=".PortraitCaptureActivity" android:screenOrientation="portrait" android:stateNotNeeded="true" android:theme="@style/zxing_CaptureTheme" android:windowSoftInputMode="stateAlwaysHidden" />
 ` : `
         <activity android:name=".MainActivity" android:exported="true" android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -1995,7 +2201,7 @@ dependencies {
     <uses-permission android:name="android.permission.CAMERA" />` : `    <uses-permission android:name="android.permission.INTERNET" />`;
   const iconPaths = resolveIconPaths(process.cwd(), config);
   const manifestIconAttrs = iconPaths ? '        android:icon="@mipmap/ic_launcher"\n        android:roundIcon="@mipmap/ic_launcher"\n' : "";
-  writeFile2(
+  writeFile3(
     path6.join(mainDir, "AndroidManifest.xml"),
     `
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -2009,7 +2215,7 @@ ${manifestIconAttrs}        android:usesCleartextTraffic="true"
 </manifest>
 `
   );
-  writeFile2(
+  writeFile3(
     path6.join(kotlinGeneratedDir, "GeneratedLynxExtensions.kt"),
     `
 package ${packageName}.generated
@@ -2033,7 +2239,13 @@ object GeneratedLynxExtensions {
     port: config.devServer.port ?? config.devServer.httpPort ?? 3e3
   } : void 0;
   const resolved = resolveHostPaths(process.cwd());
-  const vars = { packageName, appName, devMode, devServer, projectRoot: resolved.lynxProjectDir };
+  const vars = {
+    packageName,
+    appName,
+    devMode: opts.target === "dev-app" ? "embedded" : devMode,
+    devServer,
+    projectRoot: resolved.lynxProjectDir
+  };
   const templateVars = { PACKAGE_NAME: packageName, APP_NAME: appName };
   const hostPkg = findTamerHostPackage(process.cwd());
   const devClientPkg = findDevClientPackage(process.cwd());
@@ -2046,18 +2258,33 @@ object GeneratedLynxExtensions {
     ]) {
       const srcPath = path6.join(templateDir, src);
       if (fs6.existsSync(srcPath)) {
-        writeFile2(dst, readAndSubstituteTemplate(srcPath, templateVars));
+        writeFile3(dst, readAndSubstituteTemplate(srcPath, templateVars));
       }
     }
   } else {
-    const [applicationSource, templateProviderSource] = await Promise.all([
-      fetchAndPatchApplication(vars),
-      fetchAndPatchTemplateProvider(vars)
-    ]);
-    writeFile2(path6.join(javaDir, "App.java"), applicationSource);
-    writeFile2(path6.join(javaDir, "TemplateProvider.java"), templateProviderSource);
-    writeFile2(path6.join(kotlinDir, "TamerNavLynxRuntime.kt"), getTamerNavLynxRuntime(vars));
-    writeFile2(path6.join(kotlinDir, "MainActivity.kt"), getStandaloneMainActivity(vars));
+    const applicationSource = await fetchAndPatchApplication(vars);
+    writeFile3(path6.join(javaDir, "App.java"), applicationSource);
+    const projectSegment = vars.projectRoot ? vars.projectRoot.replace(/\\/g, "/").split("/").filter(Boolean).pop() ?? "" : "";
+    const repoRoot = findRepoRoot(process.cwd());
+    const templateCandidates = [
+      devClientPkg ? path6.join(devClientPkg, "android", "templates", "TemplateProvider.java") : "",
+      repoRoot ? path6.join(repoRoot, "packages", "tamer-dev-client", "android", "templates", "TemplateProvider.java") : ""
+    ].filter(Boolean);
+    const localTemplatePath = templateCandidates.find((p) => fs6.existsSync(p)) ?? "";
+    if (hasDevLauncher && localTemplatePath) {
+      writeFile3(
+        path6.join(javaDir, "TemplateProvider.java"),
+        readAndSubstituteTemplate(localTemplatePath, {
+          PACKAGE_NAME: packageName,
+          APP_NAME: appName,
+          PROJECT_BUNDLE_SEGMENT: projectSegment
+        })
+      );
+    } else {
+      writeFile3(path6.join(javaDir, "TemplateProvider.java"), await fetchAndPatchTemplateProvider(vars));
+    }
+    writeFile3(path6.join(kotlinDir, "TamerNavLynxRuntime.kt"), getTamerNavLynxRuntime(vars));
+    writeFile3(path6.join(kotlinDir, "MainActivity.kt"), getStandaloneMainActivity(vars));
     if (hasDevLauncher) {
       if (devClientPkg) {
         const templateDir = path6.join(devClientPkg, "android", "templates");
@@ -2068,23 +2295,24 @@ object GeneratedLynxExtensions {
         ]) {
           const srcPath = path6.join(templateDir, src);
           if (fs6.existsSync(srcPath)) {
-            writeFile2(dst, readAndSubstituteTemplate(srcPath, templateVars));
+            writeFile3(dst, readAndSubstituteTemplate(srcPath, templateVars));
           }
         }
         if (opts.target === "dev-app") {
-          writeFile2(path6.join(kotlinDir, "ProjectActivity.kt"), getTamerDevAppProjectActivity(packageName));
+          writeFile3(path6.join(kotlinDir, "ProjectActivity.kt"), getTamerDevAppProjectActivity(packageName));
+          writeFile3(path6.join(kotlinDir, "PortraitCaptureActivity.kt"), getPortraitCaptureActivity(vars));
         } else {
           const paSrc = path6.join(templateDir, "ProjectActivity.kt");
           if (fs6.existsSync(paSrc)) {
-            writeFile2(path6.join(kotlinDir, "ProjectActivity.kt"), readAndSubstituteTemplate(paSrc, templateVars));
+            writeFile3(path6.join(kotlinDir, "ProjectActivity.kt"), readAndSubstituteTemplate(paSrc, templateVars));
           }
         }
       } else {
-        writeFile2(path6.join(kotlinDir, "ProjectActivity.kt"), getProjectActivity(vars));
+        writeFile3(path6.join(kotlinDir, "ProjectActivity.kt"), getProjectActivity(vars));
         const devClientManagerSource = getDevClientManager(vars);
         if (devClientManagerSource) {
-          writeFile2(path6.join(kotlinDir, "DevClientManager.kt"), devClientManagerSource);
-          writeFile2(path6.join(kotlinDir, "DevServerPrefs.kt"), getDevServerPrefs(vars));
+          writeFile3(path6.join(kotlinDir, "DevClientManager.kt"), devClientManagerSource);
+          writeFile3(path6.join(kotlinDir, "DevServerPrefs.kt"), getDevServerPrefs(vars));
         }
       }
     }
@@ -2108,7 +2336,7 @@ object GeneratedLynxExtensions {
     if (androidSdk) {
       try {
         const sdkDirContent = `sdk.dir=${androidSdk.replace(/\\/g, "/")}`;
-        writeFile2(path6.join(rootDir, "local.properties"), sdkDirContent);
+        writeFile3(path6.join(rootDir, "local.properties"), sdkDirContent);
         console.log("\u{1F4E6} Created local.properties from tamer.config.json.");
       } catch (err) {
         console.error(`\u274C Failed to create local.properties: ${err.message}`);
@@ -3412,9 +3640,18 @@ async function syncDevClient(opts) {
     port: config.devServer.port ?? config.devServer.httpPort ?? 3e3
   } : void 0;
   const vars = { packageName, appName, devMode, devServer, projectRoot: resolved.projectRoot };
-  const [templateProviderSource] = await Promise.all([
-    fetchAndPatchTemplateProvider(vars)
-  ]);
+  const projectSegment = resolved.projectRoot.replace(/\\/g, "/").split("/").filter(Boolean).pop() ?? "";
+  let templateProviderSource;
+  const templateProviderPath = hasDevClient ? path14.join(String(hasDevClient), "android", "templates", "TemplateProvider.java") : "";
+  if (templateProviderPath && fs14.existsSync(templateProviderPath)) {
+    templateProviderSource = readAndSubstituteTemplate2(templateProviderPath, {
+      PACKAGE_NAME: packageName,
+      APP_NAME: appName,
+      PROJECT_BUNDLE_SEGMENT: projectSegment
+    });
+  } else {
+    templateProviderSource = await fetchAndPatchTemplateProvider(vars);
+  }
   fs14.writeFileSync(path14.join(javaDir, "TemplateProvider.java"), templateProviderSource);
   fs14.writeFileSync(path14.join(kotlinDir, "TamerNavLynxRuntime.kt"), getTamerNavLynxRuntime(vars));
   fs14.writeFileSync(path14.join(kotlinDir, "MainActivity.kt"), getStandaloneMainActivity(vars));
@@ -3460,7 +3697,7 @@ async function syncDevClient(opts) {
       }
     }
     let manifest = fs14.readFileSync(manifestPath, "utf-8");
-    const projectActivityEntry = '        <activity android:name=".ProjectActivity" android:exported="false" android:taskAffinity="" android:launchMode="singleTask" android:documentLaunchMode="always" android:windowSoftInputMode="adjustResize" />';
+    const projectActivityEntry = `        <activity android:name=".ProjectActivity" android:exported="false" android:taskAffinity="${packageName}.project" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize" />`;
     const portraitCaptureEntry = '        <activity android:name=".PortraitCaptureActivity" android:screenOrientation="portrait" android:stateNotNeeded="true" android:theme="@style/zxing_CaptureTheme" android:windowSoftInputMode="stateAlwaysHidden" />';
     if (!manifest.includes("ProjectActivity")) {
       manifest = manifest.replace(/(\s*)(<\/application>)/, `${projectActivityEntry}
@@ -3486,10 +3723,22 @@ $1$2`);
 $1$2`);
     }
     const mainActivityTag = manifest.match(/<activity[^>]*android:name="\.MainActivity"[^>]*>/);
-    if (mainActivityTag && !mainActivityTag[0].includes("windowSoftInputMode")) {
+    if (mainActivityTag) {
       manifest = manifest.replace(
         /(<activity\s+android:name="\.MainActivity"[^>]*)(>)/,
-        '$1 android:windowSoftInputMode="adjustResize"$2'
+        (_match, prefix, suffix) => {
+          let next = prefix;
+          if (!next.includes("android:windowSoftInputMode=")) {
+            next += ' android:windowSoftInputMode="adjustResize"';
+          }
+          if (!next.includes("android:launchMode=")) {
+            next += ' android:launchMode="singleTask"';
+          }
+          if (!next.includes("android:taskAffinity=")) {
+            next += ` android:taskAffinity="${packageName}.launcher"`;
+          }
+          return `${next}${suffix}`;
+        }
       );
     }
     fs14.writeFileSync(manifestPath, manifest);
@@ -3526,6 +3775,19 @@ $1$2`);
 var syncDevClient_default = syncDevClient;
 
 // src/android/bundle.ts
+function buildEnvWithOfficialAppMetadata(isDevApp, projectRoot) {
+  if (!isDevApp) return process.env;
+  const officialAppJsonPath = path15.join(projectRoot, "official-app.json");
+  if (!fs15.existsSync(officialAppJsonPath)) return process.env;
+  try {
+    const metadata = fs15.readFileSync(officialAppJsonPath, "utf8");
+    JSON.parse(metadata);
+    return { ...process.env, TAMER_DEV_CLIENT_OFFICIAL_APP_METADATA_JSON: metadata };
+  } catch {
+    console.warn("\u26A0 Could not read official-app.json; building without official app metadata.");
+    return process.env;
+  }
+}
 async function bundleAndDeploy(opts = {}) {
   const release = opts.release === true || opts.production === true;
   let resolved;
@@ -3569,7 +3831,8 @@ async function bundleAndDeploy(opts = {}) {
       fixTsconfigReferencesForBuild(lynxTsconfig);
     }
     console.log("\u{1F4E6} Building Lynx bundle...");
-    execSync3("npm run build", { stdio: "inherit", cwd: lynxProjectDir });
+    const buildEnv = buildEnvWithOfficialAppMetadata(isDevApp, projectRoot);
+    execSync3("npm run build", { stdio: "inherit", cwd: lynxProjectDir, env: buildEnv });
     console.log("\u2705 Build completed successfully.");
   } catch (error) {
     console.error("\u274C Build process failed.");
@@ -4127,17 +4390,20 @@ async function setupCocoaPods(rootDir) {
     if (!fs16.existsSync(podfilePath)) {
       throw new Error(`Podfile not found at ${podfilePath}`);
     }
+    const podEnv = { ...process.env, LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8" };
     console.log(`\u{1F680} Executing pod install in: ${rootDir}`);
     try {
       execSync5("pod install", {
         cwd: rootDir,
-        stdio: "inherit"
+        stdio: "inherit",
+        env: podEnv
       });
     } catch {
       console.log("\u2139\uFE0F Retrying CocoaPods install with repo update...");
       execSync5("pod install --repo-update", {
         cwd: rootDir,
-        stdio: "inherit"
+        stdio: "inherit",
+        env: podEnv
       });
     }
     console.log("\u2705 CocoaPods dependencies installed successfully.");
@@ -4198,7 +4464,7 @@ function readAndSubstituteTemplate3(templatePath, vars) {
   );
 }
 var create2 = () => {
-  const generateId = () => randomBytes(12).toString("hex").toUpperCase();
+  const generateId2 = () => randomBytes(12).toString("hex").toUpperCase();
   let appName;
   let bundleId;
   let config;
@@ -4218,7 +4484,7 @@ var create2 = () => {
   const projectDir = path18.join(rootDir, appName);
   const xcodeprojDir = path18.join(rootDir, `${appName}.xcodeproj`);
   const bridgingHeader = `${appName}-Bridging-Header.h`;
-  function writeFile2(filePath, content) {
+  function writeFile3(filePath, content) {
     fs18.mkdirSync(path18.dirname(filePath), { recursive: true });
     fs18.writeFileSync(filePath, content.trimStart(), "utf8");
   }
@@ -4228,39 +4494,39 @@ var create2 = () => {
   }
   console.log(`\u{1F680} Creating a new Tamer4Lynx project in: ${rootDir}`);
   const ids = {
-    project: generateId(),
-    mainGroup: generateId(),
-    appGroup: generateId(),
-    productsGroup: generateId(),
-    frameworksGroup: generateId(),
-    appFile: generateId(),
-    appDelegateRef: generateId(),
-    sceneDelegateRef: generateId(),
-    sceneDelegateBaseRef: generateId(),
-    viewControllerRef: generateId(),
-    assetsRef: generateId(),
-    lynxProviderRef: generateId(),
-    lynxInitRef: generateId(),
-    bridgingHeaderRef: generateId(),
-    nativeTarget: generateId(),
-    appDelegateBuildFile: generateId(),
-    sceneDelegateBuildFile: generateId(),
-    sceneDelegateSourceBuildFile: generateId(),
-    viewControllerBuildFile: generateId(),
-    lynxProviderBuildFile: generateId(),
-    lynxInitBuildFile: generateId(),
-    assetsBuildFile: generateId(),
-    frameworksBuildPhase: generateId(),
-    resourcesBuildPhase: generateId(),
-    sourcesBuildPhase: generateId(),
-    projectBuildConfigList: generateId(),
-    targetBuildConfigList: generateId(),
-    projectDebugConfig: generateId(),
-    projectReleaseConfig: generateId(),
-    targetDebugConfig: generateId(),
-    targetReleaseConfig: generateId()
+    project: generateId2(),
+    mainGroup: generateId2(),
+    appGroup: generateId2(),
+    productsGroup: generateId2(),
+    frameworksGroup: generateId2(),
+    appFile: generateId2(),
+    appDelegateRef: generateId2(),
+    sceneDelegateRef: generateId2(),
+    sceneDelegateBaseRef: generateId2(),
+    viewControllerRef: generateId2(),
+    assetsRef: generateId2(),
+    lynxProviderRef: generateId2(),
+    lynxInitRef: generateId2(),
+    bridgingHeaderRef: generateId2(),
+    nativeTarget: generateId2(),
+    appDelegateBuildFile: generateId2(),
+    sceneDelegateBuildFile: generateId2(),
+    sceneDelegateSourceBuildFile: generateId2(),
+    viewControllerBuildFile: generateId2(),
+    lynxProviderBuildFile: generateId2(),
+    lynxInitBuildFile: generateId2(),
+    assetsBuildFile: generateId2(),
+    frameworksBuildPhase: generateId2(),
+    resourcesBuildPhase: generateId2(),
+    sourcesBuildPhase: generateId2(),
+    projectBuildConfigList: generateId2(),
+    targetBuildConfigList: generateId2(),
+    projectDebugConfig: generateId2(),
+    projectReleaseConfig: generateId2(),
+    targetDebugConfig: generateId2(),
+    targetReleaseConfig: generateId2()
   };
-  writeFile2(path18.join(rootDir, "Podfile"), `
+  writeFile3(path18.join(rootDir, "Podfile"), `
 source 'https://cdn.cocoapods.org/'
 
 install! 'cocoapods', :incremental_installation => true, :generate_multiple_pod_projects => true
@@ -4361,11 +4627,11 @@ end
     for (const f of ["AppDelegate.swift", "SceneDelegate.swift", "ViewController.swift", "LynxProvider.swift", "LynxInitProcessor.swift"]) {
       const srcPath = path18.join(templateDir, f);
       if (fs18.existsSync(srcPath)) {
-        writeFile2(path18.join(projectDir, f), readAndSubstituteTemplate3(srcPath, templateVars));
+        writeFile3(path18.join(projectDir, f), readAndSubstituteTemplate3(srcPath, templateVars));
       }
     }
   } else {
-    writeFile2(path18.join(projectDir, "AppDelegate.swift"), `
+    writeFile3(path18.join(projectDir, "AppDelegate.swift"), `
 import UIKit
 
 @UIApplicationMain
@@ -4380,7 +4646,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
   }
 }
 	`);
-    writeFile2(path18.join(projectDir, "SceneDelegate.swift"), `
+    writeFile3(path18.join(projectDir, "SceneDelegate.swift"), `
 import UIKit
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
@@ -4394,7 +4660,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
   }
 }
 	`);
-    writeFile2(path18.join(projectDir, "ViewController.swift"), `
+    writeFile3(path18.join(projectDir, "ViewController.swift"), `
 import UIKit
 import Lynx
 import tamerinsets
@@ -4522,7 +4788,7 @@ class ViewController: UIViewController {
   }
 }
 	`);
-    writeFile2(path18.join(projectDir, "LynxProvider.swift"), `
+    writeFile3(path18.join(projectDir, "LynxProvider.swift"), `
 import Foundation
 import Lynx
 
@@ -4564,18 +4830,58 @@ class LynxProvider: NSObject, LynxTemplateProvider, LynxTemplateResourceFetcher,
     }
 
     private func loadData(url: String?) -> (data: Data?, error: NSError?) {
-        guard let url = url,
-              let bundleUrl = Bundle.main.url(forResource: url, withExtension: nil),
-              let data = try? Data(contentsOf: bundleUrl) else {
+        guard let normalized = normalizeBundlePath(url),
+              let resourcePath = Bundle.main.resourcePath else {
             let err = NSError(domain: "LynxProvider", code: 404,
                               userInfo: [NSLocalizedDescriptionKey: "Bundle not found: \\(url ?? "nil")"])
             return (nil, err)
         }
+        let abs = (resourcePath as NSString).appendingPathComponent(normalized)
+        guard FileManager.default.fileExists(atPath: abs),
+              let data = try? Data(contentsOf: URL(fileURLWithPath: abs)) else {
+            let err = NSError(domain: "LynxProvider", code: 404,
+                              userInfo: [NSLocalizedDescriptionKey: "Bundle not found: \\(normalized)"])
+            return (nil, err)
+        }
         return (data, nil)
+    }
+
+    private func normalizeBundlePath(_ url: String?) -> String? {
+        guard var s = url?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else { return nil }
+        if let fragment = s.firstIndex(of: "#") {
+            s = String(s[..<fragment])
+        }
+        if let query = s.firstIndex(of: "?") {
+            s = String(s[..<query])
+        }
+        if let parsed = URL(string: s), parsed.scheme != nil, !parsed.path.isEmpty {
+            s = parsed.path
+        }
+        s = s.replacingOccurrences(of: "\\\\", with: "/")
+        while s.hasPrefix("/") {
+            s.removeFirst()
+        }
+        s = stripBeforeMarker(s, marker: ".lynx.bundle/")
+        s = stripBeforeMarker(s, marker: ".web.bundle/")
+        s = stripBeforeMarker(s, marker: "static/")
+        s = stripBeforeMarker(s, marker: "assets/")
+        s = stripBeforeMarker(s, marker: "tamer-assets.json")
+        let normalized = (s as NSString).standardizingPath
+        if normalized == ".." || normalized.hasPrefix("../") { return nil }
+        return normalized
+    }
+
+    private func stripBeforeMarker(_ value: String, marker: String) -> String {
+        guard let range = value.range(of: marker) else { return value }
+        if range.lowerBound == value.startIndex { return value }
+        if marker.hasSuffix("/") {
+            return String(value[range.upperBound...])
+        }
+        return String(value[range.lowerBound...])
     }
 }
 	`);
-    writeFile2(path18.join(projectDir, "LynxInitProcessor.swift"), `
+    writeFile3(path18.join(projectDir, "LynxInitProcessor.swift"), `
 // Copyright 2024 The Lynx Authors. All rights reserved.
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
@@ -4615,7 +4921,7 @@ final class LynxInitProcessor {
 }
 	`);
   }
-  writeFile2(path18.join(projectDir, bridgingHeader), `
+  writeFile3(path18.join(projectDir, bridgingHeader), `
 #import <Lynx/LynxConfig.h>
 #import <Lynx/LynxEnv.h>
 #import <Lynx/LynxTemplateProvider.h>
@@ -4624,7 +4930,7 @@ final class LynxInitProcessor {
 #import <SDWebImage/SDWebImage.h>
 #import <SDWebImageWebPCoder/SDWebImageWebPCoder.h>
 	`);
-  writeFile2(path18.join(projectDir, "Info.plist"), `
+  writeFile3(path18.join(projectDir, "Info.plist"), `
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -4688,7 +4994,7 @@ final class LynxInitProcessor {
   if (applyIosAppIconAssets(appIconDir, iconPaths)) {
     console.log(iconPaths?.ios ? "\u2705 Copied iOS icon from tamer.config.json icon.ios" : "\u2705 Copied app icon from tamer.config.json icon.source");
   } else {
-    writeFile2(path18.join(appIconDir, "Contents.json"), `
+    writeFile3(path18.join(appIconDir, "Contents.json"), `
 {
   "images" : [ { "idiom" : "universal", "platform" : "ios", "size" : "1024x1024" } ],
   "info" : { "author" : "xcode", "version" : 1 }
@@ -4696,7 +5002,7 @@ final class LynxInitProcessor {
 	`);
   }
   fs18.mkdirSync(xcodeprojDir, { recursive: true });
-  writeFile2(path18.join(xcodeprojDir, "project.pbxproj"), `
+  writeFile3(path18.join(xcodeprojDir, "project.pbxproj"), `
 // !$*UTF8*$!
 {
 	archiveVersion = 1;
@@ -4992,9 +5298,9 @@ final class LynxInitProcessor {
 var create_default2 = create2;
 
 // src/ios/autolink.ts
-import fs21 from "fs";
-import path21 from "path";
-import { execSync as execSync7 } from "child_process";
+import fs22 from "fs";
+import path22 from "path";
+import { execSync as execSync8 } from "child_process";
 
 // src/common/hostNativeModulesManifest.ts
 var TAMER_HOST_NATIVE_MODULES_FILENAME = "tamer-host-native-modules.json";
@@ -5004,8 +5310,8 @@ function buildHostNativeModulesManifestJson(moduleClassNames) {
 }
 
 // src/ios/syncHost.ts
-import fs20 from "fs";
-import path20 from "path";
+import fs21 from "fs";
+import path21 from "path";
 import crypto from "crypto";
 
 // src/common/iosSigningDiscovery.ts
@@ -5124,8 +5430,89 @@ function listProvisioningProfiles(bundleIdFilter) {
 }
 
 // src/ios/syncDevClient.ts
+import fs20 from "fs";
+import path20 from "path";
+import { execSync as execSync7 } from "child_process";
+import { randomBytes as randomBytes2 } from "crypto";
+function readAndSubstituteTemplate4(templatePath, vars) {
+  const raw = fs20.readFileSync(templatePath, "utf-8");
+  return Object.entries(vars).reduce(
+    (s, [k, v]) => s.replace(new RegExp(`\\{\\{${k}\\}\\}`, "g"), v),
+    raw
+  );
+}
 var APP_NAME = "TamerDevApp";
+var BUNDLE_ID = "com.nanofuxion.tamerdevapp";
 var BRIDGING_HEADER = `${APP_NAME}-Bridging-Header.h`;
+function generateId() {
+  return randomBytes2(12).toString("hex").toUpperCase();
+}
+function writeFile(filePath, content) {
+  fs20.mkdirSync(path20.dirname(filePath), { recursive: true });
+  fs20.writeFileSync(filePath, content, "utf8");
+}
+function getAppDelegateSwift() {
+  return `import UIKit
+import tamerlinking
+
+@UIApplicationMain
+class AppDelegate: UIResponder, UIApplicationDelegate {
+    var window: UIWindow?
+
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+    ) -> Bool {
+        LynxInitProcessor.shared.setupEnvironment()
+        if let url = launchOptions?[.url] as? URL {
+            let s = url.absoluteString
+            LinkingModule.setInitialUrl(s)
+            LinkingModule.onUrlReceived(s)
+        }
+
+        window = UIWindow(frame: UIScreen.main.bounds)
+        window?.rootViewController = DevLauncherViewController()
+        window?.makeKeyAndVisible()
+        return true
+    }
+
+    func application(_ app: UIApplication, open url: URL,
+                     options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        let s = url.absoluteString
+        LinkingModule.setInitialUrl(s)
+        LinkingModule.onUrlReceived(s)
+        if url.scheme == "tamerdevapp", let host = url.host, host == "project" {
+            let bundleUrl = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .first(where: { $0.name == "bundleUrl" })?
+                .value
+            presentProjectViewController(bundleUrl: bundleUrl)
+        }
+        return true
+    }
+
+    @objc func presentProjectViewController(bundleUrl: String? = nil) {
+        if let bundleUrl, !bundleUrl.isEmpty {
+            DevServerPrefs.setUrl(bundleUrl)
+        }
+        guard let root = window?.rootViewController else { return }
+        if root.presentedViewController is ProjectViewController {
+            return
+        }
+        guard root.presentedViewController == nil else { return }
+        let projectVC = ProjectViewController()
+        projectVC.modalPresentationStyle = .fullScreen
+        root.present(projectVC, animated: true)
+    }
+}
+`;
+}
+function getDevLauncherViewControllerSwift() {
+  return fs20.readFileSync(
+    path20.join(__dirname, "../../packages/tamer-dev-client/ios/templates/DevLauncherViewController.swift"),
+    "utf8"
+  );
+}
 function getProjectViewControllerSwift() {
   return `import UIKit
 import Lynx
@@ -5221,6 +5608,7 @@ class ProjectViewController: UIViewController {
             self?.reloadLynxView()
         })
         devClientManager?.connect()
+        TamerRelogLogService.connect()
 #if DEBUG
         view.addGestureRecognizer(projectDevMenuGesture)
 #endif
@@ -5489,6 +5877,7 @@ class ProjectViewController: UIViewController {
         guard isBeingDismissed || isMovingFromParent else { return }
         dismissProjectDevMenu()
         devClientManager?.disconnect()
+        TamerRelogLogService.disconnect()
 #if canImport(tamerrouter)
         TamerRouterNativeModule.attachHostView(nil)
 #endif
@@ -5512,12 +5901,1350 @@ class ProjectViewController: UIViewController {
 }
 `;
 }
+function getDevTemplateProviderSwift() {
+  return `import Foundation
+import Lynx
+import tamerdevclient
+
+class DevTemplateProvider: NSObject, LynxTemplateProvider, LynxTemplateResourceFetcher, LynxGenericResourceFetcher {
+    private static let devClientBundle = "dev-client.lynx.bundle"
+    private static let tamerDebugBundle = "tamer-debug.lynx.bundle"
+
+    func loadTemplate(withUrl url: String!, onComplete callback: LynxTemplateLoadBlock!) {
+        DispatchQueue.global(qos: .background).async {
+            if url == Self.tamerDebugBundle || url?.hasSuffix("/" + Self.tamerDebugBundle) == true {
+                self.loadFromBundle(url: Self.tamerDebugBundle, callback: callback)
+                return
+            }
+            // dev-client.lynx.bundle always loads from the embedded asset
+            if url == Self.devClientBundle || url?.hasSuffix("/" + Self.devClientBundle) == true {
+                self.loadFromBundle(url: Self.devClientBundle, callback: callback)
+                return
+            }
+
+            if let devUrl = DevServerPrefs.getUrl(), !devUrl.isEmpty {
+                let origin: String
+                if let parsed = URL(string: devUrl) {
+                    let scheme = parsed.scheme ?? "http"
+                    let host = parsed.host ?? "localhost"
+                    let port = parsed.port.map { ":\\($0)" } ?? ""
+                    origin = "\\(scheme)://\\(host)\\(port)"
+                } else {
+                    origin = devUrl
+                }
+
+                let candidates = ["/\\(url!)", "/example/\\(url!)"]
+                for candidate in candidates {
+                    if let data = self.httpFetch(url: origin + candidate) {
+                        callback?(data, nil)
+                        return
+                    }
+                }
+            }
+
+            // Fall back to embedded bundle
+            self.loadFromBundle(url: url, callback: callback)
+        }
+    }
+
+    func fetchTemplate(_ request: LynxResourceRequest, onComplete callback: @escaping LynxTemplateResourceCompletionBlock) {
+        DispatchQueue.global(qos: .background).async {
+            let result = self.loadData(url: request.url)
+            callback(result.data.map { LynxTemplateResource(nsData: $0) }, result.error)
+        }
+    }
+
+    func fetchSSRData(_ request: LynxResourceRequest, onComplete callback: @escaping LynxSSRResourceCompletionBlock) {
+        DispatchQueue.global(qos: .background).async {
+            let result = self.loadData(url: request.url)
+            callback(result.data, result.error)
+        }
+    }
+
+    func fetchResource(_ request: LynxResourceRequest, onComplete callback: @escaping LynxGenericResourceCompletionBlock) -> (() -> Void) {
+        DispatchQueue.global(qos: .background).async {
+            let result = self.loadData(url: request.url)
+            callback(result.data, result.error)
+        }
+        return {}
+    }
+
+    func fetchResourcePath(_ request: LynxResourceRequest, onComplete callback: @escaping LynxGenericResourcePathCompletionBlock) -> (() -> Void) {
+        let error = NSError(domain: "DevTemplateProvider", code: 501,
+                            userInfo: [NSLocalizedDescriptionKey: "Resource path lookup is not supported"])
+        callback(nil, error)
+        return {}
+    }
+
+    private func loadData(url: String?) -> (data: Data?, error: NSError?) {
+        if url == Self.tamerDebugBundle || url?.hasSuffix("/" + Self.tamerDebugBundle) == true || url?.contains(Self.tamerDebugBundle) == true {
+            return loadFromBundle(url: Self.tamerDebugBundle)
+        }
+        if url == Self.devClientBundle || url?.hasSuffix("/" + Self.devClientBundle) == true || url?.contains(Self.devClientBundle) == true {
+            return loadFromBundle(url: Self.devClientBundle)
+        }
+        if let data = loadFromDevServer(url: url) {
+            return (data, nil)
+        }
+        return loadFromBundle(url: url)
+    }
+
+    private func loadFromBundle(url: String?, callback: LynxTemplateLoadBlock!) {
+        let result = loadFromBundle(url: url)
+        callback?(result.data, result.error)
+    }
+
+    private func loadFromBundle(url: String?) -> (data: Data?, error: NSError?) {
+        guard let normalized = normalizeBundlePath(url),
+              let resourcePath = Bundle.main.resourcePath else {
+            let err = NSError(domain: "DevTemplateProvider", code: 404,
+                              userInfo: [NSLocalizedDescriptionKey: "Bundle not found: \\(url ?? "nil")"])
+            return (nil, err)
+        }
+        let abs = (resourcePath as NSString).appendingPathComponent(normalized)
+        guard FileManager.default.fileExists(atPath: abs),
+              let data = try? Data(contentsOf: URL(fileURLWithPath: abs)) else {
+            let err = NSError(domain: "DevTemplateProvider", code: 404,
+                              userInfo: [NSLocalizedDescriptionKey: "Bundle not found: \\(normalized)"])
+            return (nil, err)
+        }
+        return (data, nil)
+    }
+
+    private func loadFromDevServer(url: String?) -> Data? {
+        guard let normalized = normalizeBundlePath(url),
+              let devUrl = DevServerPrefs.getUrl(),
+              !devUrl.isEmpty else { return nil }
+
+        let origin: String
+        let configuredPath: String
+        if let parsed = URL(string: devUrl) {
+            let scheme = parsed.scheme ?? "http"
+            let host = parsed.host ?? "localhost"
+            let port = parsed.port.map { ":\\($0)" } ?? ""
+            origin = "\\(scheme)://\\(host)\\(port)"
+            configuredPath = parsed.path.replacingOccurrences(of: "/+$", with: "", options: .regularExpression)
+        } else {
+            origin = devUrl
+            configuredPath = ""
+        }
+
+        var candidates: [String] = []
+        if !configuredPath.isEmpty {
+            candidates.append("\\(configuredPath)/\\(normalized)")
+        }
+        candidates.append("/example/\\(normalized)")
+        candidates.append("/\\(normalized)")
+        for candidate in candidates {
+            if let data = self.httpFetch(url: origin + candidate) {
+                return data
+            }
+        }
+        return nil
+    }
+
+    private func normalizeBundlePath(_ url: String?) -> String? {
+        guard var s = url?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else { return nil }
+        if let fragment = s.firstIndex(of: "#") {
+            s = String(s[..<fragment])
+        }
+        if let query = s.firstIndex(of: "?") {
+            s = String(s[..<query])
+        }
+        if let parsed = URL(string: s), parsed.scheme != nil, !parsed.path.isEmpty {
+            s = parsed.path
+        }
+        s = s.replacingOccurrences(of: "\\\\", with: "/")
+        while s.hasPrefix("/") {
+            s.removeFirst()
+        }
+        s = stripBeforeMarker(s, marker: ".lynx.bundle/")
+        s = stripBeforeMarker(s, marker: ".web.bundle/")
+        s = stripBeforeMarker(s, marker: "static/")
+        s = stripBeforeMarker(s, marker: "assets/")
+        s = stripBeforeMarker(s, marker: "tamer-assets.json")
+        let normalized = (s as NSString).standardizingPath
+        if normalized == ".." || normalized.hasPrefix("../") { return nil }
+        return normalized
+    }
+
+    private func stripBeforeMarker(_ value: String, marker: String) -> String {
+        guard let range = value.range(of: marker) else { return value }
+        if range.lowerBound == value.startIndex { return value }
+        if marker.hasSuffix("/") {
+            return String(value[range.upperBound...])
+        }
+        return String(value[range.lowerBound...])
+    }
+
+    private func httpFetch(url: String) -> Data? {
+        guard let u = URL(string: url) else { return nil }
+        var req = URLRequest(url: u)
+        req.timeoutInterval = 10
+        var result: Data?
+        let sem = DispatchSemaphore(value: 0)
+        URLSession.shared.dataTask(with: req) { data, response, _ in
+            if let http = response as? HTTPURLResponse, http.statusCode == 200 {
+                result = data
+            }
+            sem.signal()
+        }.resume()
+        sem.wait()
+        return result
+    }
+}
+`;
+}
+function getDevClientManagerSwift() {
+  return `import Foundation
+import tamerdevclient
+
+class DevClientManager {
+    private var webSocketTask: URLSessionWebSocketTask?
+    private let onReload: () -> Void
+    private var session: URLSession?
+    private var shouldReconnect = false
+    private var reconnectWorkItem: DispatchWorkItem?
+    private let bundleUrl: String?
+    private var hasSuccessfullyConnected = false
+
+    private let reconnectDelay: TimeInterval = 3.0
+
+    init(bundleUrl: String? = nil, onReload: @escaping () -> Void) {
+        self.bundleUrl = bundleUrl
+        self.onReload = onReload
+    }
+
+    func connect() {
+        shouldReconnect = true
+        if let bundleUrl = bundleUrl, !bundleUrl.isEmpty {
+            DevServerPrefs.setUrl(bundleUrl)
+        }
+        openSocketIfNeeded()
+    }
+
+    private func openSocketIfNeeded() {
+        guard shouldReconnect else { return }
+        guard webSocketTask == nil else { return }
+        guard let devUrl = DevServerPrefs.getUrl(), !devUrl.isEmpty else { return }
+        guard let base = URL(string: devUrl) else { return }
+
+        let scheme = (base.scheme == "https") ? "wss" : "ws"
+        let host = base.host ?? "localhost"
+        let port = base.port.map { ":\\($0)" } ?? ""
+        let rawPath = base.path.isEmpty ? "/" : base.path
+        let dir = rawPath.hasSuffix("/") ? rawPath : rawPath + "/"
+        guard let wsUrl = URL(string: "\\(scheme)://\\(host)\\(port)\\(dir)__hmr") else { return }
+
+        session = URLSession(configuration: .default)
+        let task = session!.webSocketTask(with: wsUrl)
+        webSocketTask = task
+        task.resume()
+        receive()
+    }
+
+    private func receive() {
+        webSocketTask?.receive { [weak self] result in
+            guard let self = self else { return }
+            switch result {
+            case .success(let msg):
+                if case .string(let text) = msg, text.contains("\\"type\\":\\"reload\\"") {
+                    DispatchQueue.main.async { self.onReload() }
+                }
+                self.receive()
+            case .failure:
+                self.handleDisconnect()
+            }
+        }
+    }
+
+    private func handleDisconnect() {
+        webSocketTask = nil
+        session?.invalidateAndCancel()
+        session = nil
+        guard shouldReconnect else { return }
+        reconnectWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.openSocketIfNeeded()
+        }
+        reconnectWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + reconnectDelay, execute: work)
+    }
+
+    func disconnect() {
+        shouldReconnect = false
+        reconnectWorkItem?.cancel()
+        reconnectWorkItem = nil
+        webSocketTask?.cancel(with: .goingAway, reason: nil)
+        webSocketTask = nil
+        session?.invalidateAndCancel()
+        session = nil
+    }
+}
+`;
+}
+function getLynxPushViewControllerSwift() {
+  return `import UIKit
+import Lynx
+import tamerdevclient
+#if canImport(tamerinsets)
+import tamerinsets
+#endif
+#if canImport(tamerrouter)
+import tamerrouter
+#endif
+#if canImport(tamerlinking)
+import tamerlinking
+#endif
+
+/// Presents a Lynx bundle loaded from a URL-scheme deep link or an openProjectDirect call.
+/// Equivalent to Android's LynxPushActivity \u2014 receives bundleUrl + optional initData,
+/// loads a full-screen LynxView, and dismisses on back/swipe.
+class LynxPushViewController: UIViewController {
+    private let bundleUrl: String
+    private let initDataJson: String
+    private var lynxView: LynxView?
+
+    init(bundleUrl: String, initDataJson: String = "") {
+        self.bundleUrl = bundleUrl
+        self.initDataJson = initDataJson
+        super.init(nibName: nil, bundle: nil)
+        modalPresentationStyle = .fullScreen
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) not supported") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        edgesForExtendedLayout = .all
+        extendedLayoutIncludesOpaqueBars = true
+        additionalSafeAreaInsets = .zero
+        view.insetsLayoutMarginsFromSafeArea = false
+        view.preservesSuperviewLayoutMargins = false
+        if #available(iOS 15.0, *) {
+            viewRespectsSystemMinimumLayoutMargins = false
+        }
+#if canImport(tamerlinking)
+        if !bundleUrl.isEmpty {
+            LinkingModule.setInitialUrl(bundleUrl)
+        }
+#endif
+        setupLynxView()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        if let lv = lynxView { applyFullscreenLayout(to: lv) }
+    }
+
+    override func viewSafeAreaInsetsDidChange() {
+        super.viewSafeAreaInsetsDidChange()
+#if canImport(tamerinsets)
+        TamerInsetsModule.reRequestInsets()
+#endif
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        guard isBeingDismissed || isMovingFromParent else { return }
+#if canImport(tamerrouter)
+        TamerRouterNativeModule.attachHostView(nil)
+#endif
+#if canImport(tamerinsets)
+        TamerInsetsModule.attachHostView(nil)
+#endif
+        DevClientModule.attachLynxView(nil)
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        guard isBeingDismissed || isMovingFromParent else { return }
+        lynxView?.removeFromSuperview()
+        lynxView = nil
+    }
+
+    private func setupLynxView() {
+        let bounds = fullscreenBounds()
+        let size = bounds.size
+        let provider = DevTemplateProvider()
+        let lv = LynxView { builder in
+            builder.enableGenericResourceFetcher = .true
+            builder.config = LynxConfig(provider: provider)
+            builder.templateResourceFetcher = provider
+            builder.genericResourceFetcher = provider
+            builder.screenSize = size
+            builder.fontScale = 1.0
+        }
+        lv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        lv.insetsLayoutMarginsFromSafeArea = false
+        lv.preservesSuperviewLayoutMargins = false
+        view.addSubview(lv)
+        applyFullscreenLayout(to: lv)
+#if canImport(tamerinsets)
+        TamerInsetsModule.attachHostView(lv)
+#endif
+#if canImport(tamerrouter)
+        TamerRouterNativeModule.attachHostView(lv)
+#endif
+        DevClientModule.attachLynxView(lv)
+        let initData = initDataJson.isEmpty ? nil : LynxTemplateData(json: initDataJson)
+        lv.loadTemplate(fromURL: bundleUrl, initData: initData)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self, weak lv] in
+            guard let self, let lv else { return }
+            self.applyFullscreenLayout(to: lv)
+        }
+        self.lynxView = lv
+    }
+
+    private func applyFullscreenLayout(to lv: LynxView) {
+        let bounds = fullscreenBounds()
+        let size = bounds.size
+        lv.frame = bounds
+        lv.updateScreenMetrics(withWidth: size.width, height: size.height)
+        lv.updateViewport(withPreferredLayoutWidth: size.width, preferredLayoutHeight: size.height, needLayout: true)
+        lv.preferredLayoutWidth = size.width
+        lv.preferredLayoutHeight = size.height
+        lv.layoutWidthMode = .exact
+        lv.layoutHeightMode = .exact
+    }
+
+    private func fullscreenBounds() -> CGRect {
+        let b = view.bounds
+        if b.width > 0, b.height > 0 { return b }
+        return UIScreen.main.bounds
+    }
+}
+`;
+}
+function getQRScannerViewControllerSwift() {
+  return `import UIKit
+import AVFoundation
+
+class QRScannerViewController: UIViewController {
+    var onResult: ((String?) -> Void)?
+
+    private var captureSession: AVCaptureSession?
+    private var previewLayer: AVCaptureVideoPreviewLayer?
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        setupCamera()
+        addCancelButton()
+    }
+
+    private func setupCamera() {
+        let session = AVCaptureSession()
+        guard let device = AVCaptureDevice.default(for: .video),
+              let input = try? AVCaptureDeviceInput(device: device) else {
+            onResult?(nil)
+            return
+        }
+
+        let output = AVCaptureMetadataOutput()
+        session.addInput(input)
+        session.addOutput(output)
+        output.setMetadataObjectsDelegate(self, queue: .main)
+        output.metadataObjectTypes = [.qr]
+
+        let preview = AVCaptureVideoPreviewLayer(session: session)
+        preview.frame = view.layer.bounds
+        preview.videoGravity = .resizeAspectFill
+        view.layer.insertSublayer(preview, at: 0)
+        previewLayer = preview
+
+        DispatchQueue.global(qos: .userInitiated).async { session.startRunning() }
+        captureSession = session
+    }
+
+    private func addCancelButton() {
+        let btn = UIButton(type: .system)
+        btn.setTitle("Cancel", for: .normal)
+        btn.setTitleColor(.white, for: .normal)
+        btn.titleLabel?.font = .systemFont(ofSize: 18, weight: .medium)
+        btn.addTarget(self, action: #selector(cancel), for: .touchUpInside)
+        btn.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(btn)
+        NSLayoutConstraint.activate([
+            btn.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            btn.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -24),
+        ])
+    }
+
+    @objc private func cancel() {
+        captureSession?.stopRunning()
+        onResult?(nil)
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        if captureSession?.isRunning == false {
+            DispatchQueue.global(qos: .userInitiated).async { self.captureSession?.startRunning() }
+        }
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        captureSession?.stopRunning()
+    }
+}
+
+extension QRScannerViewController: AVCaptureMetadataOutputObjectsDelegate {
+    func metadataOutput(_ output: AVCaptureMetadataOutput,
+                        didOutput objects: [AVMetadataObject],
+                        from connection: AVCaptureConnection) {
+        captureSession?.stopRunning()
+        if let obj = objects.first as? AVMetadataMachineReadableCodeObject,
+           let value = obj.stringValue {
+            onResult?(value)
+        }
+    }
+}
+`;
+}
+function getLynxInitProcessorSwift() {
+  return `// Copyright 2024 The Lynx Authors. All rights reserved.
+// Licensed under the Apache License Version 2.0 that can be found in the
+// LICENSE file in the root directory of this source tree.
+
+import Foundation
+import UIKit
+
+// GENERATED IMPORTS START
+// This section is automatically generated by Tamer4Lynx.
+// Manual edits will be overwritten.
+// GENERATED IMPORTS END
+
+final class LynxInitProcessor {
+    static let shared = LynxInitProcessor()
+    private init() {}
+
+    func setupEnvironment() {
+        TamerIconElement.registerFonts()
+        setupLynxEnv()
+        setupLynxService()
+    }
+
+    private func setupLynxEnv() {
+        let env = LynxEnv.sharedInstance()
+#if DEBUG
+#if canImport(tamerdevclient)
+        if TamerLynxDevToolPolicy.attachDevToolWithInitialLynxSetup {
+            env.lynxDebugEnabled = true
+            env.logBoxEnabled = true
+        }
+#else
+        env.lynxDebugEnabled = true
+        env.logBoxEnabled = true
+#endif
+#endif
+        let globalConfig = LynxConfig(provider: env.config.templateProvider)
+
+        // GENERATED AUTOLINK START
+
+        // GENERATED AUTOLINK END
+
+        env.prepareConfig(globalConfig)
+    }
+
+    private func setupLynxService() {
+        let webPCoder = SDImageWebPCoder.shared
+        SDImageCodersManager.shared.addCoder(webPCoder)
+    }
+}
+`;
+}
+function getBridgingHeader() {
+  return `#import <Lynx/LynxConfig.h>
+#import <Lynx/LynxEnv.h>
+#import <Lynx/LynxTemplateProvider.h>
+#import <Lynx/LynxView.h>
+#import <Lynx/LynxModule.h>
+#import <SDWebImage/SDWebImage.h>
+#import <SDWebImageWebPCoder/SDWebImageWebPCoder.h>
+`;
+}
+function getInfoPlist() {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleDisplayName</key>
+	<string>Tamer App</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>tamerdevapp</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Used to scan QR codes for connecting to the dev server</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Used to discover Tamer dev servers on your local network</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_tamer._tcp.</string>
+	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+</dict>
+</plist>
+`;
+}
+function getPodfile() {
+  return `source 'https://cdn.cocoapods.org/'
+
+install! 'cocoapods', :incremental_installation => true, :generate_multiple_pod_projects => true
+
+platform :ios, '14.0'
+
+target '${APP_NAME}' do
+  pod 'Lynx', '3.6.0', :subspecs => [
+    'Framework',
+  ], :modular_headers => true
+
+  pod 'PrimJS', '3.6.1', :subspecs => ['quickjs', 'napi']
+
+  pod 'LynxService', '3.6.0', :subspecs => [
+    'Image',
+    'Log',
+    'Http',
+    'Devtool',
+  ]
+  pod 'LynxDevtool', '3.6.0'
+  pod 'SDWebImage','5.15.5'
+  pod 'SDWebImageWebPCoder', '0.11.0'
+
+  # GENERATED AUTOLINK DEPENDENCIES START
+  # This section is automatically generated by Tamer4Lynx.
+  # Manual edits will be overwritten.
+  # GENERATED AUTOLINK DEPENDENCIES END
+end
+
+post_install do |installer|
+  # generate_multiple_pod_projects => true: pods_project may be nil; use generated_projects (CocoaPods 1.8+).
+  pod_xcode_projects = if installer.pods_project
+    [installer.pods_project]
+  elsif installer.respond_to?(:generated_projects) && !installer.generated_projects.empty?
+    installer.generated_projects
+  else
+    []
+  end
+  pod_xcode_projects.each do |project|
+    project.targets.each do |target|
+      target.build_configurations.each do |config|
+        config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
+        config.build_settings['CLANG_ENABLE_EXPLICIT_MODULES'] = 'NO'
+        config.build_settings['SWIFT_ENABLE_EXPLICIT_MODULES'] = 'NO'
+        config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
+${PODFILE_POST_INSTALL_BUILD_SPEED_RUBY}
+      end
+
+      if target.name == 'Lynx'
+        target.build_configurations.each do |config|
+          flags = [
+            '-Wno-vla-extension',
+            '-Wno-vla',
+            '-Wno-error=vla-extension',
+            '-Wno-deprecated-declarations',
+            '-Wno-deprecated',
+            '-Wno-deprecated-implementations',
+            '-Wno-macro-redefined',
+            '-Wno-enum-compare',
+            '-Wno-enum-compare-conditional',
+            '-Wno-enum-conversion',
+            '-Wno-error'
+          ].join(' ')
+
+          config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) #{flags}"
+          config.build_settings['OTHER_CFLAGS'] = "$(inherited) #{flags}"
+          config.build_settings['CLANG_WARN_VLA'] = 'NO'
+          config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
+          config.build_settings['CLANG_WARN_ENUM_CONVERSION'] = 'NO'
+        end
+      end
+      if target.name == 'PrimJS'
+        target.build_configurations.each do |config|
+          config.build_settings['OTHER_CFLAGS'] = "$(inherited) -Wno-macro-redefined"
+          config.build_settings['OTHER_CPLUSPLUSFLAGS'] = "$(inherited) -Wno-macro-redefined"
+        end
+      end
+    end
+  end
+  Dir.glob(File.join(installer.sandbox.root, 'Target Support Files', 'Lynx', '*.xcconfig')).each do |xcconfig_path|
+    next unless File.file?(xcconfig_path)
+    content = File.read(xcconfig_path)
+    next unless content.include?('-Werror')
+    File.write(xcconfig_path, content.gsub('-Werror', ''))
+  end
+  Dir.glob(File.join(installer.sandbox.root, 'Lynx/platform/darwin/**/*.{m,mm}')).each do |lynx_source|
+    next unless File.file?(lynx_source)
+    content = File.read(lynx_source)
+    next unless content.match?(/\\btypeof\\(/)
+    File.chmod(0644, lynx_source) rescue nil
+    File.write(lynx_source, content.gsub(/\\btypeof\\(/, '__typeof__('))
+  end
+end
+`;
+}
+function getMainStoryboard() {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0"
+    toolsVersion="13122.16" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none"
+    useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES"
+    initialViewController="BYZ-38-t0r">
+  <dependencies>
+    <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="13104.12"/>
+    <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+  </dependencies>
+  <scenes>
+    <scene sceneID="tne-QT-ifu">
+      <objects>
+        <viewController id="BYZ-38-t0r" customClass="DevLauncherViewController"
+            customModuleProvider="target" sceneMemberID="viewController">
+          <view key="view" contentMode="scaleToFill" id="8bC-Xf-vdC">
+            <rect key="frame" x="0.0" y="0.0" width="390" height="844"/>
+            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+            <color key="backgroundColor" systemColor="systemBackgroundColor"/>
+            <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
+          </view>
+        </viewController>
+        <placeholder placeholderIdentifier="IBFirstResponder" id="dkx-z0-nzr"
+            sceneMemberID="firstResponder"/>
+      </objects>
+    </scene>
+  </scenes>
+</document>
+`;
+}
+function getLaunchScreenStoryboard() {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0"
+    toolsVersion="13122.16" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none"
+    useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES"
+    colorMatched="YES" initialViewController="01J-lp-oVM">
+  <device id="retina6_12" orientation="portrait" appearance="light"/>
+  <dependencies>
+    <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="13104.12"/>
+    <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+    <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+  </dependencies>
+  <scenes>
+    <scene sceneID="EHf-IW-A2E">
+      <objects>
+        <viewController id="01J-lp-oVM" sceneMemberID="viewController">
+          <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">
+            <rect key="frame" x="0.0" y="0.0" width="390" height="844"/>
+            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+            <subviews>
+              <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="Bg9-1M-mhb">
+                <rect key="frame" x="0.0" y="0.0" width="390" height="844"/>
+                <color key="backgroundColor" white="0.0" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+              </view>
+            </subviews>
+            <viewLayoutGuide key="safeArea" id="Bcu-3y-fUS"/>
+            <color key="backgroundColor" white="0.0" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+            <constraints>
+              <constraint firstItem="Bg9-1M-mhb" firstAttribute="top" secondItem="Ze5-6b-2t3" secondAttribute="top" id="3M4-v9-a3l"/>
+              <constraint firstItem="Bg9-1M-mhb" firstAttribute="bottom" secondItem="Ze5-6b-2t3" secondAttribute="bottom" id="Sbc-LM-HvA"/>
+              <constraint firstItem="Bg9-1M-mhb" firstAttribute="leading" secondItem="Ze5-6b-2t3" secondAttribute="leading" id="cJ0-4h-f4M"/>
+              <constraint firstAttribute="trailing" secondItem="Bg9-1M-mhb" secondAttribute="trailing" id="g0s-pf-rxW"/>
+            </constraints>
+          </view>
+        </viewController>
+        <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>
+      </objects>
+    </scene>
+  </scenes>
+</document>
+`;
+}
+function generatePbxproj(ids) {
+  const srcRoot = "${SRCROOT}";
+  const builtProductsDir = "${BUILT_PRODUCTS_DIR}";
+  const productName = "${PRODUCT_NAME}";
+  return `// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+/* Begin PBXBuildFile section */
+		${ids.appDelegateBuildFile} /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = ${ids.appDelegateRef}; };
+		${ids.devLauncherBuildFile} /* DevLauncherViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = ${ids.devLauncherRef}; };
+		${ids.projectVCBuildFile} /* ProjectViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = ${ids.projectVCRef}; };
+		${ids.templateProviderBuildFile} /* DevTemplateProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = ${ids.templateProviderRef}; };
+		${ids.devClientManagerBuildFile} /* DevClientManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = ${ids.devClientManagerRef}; };
+		${ids.devServerPrefsBuildFile} /* DevServerPrefs in Sources (via DevClientModule) */ = {isa = PBXBuildFile; fileRef = ${ids.devClientModuleRef}; };
+		${ids.qrScannerBuildFile} /* QRScannerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = ${ids.qrScannerRef}; };
+		${ids.lynxInitBuildFile} /* LynxInitProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = ${ids.lynxInitRef}; };
+		${ids.mainStoryboardBuildFile} /* Base in Resources */ = {isa = PBXBuildFile; fileRef = ${ids.mainStoryboardBaseRef}; };
+		${ids.launchStoryboardBuildFile} /* Base in Resources */ = {isa = PBXBuildFile; fileRef = ${ids.launchStoryboardBaseRef}; };
+		${ids.assetsBuildFile} /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ${ids.assetsRef}; };
+		${ids.bundleBuildFile} /* dev-client.lynx.bundle in Resources */ = {isa = PBXBuildFile; fileRef = ${ids.bundleRef}; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		${ids.appFile} /* ${APP_NAME}.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "${APP_NAME}.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		${ids.appDelegateRef} /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppDelegate.swift"; sourceTree = "<group>"; };
+		${ids.devLauncherRef} /* DevLauncherViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DevLauncherViewController.swift"; sourceTree = "<group>"; };
+		${ids.projectVCRef} /* ProjectViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ProjectViewController.swift"; sourceTree = "<group>"; };
+		${ids.templateProviderRef} /* DevTemplateProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DevTemplateProvider.swift"; sourceTree = "<group>"; };
+		${ids.devClientManagerRef} /* DevClientManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DevClientManager.swift"; sourceTree = "<group>"; };
+		${ids.devClientModuleRef} /* DevClientModule (via pod) */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DevClientModule.swift"; sourceTree = "<group>"; };
+		${ids.qrScannerRef} /* QRScannerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "QRScannerViewController.swift"; sourceTree = "<group>"; };
+		${ids.lynxInitRef} /* LynxInitProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LynxInitProcessor.swift"; sourceTree = "<group>"; };
+		${ids.bridgingHeaderRef} /* ${BRIDGING_HEADER} */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "${BRIDGING_HEADER}"; sourceTree = "<group>"; };
+		${ids.mainStoryboardBaseRef} /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = "Base.lproj/Main.storyboard"; sourceTree = "<group>"; };
+		${ids.launchStoryboardBaseRef} /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = "Base.lproj/LaunchScreen.storyboard"; sourceTree = "<group>"; };
+		${ids.assetsRef} /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Assets.xcassets"; sourceTree = "<group>"; };
+		${ids.bundleRef} /* dev-client.lynx.bundle */ = {isa = PBXFileReference; lastKnownFileType = "file"; path = "dev-client.lynx.bundle"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		${ids.frameworksBuildPhase} /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		${ids.mainGroup} = {
+			isa = PBXGroup;
+			children = (
+				${ids.appGroup} /* ${APP_NAME} */,
+				${ids.productsGroup} /* Products */,
+				${ids.frameworksGroup} /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		${ids.productsGroup} /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				${ids.appFile} /* ${APP_NAME}.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		${ids.frameworksGroup} /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		${ids.appGroup} /* ${APP_NAME} */ = {
+			isa = PBXGroup;
+			children = (
+				${ids.appDelegateRef} /* AppDelegate.swift */,
+				${ids.devLauncherRef} /* DevLauncherViewController.swift */,
+				${ids.projectVCRef} /* ProjectViewController.swift */,
+				${ids.templateProviderRef} /* DevTemplateProvider.swift */,
+				${ids.devClientManagerRef} /* DevClientManager.swift */,
+				${ids.devClientModuleRef} /* DevClientModule.swift */,
+				${ids.qrScannerRef} /* QRScannerViewController.swift */,
+				${ids.lynxInitRef} /* LynxInitProcessor.swift */,
+				${ids.bridgingHeaderRef} /* ${BRIDGING_HEADER} */,
+				${ids.mainStoryboardRef} /* Main.storyboard */,
+				${ids.launchStoryboardRef} /* LaunchScreen.storyboard */,
+				${ids.assetsRef} /* Assets.xcassets */,
+				${ids.bundleRef} /* dev-client.lynx.bundle */,
+			);
+			path = "${APP_NAME}";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		${ids.nativeTarget} /* ${APP_NAME} */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = ${ids.targetBuildConfigList};
+			buildPhases = (
+				${ids.sourcesBuildPhase} /* Sources */,
+				${ids.frameworksBuildPhase} /* Frameworks */,
+				${ids.resourcesBuildPhase} /* Resources */,
+				${ids.fontCopyScriptPhase} /* [Tamer] Copy Icon Fonts */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "${APP_NAME}";
+			productName = "${APP_NAME}";
+			productReference = ${ids.appFile};
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		${ids.project} /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 1530;
+			};
+			buildConfigurationList = ${ids.projectBuildConfigList};
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = ${ids.mainGroup};
+			productRefGroup = ${ids.productsGroup} /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				${ids.nativeTarget} /* ${APP_NAME} */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		${ids.resourcesBuildPhase} /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				${ids.assetsBuildFile} /* Assets.xcassets in Resources */,
+				${ids.mainStoryboardBuildFile} /* Base in Resources */,
+				${ids.launchStoryboardBuildFile} /* Base in Resources */,
+				${ids.bundleBuildFile} /* dev-client.lynx.bundle in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		${ids.fontCopyScriptPhase} /* [Tamer] Copy Icon Fonts */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "[Tamer] Copy Icon Fonts";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "FONTS_SRC=\\"${srcRoot}/../../tamer-icons/fonts\\"\\nif [ -d \\"$FONTS_SRC\\" ]; then\\n  cp -f \\"$FONTS_SRC/MaterialSymbolsOutlined.ttf\\" \\"${builtProductsDir}/${productName}.app/\\" 2>/dev/null || true\\n  cp -f \\"$FONTS_SRC/fa-solid-900.ttf\\" \\"${builtProductsDir}/${productName}.app/\\" 2>/dev/null || true\\nfi\\nCP_SRC=\\"${srcRoot}/../../tamer-icons/android/src/main/assets/fonts/material-codepoints.txt\\"\\n[ -f \\"$CP_SRC\\" ] && cp -f \\"$CP_SRC\\" \\"${builtProductsDir}/${productName}.app/\\" 2>/dev/null || true\\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		${ids.sourcesBuildPhase} /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				${ids.appDelegateBuildFile} /* AppDelegate.swift in Sources */,
+				${ids.devLauncherBuildFile} /* DevLauncherViewController.swift in Sources */,
+				${ids.projectVCBuildFile} /* ProjectViewController.swift in Sources */,
+				${ids.templateProviderBuildFile} /* DevTemplateProvider.swift in Sources */,
+				${ids.devClientManagerBuildFile} /* DevClientManager.swift in Sources */,
+				${ids.qrScannerBuildFile} /* QRScannerViewController.swift in Sources */,
+				${ids.lynxInitBuildFile} /* LynxInitProcessor.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXVariantGroup section */
+		${ids.mainStoryboardRef} /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				${ids.mainStoryboardBaseRef} /* Base */,
+			);
+			name = "Main.storyboard";
+			sourceTree = "<group>";
+		};
+		${ids.launchStoryboardRef} /* LaunchScreen.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				${ids.launchStoryboardBaseRef} /* Base */,
+			);
+			name = "LaunchScreen.storyboard";
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		${ids.projectDebugConfig} /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				COMPILER_INDEX_STORE_ENABLE = NO;
+				SWIFT_COMPILATION_MODE = incremental;
+			};
+			name = Debug;
+		};
+		${ids.projectReleaseConfig} /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++17";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		${ids.targetDebugConfig} /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = "${APP_NAME}/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = "1.0";
+				PRODUCT_BUNDLE_IDENTIFIER = "${BUNDLE_ID}";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "${APP_NAME}/${BRIDGING_HEADER}";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		${ids.targetReleaseConfig} /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CURRENT_PROJECT_VERSION = 1;
+				INFOPLIST_FILE = "${APP_NAME}/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = "1.0";
+				PRODUCT_BUNDLE_IDENTIFIER = "${BUNDLE_ID}";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "${APP_NAME}/${BRIDGING_HEADER}";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		${ids.projectBuildConfigList} = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				${ids.projectDebugConfig} /* Debug */,
+				${ids.projectReleaseConfig} /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		${ids.targetBuildConfigList} = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				${ids.targetDebugConfig} /* Debug */,
+				${ids.targetReleaseConfig} /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = ${ids.project} /* Project object */;
+}
+`;
+}
+async function createDevAppProject(iosDir, repoRoot) {
+  const projectDir = path20.join(iosDir, APP_NAME);
+  const xcodeprojDir = path20.join(iosDir, `${APP_NAME}.xcodeproj`);
+  if (fs20.existsSync(iosDir)) {
+    fs20.rmSync(iosDir, { recursive: true, force: true });
+  }
+  console.log(`\u{1F680} Creating TamerDevApp iOS project at: ${iosDir}`);
+  const ids = {};
+  const idKeys = [
+    "project",
+    "mainGroup",
+    "appGroup",
+    "productsGroup",
+    "frameworksGroup",
+    "appFile",
+    "appDelegateRef",
+    "devLauncherRef",
+    "projectVCRef",
+    "templateProviderRef",
+    "devClientManagerRef",
+    "devClientModuleRef",
+    "qrScannerRef",
+    "lynxInitRef",
+    "bridgingHeaderRef",
+    "mainStoryboardRef",
+    "mainStoryboardBaseRef",
+    "launchStoryboardRef",
+    "launchStoryboardBaseRef",
+    "assetsRef",
+    "bundleRef",
+    "nativeTarget",
+    "appDelegateBuildFile",
+    "devLauncherBuildFile",
+    "projectVCBuildFile",
+    "templateProviderBuildFile",
+    "devClientManagerBuildFile",
+    "devServerPrefsBuildFile",
+    "qrScannerBuildFile",
+    "lynxInitBuildFile",
+    "mainStoryboardBuildFile",
+    "launchStoryboardBuildFile",
+    "assetsBuildFile",
+    "bundleBuildFile",
+    "frameworksBuildPhase",
+    "resourcesBuildPhase",
+    "sourcesBuildPhase",
+    "fontCopyScriptPhase",
+    "projectBuildConfigList",
+    "targetBuildConfigList",
+    "projectDebugConfig",
+    "projectReleaseConfig",
+    "targetDebugConfig",
+    "targetReleaseConfig"
+  ];
+  for (const k of idKeys) ids[k] = generateId();
+  writeFile(path20.join(iosDir, "Podfile"), getPodfile());
+  writeFile(path20.join(projectDir, "AppDelegate.swift"), getAppDelegateSwift());
+  const devClientPkg = findDevClientPackage(repoRoot);
+  const templateDir = devClientPkg ? path20.join(devClientPkg, "ios", "templates") : null;
+  const templateVars = { PROJECT_BUNDLE_SEGMENT: "tamer-dev-app" };
+  const templateFiles = [
+    "DevLauncherViewController.swift",
+    "ProjectViewController.swift",
+    "LynxPushViewController.swift",
+    "DevTemplateProvider.swift",
+    "DevClientManager.swift",
+    "QRScannerViewController.swift",
+    "LynxInitProcessor.swift"
+  ];
+  for (const f of templateFiles) {
+    const src = templateDir ? path20.join(templateDir, f) : null;
+    if (src && fs20.existsSync(src)) {
+      writeFile(path20.join(projectDir, f), readAndSubstituteTemplate4(src, templateVars));
+    } else {
+      const fallback = (() => {
+        switch (f) {
+          case "DevLauncherViewController.swift":
+            return getDevLauncherViewControllerSwift();
+          case "ProjectViewController.swift":
+            return getProjectViewControllerSwift();
+          case "LynxPushViewController.swift":
+            return getLynxPushViewControllerSwift();
+          case "DevTemplateProvider.swift":
+            return getDevTemplateProviderSwift();
+          case "DevClientManager.swift":
+            return getDevClientManagerSwift();
+          case "QRScannerViewController.swift":
+            return getQRScannerViewControllerSwift();
+          case "LynxInitProcessor.swift":
+            return getLynxInitProcessorSwift();
+          default:
+            return "";
+        }
+      })();
+      if (fallback) writeFile(path20.join(projectDir, f), fallback);
+    }
+  }
+  writeFile(path20.join(projectDir, BRIDGING_HEADER), getBridgingHeader());
+  writeFile(path20.join(projectDir, "Info.plist"), getInfoPlist());
+  writeFile(path20.join(projectDir, "Base.lproj", "Main.storyboard"), getMainStoryboard());
+  writeFile(path20.join(projectDir, "Base.lproj", "LaunchScreen.storyboard"), getLaunchScreenStoryboard());
+  const appIconDir = path20.join(projectDir, "Assets.xcassets", "AppIcon.appiconset");
+  fs20.mkdirSync(appIconDir, { recursive: true });
+  let iconApplied = false;
+  try {
+    const resolved = resolveDevAppPaths(process.cwd());
+    const iconPaths = resolveIconPaths(resolved.projectRoot, resolved.config);
+    if (iconPaths && applyIosAppIconAssets(appIconDir, iconPaths)) {
+      iconApplied = true;
+    }
+  } catch {
+  }
+  if (!iconApplied) {
+    writeFile(
+      path20.join(appIconDir, "Contents.json"),
+      JSON.stringify({ images: [{ idiom: "universal", platform: "ios", size: "1024x1024" }], info: { author: "xcode", version: 1 } }, null, 2)
+    );
+  }
+  writeFile(
+    path20.join(projectDir, "Assets.xcassets", "Contents.json"),
+    JSON.stringify({ info: { author: "xcode", version: 1 } }, null, 2)
+  );
+  writeFile(path20.join(projectDir, "dev-client.lynx.bundle"), "");
+  try {
+    fs20.mkdirSync(xcodeprojDir, { recursive: true });
+    writeFile(path20.join(xcodeprojDir, "project.pbxproj"), generatePbxproj(ids));
+  } catch (error) {
+    console.error(`\u274C Failed to write TamerDevApp Xcode project: ${error?.message ?? error}`);
+    throw error;
+  }
+  console.log(`\u2705 TamerDevApp iOS project created at ${iosDir}`);
+  await setupCocoaPods(iosDir);
+}
+function syncDevAppSourceFiles(iosDir, repoRoot) {
+  const projectDir = path20.join(iosDir, APP_NAME);
+  const devClientPkg = findDevClientPackage(repoRoot);
+  const templateDir = devClientPkg ? path20.join(devClientPkg, "ios", "templates") : null;
+  const templateVars = { PROJECT_BUNDLE_SEGMENT: "tamer-dev-app" };
+  const templateFiles = [
+    "DevLauncherViewController.swift",
+    "ProjectViewController.swift",
+    "LynxPushViewController.swift",
+    "DevTemplateProvider.swift",
+    "DevClientManager.swift",
+    "QRScannerViewController.swift",
+    "LynxInitProcessor.swift"
+  ];
+  writeFile(path20.join(iosDir, "Podfile"), getPodfile());
+  writeFile(path20.join(projectDir, "AppDelegate.swift"), getAppDelegateSwift());
+  for (const f of templateFiles) {
+    const src = templateDir ? path20.join(templateDir, f) : null;
+    if (src && fs20.existsSync(src)) {
+      writeFile(path20.join(projectDir, f), readAndSubstituteTemplate4(src, templateVars));
+      continue;
+    }
+    const fallback = (() => {
+      switch (f) {
+        case "DevLauncherViewController.swift":
+          return getDevLauncherViewControllerSwift();
+        case "ProjectViewController.swift":
+          return getProjectViewControllerSwift();
+        case "LynxPushViewController.swift":
+          return "";
+        case "DevTemplateProvider.swift":
+          return getDevTemplateProviderSwift();
+        case "DevClientManager.swift":
+          return getDevClientManagerSwift();
+        case "QRScannerViewController.swift":
+          return getQRScannerViewControllerSwift();
+        case "LynxInitProcessor.swift":
+          return getLynxInitProcessorSwift();
+        default:
+          return "";
+      }
+    })();
+    if (fallback) writeFile(path20.join(projectDir, f), fallback);
+  }
+  writeFile(path20.join(projectDir, BRIDGING_HEADER), getBridgingHeader());
+  writeFile(path20.join(projectDir, "Info.plist"), getInfoPlist());
+  writeFile(path20.join(projectDir, "Base.lproj", "Main.storyboard"), getMainStoryboard());
+  writeFile(path20.join(projectDir, "Base.lproj", "LaunchScreen.storyboard"), getLaunchScreenStoryboard());
+}
+async function syncDevClientIos() {
+  let resolved;
+  let repoRoot;
+  try {
+    resolved = resolveDevAppPaths(process.cwd());
+    repoRoot = resolved.projectRoot;
+  } catch (e) {
+    console.error(`\u274C ${e.message}`);
+    process.exit(1);
+  }
+  const iosDir = resolved.iosDir;
+  const workspacePath = path20.join(iosDir, `${APP_NAME}.xcworkspace`);
+  const projectDir = path20.join(iosDir, APP_NAME);
+  const pbxprojPath = path20.join(iosDir, `${APP_NAME}.xcodeproj`, "project.pbxproj");
+  const hasGeneratedProject = fs20.existsSync(path20.join(projectDir, "AppDelegate.swift")) && fs20.existsSync(pbxprojPath);
+  if (!hasGeneratedProject) {
+    await createDevAppProject(iosDir, repoRoot);
+  } else if (!fs20.existsSync(workspacePath)) {
+    await setupCocoaPods(iosDir);
+    console.log(`\u2139\uFE0F  iOS dev-app project exists; ran pod install`);
+  } else {
+    console.log(`\u2139\uFE0F  iOS dev-app project already exists at ${iosDir}`);
+  }
+  syncDevAppSourceFiles(iosDir, repoRoot);
+  const prev = process.cwd();
+  process.chdir(resolved.projectRoot);
+  try {
+    autolink_default2();
+  } finally {
+    process.chdir(prev);
+  }
+  const devClientDir = resolved.lynxProjectDir;
+  console.log("\u{1F4E6} Building dev-client Lynx bundle...");
+  execSync7("npm run build", { stdio: "inherit", cwd: devClientDir });
+  const distDir = path20.join(devClientDir, resolved.lynxBundleRootRel);
+  copyDistAssets(distDir, projectDir, resolved.lynxBundleFile);
+  console.log("\u2728 Copied dev-client bundle and assets to iOS project");
+  if (fs20.existsSync(pbxprojPath)) {
+    const skip = /* @__PURE__ */ new Set([".rspeedy", "stats.json"]);
+    for (const entry of fs20.readdirSync(distDir)) {
+      if (skip.has(entry)) continue;
+      const entryPath = path20.join(distDir, entry);
+      if (fs20.statSync(entryPath).isDirectory()) {
+        addResourceFolderToXcodeProject(pbxprojPath, APP_NAME, entry);
+      } else {
+        addResourceToXcodeProject(pbxprojPath, APP_NAME, entry);
+      }
+    }
+  }
+}
+var syncDevClient_default2 = syncDevClientIos;
 
 // src/ios/syncHost.ts
 function deterministicUUID(seed) {
   return crypto.createHash("sha256").update(seed).digest("hex").substring(0, 24).toUpperCase();
 }
-function getLaunchScreenStoryboard() {
+function getLaunchScreenStoryboard2() {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0"
     toolsVersion="13122.16" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none"
@@ -5603,11 +7330,11 @@ function repairLaunchScreenVariantGroup(content) {
   return { content, repaired: true };
 }
 function addLaunchScreenToXcodeProject(pbxprojPath, appName) {
-  let content = fs20.readFileSync(pbxprojPath, "utf8");
+  let content = fs21.readFileSync(pbxprojPath, "utf8");
   const repaired = repairLaunchScreenVariantGroup(content);
   content = repaired.content;
   if (repaired.repaired) {
-    fs20.writeFileSync(pbxprojPath, content, "utf8");
+    fs21.writeFileSync(pbxprojPath, content, "utf8");
     console.log("\u2705 Repaired LaunchScreen.storyboard PBXVariantGroup in Xcode project");
     return;
   }
@@ -5649,11 +7376,11 @@ function addLaunchScreenToXcodeProject(pbxprojPath, appName) {
   );
   content = content.replace(groupPattern, `$1
 				${variantGroupUUID} /* LaunchScreen.storyboard */,`);
-  fs20.writeFileSync(pbxprojPath, content, "utf8");
+  fs21.writeFileSync(pbxprojPath, content, "utf8");
   console.log("\u2705 Registered LaunchScreen.storyboard in Xcode project");
 }
 function addSwiftSourceToXcodeProject(pbxprojPath, appName, filename) {
-  let content = fs20.readFileSync(pbxprojPath, "utf8");
+  let content = fs21.readFileSync(pbxprojPath, "utf8");
   const escaped = filename.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   if (new RegExp(`path = "?${escaped}"?;`).test(content)) return;
   const fileRefUUID = deterministicUUID(`fileRef:${appName}:${filename}`);
@@ -5678,11 +7405,11 @@ function addSwiftSourceToXcodeProject(pbxprojPath, appName, filename) {
   );
   content = content.replace(groupPattern, `$1
 				${fileRefUUID} /* ${filename} */,`);
-  fs20.writeFileSync(pbxprojPath, content, "utf8");
+  fs21.writeFileSync(pbxprojPath, content, "utf8");
   console.log(`\u2705 Registered ${filename} in Xcode project sources`);
 }
 function addResourceToXcodeProject(pbxprojPath, appName, filename) {
-  let content = fs20.readFileSync(pbxprojPath, "utf8");
+  let content = fs21.readFileSync(pbxprojPath, "utf8");
   const escaped = filename.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   if (new RegExp(`path = "?${escaped}"?;`).test(content)) return;
   const fileRefUUID = deterministicUUID(`fileRef:${appName}:${filename}`);
@@ -5707,14 +7434,43 @@ function addResourceToXcodeProject(pbxprojPath, appName, filename) {
   );
   content = content.replace(groupPattern, `$1
 				${fileRefUUID} /* ${filename} */,`);
-  fs20.writeFileSync(pbxprojPath, content, "utf8");
+  fs21.writeFileSync(pbxprojPath, content, "utf8");
   console.log(`\u2705 Registered ${filename} in Xcode project resources`);
 }
-function writeFile(filePath, content) {
-  fs20.mkdirSync(path20.dirname(filePath), { recursive: true });
-  fs20.writeFileSync(filePath, content, "utf8");
+function addResourceFolderToXcodeProject(pbxprojPath, appName, folderName) {
+  let content = fs21.readFileSync(pbxprojPath, "utf8");
+  const escaped = folderName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (new RegExp(`path = "?${escaped}"?;`).test(content)) return;
+  const fileRefUUID = deterministicUUID(`folderRef:${appName}:${folderName}`);
+  const buildFileUUID = deterministicUUID(`folderBuildFile:${appName}:${folderName}`);
+  content = content.replace(
+    "/* End PBXFileReference section */",
+    `		${fileRefUUID} /* ${folderName} */ = {isa = PBXFileReference; lastKnownFileType = folder; path = ${folderName}; sourceTree = "<group>"; };
+/* End PBXFileReference section */`
+  );
+  content = content.replace(
+    "/* End PBXBuildFile section */",
+    `		${buildFileUUID} /* ${folderName} in Resources */ = {isa = PBXBuildFile; fileRef = ${fileRefUUID} /* ${folderName} */; };
+/* End PBXBuildFile section */`
+  );
+  content = content.replace(
+    /(isa = PBXResourcesBuildPhase;[\s\S]*?files = \()/,
+    `$1
+				${buildFileUUID} /* ${folderName} in Resources */,`
+  );
+  const groupPattern = new RegExp(
+    `(\\/\\* ${appName} \\*\\/ = \\{[\\s\\S]*?isa = PBXGroup;[\\s\\S]*?children = \\()`
+  );
+  content = content.replace(groupPattern, `$1
+				${fileRefUUID} /* ${folderName} */,`);
+  fs21.writeFileSync(pbxprojPath, content, "utf8");
+  console.log(`\u2705 Registered ${folderName} folder in Xcode project resources`);
 }
-function getAppDelegateSwift() {
+function writeFile2(filePath, content) {
+  fs21.mkdirSync(path21.dirname(filePath), { recursive: true });
+  fs21.writeFileSync(filePath, content, "utf8");
+}
+function getAppDelegateSwift2() {
   return `import UIKit
 import tamerlinking
 
@@ -5915,16 +7671,16 @@ function getDevViewControllerSwift(devClientPkg) {
   if (!devClientPkg) {
     throw new Error("tamer-dev-client not found; cannot sync embedded iOS dev host.");
   }
-  const devLauncherPath = path20.join(devClientPkg, "ios", "templates", "DevLauncherViewController.swift");
-  if (!fs20.existsSync(devLauncherPath)) {
+  const devLauncherPath = path21.join(devClientPkg, "ios", "templates", "DevLauncherViewController.swift");
+  if (!fs21.existsSync(devLauncherPath)) {
     throw new Error(`DevLauncherViewController.swift template not found at ${devLauncherPath}`);
   }
-  const devLauncher = fs20.readFileSync(devLauncherPath, "utf8");
+  const devLauncher = fs21.readFileSync(devLauncherPath, "utf8");
   return devLauncher.replace(/class DevLauncherViewController/g, "class ViewController");
 }
 function patchInfoPlist(infoPlistPath) {
-  if (!fs20.existsSync(infoPlistPath)) return;
-  let content = fs20.readFileSync(infoPlistPath, "utf8");
+  if (!fs21.existsSync(infoPlistPath)) return;
+  let content = fs21.readFileSync(infoPlistPath, "utf8");
   content = content.replace(/\s*<key>UIMainStoryboardFile<\/key>\s*<string>[^<]*<\/string>/g, "");
   if (!content.includes("UILaunchStoryboardName")) {
     content = content.replace("</dict>\n</plist>", `	<key>UILaunchStoryboardName</key>
@@ -5956,7 +7712,7 @@ function patchInfoPlist(infoPlistPath) {
 </plist>`);
     console.log("\u2705 Added UIApplicationSceneManifest to Info.plist");
   }
-  fs20.writeFileSync(infoPlistPath, content, "utf8");
+  fs21.writeFileSync(infoPlistPath, content, "utf8");
 }
 function getSimpleLynxProviderSwift() {
   return `import Foundation
@@ -6000,23 +7756,63 @@ class LynxProvider: NSObject, LynxTemplateProvider, LynxTemplateResourceFetcher,
     }
 
     private func loadData(url: String?) -> (data: Data?, error: NSError?) {
-        guard let url = url,
-              let bundleUrl = Bundle.main.url(forResource: url, withExtension: nil),
-              let data = try? Data(contentsOf: bundleUrl) else {
+        guard let normalized = normalizeBundlePath(url),
+              let resourcePath = Bundle.main.resourcePath else {
             let err = NSError(domain: "LynxProvider", code: 404,
                               userInfo: [NSLocalizedDescriptionKey: "Bundle not found: \\(url ?? "nil")"])
             return (nil, err)
         }
+        let abs = (resourcePath as NSString).appendingPathComponent(normalized)
+        guard FileManager.default.fileExists(atPath: abs),
+              let data = try? Data(contentsOf: URL(fileURLWithPath: abs)) else {
+            let err = NSError(domain: "LynxProvider", code: 404,
+                              userInfo: [NSLocalizedDescriptionKey: "Bundle not found: \\(normalized)"])
+            return (nil, err)
+        }
         return (data, nil)
+    }
+
+    private func normalizeBundlePath(_ url: String?) -> String? {
+        guard var s = url?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else { return nil }
+        if let fragment = s.firstIndex(of: "#") {
+            s = String(s[..<fragment])
+        }
+        if let query = s.firstIndex(of: "?") {
+            s = String(s[..<query])
+        }
+        if let parsed = URL(string: s), parsed.scheme != nil, !parsed.path.isEmpty {
+            s = parsed.path
+        }
+        s = s.replacingOccurrences(of: "\\\\", with: "/")
+        while s.hasPrefix("/") {
+            s.removeFirst()
+        }
+        s = stripBeforeMarker(s, marker: ".lynx.bundle/")
+        s = stripBeforeMarker(s, marker: ".web.bundle/")
+        s = stripBeforeMarker(s, marker: "static/")
+        s = stripBeforeMarker(s, marker: "assets/")
+        s = stripBeforeMarker(s, marker: "tamer-assets.json")
+        let normalized = (s as NSString).standardizingPath
+        if normalized == ".." || normalized.hasPrefix("../") { return nil }
+        return normalized
+    }
+
+    private func stripBeforeMarker(_ value: String, marker: String) -> String {
+        guard let range = value.range(of: marker) else { return value }
+        if range.lowerBound == value.startIndex { return value }
+        if marker.hasSuffix("/") {
+            return String(value[range.upperBound...])
+        }
+        return String(value[range.lowerBound...])
     }
 }
 `;
 }
 function readTemplateOrFallback(devClientPkg, templateName, fallback, vars = {}) {
   if (devClientPkg) {
-    const tplPath = path20.join(devClientPkg, "ios", "templates", templateName);
-    if (fs20.existsSync(tplPath)) {
-      let content = fs20.readFileSync(tplPath, "utf8");
+    const tplPath = path21.join(devClientPkg, "ios", "templates", templateName);
+    if (fs21.existsSync(tplPath)) {
+      let content = fs21.readFileSync(tplPath, "utf8");
       for (const [k, v] of Object.entries(vars)) {
         content = content.replace(new RegExp(`\\{\\{${k}\\}\\}`, "g"), v);
       }
@@ -6027,23 +7823,24 @@ function readTemplateOrFallback(devClientPkg, templateName, fallback, vars = {})
 }
 function syncHostIos(opts) {
   const resolved = resolveHostPaths();
-  const appName = resolved.config.ios?.appName;
+  const configuredAppName = resolved.config.ios?.appName;
+  const appName = configuredAppName && fs21.existsSync(path21.join(resolved.iosDir, configuredAppName)) ? configuredAppName : fs21.existsSync(path21.join(resolved.iosDir, "TamerDevApp")) ? "TamerDevApp" : configuredAppName;
   const release = opts?.release === true;
   const devClientPkg = findDevClientPackage(resolved.projectRoot);
   const useDevClient = opts?.includeDevClient ?? (!release && !!devClientPkg);
   if (!appName) {
     throw new Error('"ios.appName" must be defined in tamer.config.json');
   }
-  const projectDir = path20.join(resolved.iosDir, appName);
-  const infoPlistPath = path20.join(projectDir, "Info.plist");
-  if (!fs20.existsSync(projectDir)) {
+  const projectDir = path21.join(resolved.iosDir, appName);
+  const infoPlistPath = path21.join(projectDir, "Info.plist");
+  if (!fs21.existsSync(projectDir)) {
     throw new Error(`iOS project not found at ${projectDir}. Run \`tamer ios create\` first.`);
   }
-  const pbxprojPath = path20.join(resolved.iosDir, `${appName}.xcodeproj`, "project.pbxproj");
-  const baseLprojDir = path20.join(projectDir, "Base.lproj");
-  const launchScreenPath = path20.join(baseLprojDir, "LaunchScreen.storyboard");
-  if (fs20.existsSync(pbxprojPath)) {
-    let pbx = fs20.readFileSync(pbxprojPath, "utf8");
+  const pbxprojPath = path21.join(resolved.iosDir, `${appName}.xcodeproj`, "project.pbxproj");
+  const baseLprojDir = path21.join(projectDir, "Base.lproj");
+  const launchScreenPath = path21.join(baseLprojDir, "LaunchScreen.storyboard");
+  if (fs21.existsSync(pbxprojPath)) {
+    let pbx = fs21.readFileSync(pbxprojPath, "utf8");
     let changed = false;
     if (!pbx.includes("CODE_SIGN_STYLE")) {
       pbx = pbx.replace(
@@ -6088,15 +7885,15 @@ function syncHostIos(opts) {
       }
     }
     if (changed) {
-      fs20.writeFileSync(pbxprojPath, pbx, "utf8");
+      fs21.writeFileSync(pbxprojPath, pbx, "utf8");
     }
   }
   patchInfoPlist(infoPlistPath);
-  writeFile(path20.join(projectDir, "AppDelegate.swift"), getAppDelegateSwift());
-  writeFile(path20.join(projectDir, "SceneDelegate.swift"), getSceneDelegateSwift());
-  if (!fs20.existsSync(launchScreenPath)) {
-    fs20.mkdirSync(baseLprojDir, { recursive: true });
-    writeFile(launchScreenPath, getLaunchScreenStoryboard());
+  writeFile2(path21.join(projectDir, "AppDelegate.swift"), getAppDelegateSwift2());
+  writeFile2(path21.join(projectDir, "SceneDelegate.swift"), getSceneDelegateSwift());
+  if (!fs21.existsSync(launchScreenPath)) {
+    fs21.mkdirSync(baseLprojDir, { recursive: true });
+    writeFile2(launchScreenPath, getLaunchScreenStoryboard2());
   }
   addLaunchScreenToXcodeProject(pbxprojPath, appName);
   addSwiftSourceToXcodeProject(pbxprojPath, appName, "SceneDelegate.swift");
@@ -6104,12 +7901,13 @@ function syncHostIos(opts) {
     const devClientPkg2 = findDevClientPackage(resolved.projectRoot);
     const segment = resolved.lynxProjectDir.split("/").filter(Boolean).pop() ?? "";
     const tplVars = { PROJECT_BUNDLE_SEGMENT: segment };
-    writeFile(path20.join(projectDir, "ViewController.swift"), getDevViewControllerSwift(devClientPkg2));
-    writeFile(path20.join(projectDir, "LynxProvider.swift"), getSimpleLynxProviderSwift());
+    writeFile2(path21.join(projectDir, "ViewController.swift"), getDevViewControllerSwift(devClientPkg2));
+    addSwiftSourceToXcodeProject(pbxprojPath, appName, "ViewController.swift");
+    writeFile2(path21.join(projectDir, "LynxProvider.swift"), getSimpleLynxProviderSwift());
     addSwiftSourceToXcodeProject(pbxprojPath, appName, "LynxProvider.swift");
     const devTPContent = readTemplateOrFallback(devClientPkg2, "DevTemplateProvider.swift", "", tplVars);
     if (devTPContent) {
-      writeFile(path20.join(projectDir, "DevTemplateProvider.swift"), devTPContent);
+      writeFile2(path21.join(projectDir, "DevTemplateProvider.swift"), devTPContent);
       addSwiftSourceToXcodeProject(pbxprojPath, appName, "DevTemplateProvider.swift");
     }
     const projectVCContent = readTemplateOrFallback(
@@ -6119,28 +7917,28 @@ function syncHostIos(opts) {
       tplVars
     );
     if (projectVCContent) {
-      writeFile(path20.join(projectDir, "ProjectViewController.swift"), projectVCContent);
+      writeFile2(path21.join(projectDir, "ProjectViewController.swift"), projectVCContent);
       addSwiftSourceToXcodeProject(pbxprojPath, appName, "ProjectViewController.swift");
     }
     const pushVCContent = readTemplateOrFallback(devClientPkg2, "LynxPushViewController.swift", "", tplVars);
     if (pushVCContent) {
-      writeFile(path20.join(projectDir, "LynxPushViewController.swift"), pushVCContent);
+      writeFile2(path21.join(projectDir, "LynxPushViewController.swift"), pushVCContent);
       addSwiftSourceToXcodeProject(pbxprojPath, appName, "LynxPushViewController.swift");
     }
     const devCMContent = readTemplateOrFallback(devClientPkg2, "DevClientManager.swift", "", tplVars);
     if (devCMContent) {
-      writeFile(path20.join(projectDir, "DevClientManager.swift"), devCMContent);
+      writeFile2(path21.join(projectDir, "DevClientManager.swift"), devCMContent);
       addSwiftSourceToXcodeProject(pbxprojPath, appName, "DevClientManager.swift");
     }
     const qrContent = readTemplateOrFallback(devClientPkg2, "QRScannerViewController.swift", "", tplVars);
     if (qrContent) {
-      writeFile(path20.join(projectDir, "QRScannerViewController.swift"), qrContent);
+      writeFile2(path21.join(projectDir, "QRScannerViewController.swift"), qrContent);
       addSwiftSourceToXcodeProject(pbxprojPath, appName, "QRScannerViewController.swift");
     }
     console.log("\u2705 Synced iOS host app (embedded dev mode) \u2014 ViewController, DevTemplateProvider, ProjectViewController, LynxPushViewController, DevClientManager, QRScannerViewController");
   } else {
-    writeFile(path20.join(projectDir, "ViewController.swift"), getViewControllerSwift());
-    writeFile(path20.join(projectDir, "LynxProvider.swift"), getSimpleLynxProviderSwift());
+    writeFile2(path21.join(projectDir, "ViewController.swift"), getViewControllerSwift());
+    writeFile2(path21.join(projectDir, "LynxProvider.swift"), getSimpleLynxProviderSwift());
     addSwiftSourceToXcodeProject(pbxprojPath, appName, "LynxProvider.swift");
     console.log("\u2705 Synced iOS host app controller files");
   }
@@ -6158,12 +7956,18 @@ var autolink2 = (syncHostOpts) => {
   }
   const projectRoot = resolved.projectRoot;
   const iosProjectPath = resolved.iosDir;
+  function resolveIosAppFolderName() {
+    const configured = resolved.config.ios?.appName;
+    if (configured && fs22.existsSync(path22.join(iosProjectPath, configured))) return configured;
+    if (fs22.existsSync(path22.join(iosProjectPath, "TamerDevApp"))) return "TamerDevApp";
+    return configured;
+  }
   function updateGeneratedSection(filePath, newContent, startMarker, endMarker) {
-    if (!fs21.existsSync(filePath)) {
+    if (!fs22.existsSync(filePath)) {
       console.warn(`\u26A0\uFE0F File not found, skipping update: ${filePath}`);
       return;
     }
-    let fileContent = fs21.readFileSync(filePath, "utf8");
+    let fileContent = fs22.readFileSync(filePath, "utf8");
     const escapedStartMarker = startMarker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const escapedEndMarker = endMarker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const regex = new RegExp(`${escapedStartMarker}[\\s\\S]*?${escapedEndMarker}`, "g");
@@ -6183,33 +7987,33 @@ ${replacementBlock}
 `;
       }
     } else {
-      console.warn(`\u26A0\uFE0F Could not find autolink markers in ${path21.basename(filePath)}. Appending to the end of the file.`);
+      console.warn(`\u26A0\uFE0F Could not find autolink markers in ${path22.basename(filePath)}. Appending to the end of the file.`);
       fileContent += `
 ${replacementBlock}
 `;
     }
-    fs21.writeFileSync(filePath, fileContent, "utf8");
-    console.log(`\u2705 Updated autolinked section in ${path21.basename(filePath)}`);
+    fs22.writeFileSync(filePath, fileContent, "utf8");
+    console.log(`\u2705 Updated autolinked section in ${path22.basename(filePath)}`);
   }
   function resolvePodDirectory(pkg) {
-    const configuredDir = path21.join(pkg.packagePath, pkg.config.ios?.podspecPath || ".");
-    if (fs21.existsSync(configuredDir)) {
+    const configuredDir = path22.join(pkg.packagePath, pkg.config.ios?.podspecPath || ".");
+    if (fs22.existsSync(configuredDir)) {
       return configuredDir;
     }
-    const iosDir = path21.join(pkg.packagePath, "ios");
-    if (fs21.existsSync(iosDir)) {
+    const iosDir = path22.join(pkg.packagePath, "ios");
+    if (fs22.existsSync(iosDir)) {
       const stack = [iosDir];
       while (stack.length > 0) {
         const current = stack.pop();
         try {
-          const entries = fs21.readdirSync(current, { withFileTypes: true });
+          const entries = fs22.readdirSync(current, { withFileTypes: true });
           const podspec = entries.find((entry) => entry.isFile() && entry.name.endsWith(".podspec"));
           if (podspec) {
             return current;
           }
           for (const entry of entries) {
             if (entry.isDirectory()) {
-              stack.push(path21.join(current, entry.name));
+              stack.push(path22.join(current, entry.name));
             }
           }
         } catch {
@@ -6220,9 +8024,9 @@ ${replacementBlock}
   }
   function resolvePodName(pkg) {
     const fullPodspecDir = resolvePodDirectory(pkg);
-    if (fs21.existsSync(fullPodspecDir)) {
+    if (fs22.existsSync(fullPodspecDir)) {
       try {
-        const files = fs21.readdirSync(fullPodspecDir);
+        const files = fs22.readdirSync(fullPodspecDir);
         const podspecFile = files.find((f) => f.endsWith(".podspec"));
         if (podspecFile) return podspecFile.replace(".podspec", "");
       } catch {
@@ -6231,13 +8035,13 @@ ${replacementBlock}
     return pkg.name.split("/").pop().replace(/-/g, "");
   }
   function updatePodfile(packages) {
-    const podfilePath = path21.join(iosProjectPath, "Podfile");
+    const podfilePath = path22.join(iosProjectPath, "Podfile");
     let scriptContent = `  # This section is automatically generated by Tamer4Lynx.
   # Manual edits will be overwritten.`;
     const iosPackages = packages.filter((p) => p.config.ios);
     if (iosPackages.length > 0) {
       iosPackages.forEach((pkg) => {
-        const relativePath = path21.relative(iosProjectPath, resolvePodDirectory(pkg));
+        const relativePath = path22.relative(iosProjectPath, resolvePodDirectory(pkg));
         const podName = resolvePodName(pkg);
         scriptContent += `
   pod '${podName}', :path => '${relativePath}'`;
@@ -6249,9 +8053,9 @@ ${replacementBlock}
     updateGeneratedSection(podfilePath, scriptContent.trim(), "# GENERATED AUTOLINK DEPENDENCIES START", "# GENERATED AUTOLINK DEPENDENCIES END");
   }
   function ensureXElementPod() {
-    const podfilePath = path21.join(iosProjectPath, "Podfile");
-    if (!fs21.existsSync(podfilePath)) return;
-    let content = fs21.readFileSync(podfilePath, "utf8");
+    const podfilePath = path22.join(iosProjectPath, "Podfile");
+    if (!fs22.existsSync(podfilePath)) return;
+    let content = fs22.readFileSync(podfilePath, "utf8");
     if (content.includes("pod 'XElement'")) return;
     const lynxVersionMatch = content.match(/pod\s+'Lynx',\s*'([^']+)'/);
     const lynxVersion = lynxVersionMatch?.[1] ?? "3.6.0";
@@ -6276,7 +8080,7 @@ ${replacementBlock}
 `;
       }
     }
-    fs21.writeFileSync(podfilePath, content, "utf8");
+    fs22.writeFileSync(podfilePath, content, "utf8");
     console.log(`\u2705 Added XElement pod (v${lynxVersion}) to Podfile`);
   }
   function ensureLynxDevToolPods(packages) {
@@ -6284,9 +8088,9 @@ ${replacementBlock}
       (p) => p.name === "@tamer4lynx/tamer-dev-client" || p.name === "tamer-dev-client"
     );
     if (!hasDevClient) return;
-    const podfilePath = path21.join(iosProjectPath, "Podfile");
-    if (!fs21.existsSync(podfilePath)) return;
-    let content = fs21.readFileSync(podfilePath, "utf8");
+    const podfilePath = path22.join(iosProjectPath, "Podfile");
+    if (!fs22.existsSync(podfilePath)) return;
+    let content = fs22.readFileSync(podfilePath, "utf8");
     if (content.includes("pod 'LynxDevtool'") || content.includes('pod "LynxDevtool"')) return;
     const lynxVersionMatch = content.match(/pod\s+'Lynx',\s*'([^']+)'/);
     const lynxVersion = lynxVersionMatch?.[1] ?? "3.6.0";
@@ -6314,13 +8118,13 @@ ${replacementBlock}
 `;
       }
     }
-    fs21.writeFileSync(podfilePath, content, "utf8");
+    fs22.writeFileSync(podfilePath, content, "utf8");
     console.log(`\u2705 Added Lynx DevTool pods (v${lynxVersion}) to Podfile`);
   }
   function ensureMultiProjectSafePostInstall() {
-    const podfilePath = path21.join(iosProjectPath, "Podfile");
-    if (!fs21.existsSync(podfilePath)) return;
-    let content = fs21.readFileSync(podfilePath, "utf8");
+    const podfilePath = path22.join(iosProjectPath, "Podfile");
+    if (!fs22.existsSync(podfilePath)) return;
+    let content = fs22.readFileSync(podfilePath, "utf8");
     if (content.includes("pod_xcode_projects.each do |project|")) return;
     if (!content.includes("installer.pods_project.targets.each do |target|")) return;
     const opening = /post_install do \|installer\|\r?\n\s*installer\.pods_project\.targets\.each do \|target\|/;
@@ -6349,13 +8153,13 @@ ${replacementBlock}
   end
   end
   Dir.glob(File.join(installer.sandbox.root,`);
-    fs21.writeFileSync(podfilePath, content, "utf8");
+    fs22.writeFileSync(podfilePath, content, "utf8");
     console.log("\u2705 Migrated Podfile post_install for generate_multiple_pod_projects (nil pods_project).");
   }
   function ensureLynxPatchInPodfile() {
-    const podfilePath = path21.join(iosProjectPath, "Podfile");
-    if (!fs21.existsSync(podfilePath)) return;
-    let content = fs21.readFileSync(podfilePath, "utf8");
+    const podfilePath = path22.join(iosProjectPath, "Podfile");
+    if (!fs22.existsSync(podfilePath)) return;
+    let content = fs22.readFileSync(podfilePath, "utf8");
     if (content.includes("content.gsub(/\\btypeof\\(/, '__typeof__(')")) return;
     const patch = `
   Dir.glob(File.join(installer.sandbox.root, 'Lynx/platform/darwin/**/*.{m,mm}')).each do |lynx_source|
@@ -6367,13 +8171,13 @@ ${replacementBlock}
   end`;
     content = content.replace(/(\n  end\s*\n)(end\s*)$/, `$1${patch}
 $2`);
-    fs21.writeFileSync(podfilePath, content, "utf8");
+    fs22.writeFileSync(podfilePath, content, "utf8");
     console.log("\u2705 Added Lynx typeof patch to Podfile post_install.");
   }
   function ensurePodBuildSettings() {
-    const podfilePath = path21.join(iosProjectPath, "Podfile");
-    if (!fs21.existsSync(podfilePath)) return;
-    let content = fs21.readFileSync(podfilePath, "utf8");
+    const podfilePath = path22.join(iosProjectPath, "Podfile");
+    if (!fs22.existsSync(podfilePath)) return;
+    let content = fs22.readFileSync(podfilePath, "utf8");
     let changed = false;
     if (!content.includes("CLANG_ENABLE_EXPLICIT_MODULES")) {
       content = content.replace(
@@ -6416,14 +8220,14 @@ $2`);
       changed = true;
     }
     if (changed) {
-      fs21.writeFileSync(podfilePath, content, "utf8");
+      fs22.writeFileSync(podfilePath, content, "utf8");
       console.log("\u2705 Added Xcode compatibility build settings to Podfile post_install.");
     }
   }
   function ensurePodfileBuildSpeedBlock() {
-    const podfilePath = path21.join(iosProjectPath, "Podfile");
-    if (!fs21.existsSync(podfilePath)) return;
-    let content = fs21.readFileSync(podfilePath, "utf8");
+    const podfilePath = path22.join(iosProjectPath, "Podfile");
+    if (!fs22.existsSync(podfilePath)) return;
+    let content = fs22.readFileSync(podfilePath, "utf8");
     if (content.includes("# TAMER_BUILD_SPEED_START")) return;
     const needle = "config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'";
     const idx = content.indexOf(needle);
@@ -6431,13 +8235,13 @@ $2`);
     const insertAt = idx + needle.length;
     content = `${content.slice(0, insertAt)}
 ${PODFILE_POST_INSTALL_BUILD_SPEED_RUBY}${content.slice(insertAt)}`;
-    fs21.writeFileSync(podfilePath, content, "utf8");
+    fs22.writeFileSync(podfilePath, content, "utf8");
     console.log("\u2705 Added iOS build-speed settings to Podfile (Debug index store + optional ccache).");
   }
   function ensurePbxprojBuildSpeed() {
-    const appName = resolved.config.ios?.appName;
+    const appName = resolveIosAppFolderName();
     if (!appName) return;
-    const pbxPath = path21.join(iosProjectPath, `${appName}.xcodeproj`, "project.pbxproj");
+    const pbxPath = path22.join(iosProjectPath, `${appName}.xcodeproj`, "project.pbxproj");
     if (patchPbxprojProjectDebugBuildSpeed(pbxPath)) {
       console.log("\u2705 Added Debug build-speed settings to Xcode project (Swift incremental + index store).");
     }
@@ -6445,11 +8249,15 @@ ${PODFILE_POST_INSTALL_BUILD_SPEED_RUBY}${content.slice(insertAt)}`;
   function updateLynxInitProcessor(packages) {
     const appNameFromConfig = resolved.config.ios?.appName;
     const candidatePaths = [];
-    if (appNameFromConfig) {
-      candidatePaths.push(path21.join(iosProjectPath, appNameFromConfig, "LynxInitProcessor.swift"));
+    const appFolder = resolveIosAppFolderName();
+    if (appFolder) {
+      candidatePaths.push(path22.join(iosProjectPath, appFolder, "LynxInitProcessor.swift"));
     }
-    candidatePaths.push(path21.join(iosProjectPath, "LynxInitProcessor.swift"));
-    const found = candidatePaths.find((p) => fs21.existsSync(p));
+    if (appNameFromConfig && appNameFromConfig !== appFolder) {
+      candidatePaths.push(path22.join(iosProjectPath, appNameFromConfig, "LynxInitProcessor.swift"));
+    }
+    candidatePaths.push(path22.join(iosProjectPath, "LynxInitProcessor.swift"));
+    const found = candidatePaths.find((p) => fs22.existsSync(p));
     const lynxInitPath = found ?? candidatePaths[0];
     const iosPackages = packages.filter((p) => getIosModuleClassNames(p.config.ios).length > 0 || Object.keys(getIosElements(p.config.ios)).length > 0);
     const seenModules = /* @__PURE__ */ new Set();
@@ -6488,7 +8296,7 @@ ${PODFILE_POST_INSTALL_BUILD_SPEED_RUBY}${content.slice(insertAt)}`;
         const podName = resolvePodName(pkg);
         return `import ${podName}`;
       }).join("\n");
-      const fileContent = fs21.readFileSync(filePath, "utf8");
+      const fileContent = fs22.readFileSync(filePath, "utf8");
       if (fileContent.indexOf(startMarker) !== -1) {
         updateGeneratedSection(filePath, imports, startMarker, endMarker);
         return;
@@ -6525,8 +8333,8 @@ ${after}`;
 ${fileContent}`;
         }
       }
-      fs21.writeFileSync(filePath, newContent, "utf8");
-      console.log(`\u2705 Updated imports in ${path21.basename(filePath)}`);
+      fs22.writeFileSync(filePath, newContent, "utf8");
+      console.log(`\u2705 Updated imports in ${path22.basename(filePath)}`);
     }
     updateImportsSection(lynxInitPath, importPackages);
     if (importPackages.length === 0) {
@@ -6570,21 +8378,25 @@ ${androidNames.map((n) => `            "${n.replace(/\\/g, "\\\\").replace(/"/g,
     } else {
       devClientSupportedBody = "        // @tamer4lynx/tamer-dev-client not linked";
     }
-    if (fs21.readFileSync(lynxInitPath, "utf8").includes("GENERATED DEV_CLIENT_SUPPORTED START")) {
+    if (fs22.readFileSync(lynxInitPath, "utf8").includes("GENERATED DEV_CLIENT_SUPPORTED START")) {
       updateGeneratedSection(lynxInitPath, devClientSupportedBody, "// GENERATED DEV_CLIENT_SUPPORTED START", "// GENERATED DEV_CLIENT_SUPPORTED END");
     }
   }
   function findInfoPlist() {
     const appNameFromConfig = resolved.config.ios?.appName;
+    const appFolder = resolveIosAppFolderName();
     const candidates = [];
-    if (appNameFromConfig) {
-      candidates.push(path21.join(iosProjectPath, appNameFromConfig, "Info.plist"));
+    if (appFolder) {
+      candidates.push(path22.join(iosProjectPath, appFolder, "Info.plist"));
     }
-    candidates.push(path21.join(iosProjectPath, "Info.plist"));
-    return candidates.find((p) => fs21.existsSync(p)) ?? null;
+    if (appNameFromConfig) {
+      candidates.push(path22.join(iosProjectPath, appNameFromConfig, "Info.plist"));
+    }
+    candidates.push(path22.join(iosProjectPath, "Info.plist"));
+    return candidates.find((p) => fs22.existsSync(p)) ?? null;
   }
   function readPlistXml(plistPath) {
-    return fs21.readFileSync(plistPath, "utf8");
+    return fs22.readFileSync(plistPath, "utf8");
   }
   function syncInfoPlistPermissions(packages) {
     const plistPath = findInfoPlist();
@@ -6615,7 +8427,7 @@ ${androidNames.map((n) => `            "${n.replace(/\\/g, "\\\\").replace(/"/g,
       added++;
     }
     if (added > 0) {
-      fs21.writeFileSync(plistPath, plist, "utf8");
+      fs22.writeFileSync(plistPath, plist, "utf8");
       console.log(`\u2705 Synced ${added} Info.plist permission description(s)`);
     }
   }
@@ -6662,23 +8474,24 @@ ${schemesXml}
 $1`
       );
     }
-    fs21.writeFileSync(plistPath, plist, "utf8");
+    fs22.writeFileSync(plistPath, plist, "utf8");
     console.log(`\u2705 Synced ${urlSchemes.length} iOS URL scheme(s) into Info.plist`);
   }
   function runPodInstall(forcePath) {
-    const podfilePath = forcePath ?? path21.join(iosProjectPath, "Podfile");
-    if (!fs21.existsSync(podfilePath)) {
+    const podfilePath = forcePath ?? path22.join(iosProjectPath, "Podfile");
+    if (!fs22.existsSync(podfilePath)) {
       console.log("\u2139\uFE0F No Podfile found in ios directory; skipping `pod install`.");
       return;
     }
-    const cwd = path21.dirname(podfilePath);
+    const cwd = path22.dirname(podfilePath);
+    const podEnv = { ...process.env, LANG: "en_US.UTF-8", LC_ALL: "en_US.UTF-8" };
     try {
       console.log(`\u2139\uFE0F Running \`pod install\` in ${cwd}...`);
       try {
-        execSync7("pod install", { cwd, stdio: "inherit" });
+        execSync8("pod install", { cwd, stdio: "inherit", env: podEnv });
       } catch {
         console.log("\u2139\uFE0F Retrying `pod install` with repo update...");
-        execSync7("pod install --repo-update", { cwd, stdio: "inherit" });
+        execSync8("pod install --repo-update", { cwd, stdio: "inherit", env: podEnv });
       }
       console.log("\u2705 `pod install` completed successfully.");
     } catch (e) {
@@ -6694,7 +8507,12 @@ $1`
     } else {
       console.log("\u2139\uFE0F No Tamer4Lynx native packages found.");
     }
-    syncHost_default(syncHostOpts);
+    try {
+      syncHost_default(syncHostOpts);
+    } catch (error) {
+      console.error(`\u274C Failed to sync iOS host files: ${error?.message ?? error}`);
+      process.exit(1);
+    }
     updatePodfile(packages);
     ensureXElementPod();
     ensureLynxDevToolPods(discoverModules(projectRoot));
@@ -6708,9 +8526,10 @@ $1`
     syncInfoPlistPermissions(packages);
     syncInfoPlistUrlSchemes();
     const appNameFromConfig = resolved.config.ios?.appName;
-    if (appNameFromConfig) {
-      const appPodfile = path21.join(iosProjectPath, appNameFromConfig, "Podfile");
-      if (fs21.existsSync(appPodfile)) {
+    const appFolder = resolveIosAppFolderName();
+    if (appFolder) {
+      const appPodfile = path22.join(iosProjectPath, appFolder, "Podfile");
+      if (fs22.existsSync(appPodfile)) {
         runPodInstall(appPodfile);
         console.log("\u2728 Autolinking complete for iOS.");
         runTamerComponentTypesPipeline(projectRoot);
@@ -6724,16 +8543,16 @@ $1`
   function writeHostNativeModulesManifest() {
     const allPkgs = discoverModules(projectRoot);
     const hasDevClient = allPkgs.some((p) => p.name === "@tamer4lynx/tamer-dev-client");
-    const appFolder = resolved.config.ios?.appName;
+    const appFolder = resolveIosAppFolderName();
     if (!hasDevClient || !appFolder) return;
     const androidNames = getDedupedAndroidModuleClassNames(allPkgs);
-    const appDir = path21.join(iosProjectPath, appFolder);
-    fs21.mkdirSync(appDir, { recursive: true });
-    const manifestPath = path21.join(appDir, TAMER_HOST_NATIVE_MODULES_FILENAME);
-    fs21.writeFileSync(manifestPath, buildHostNativeModulesManifestJson(androidNames), "utf8");
+    const appDir = path22.join(iosProjectPath, appFolder);
+    fs22.mkdirSync(appDir, { recursive: true });
+    const manifestPath = path22.join(appDir, TAMER_HOST_NATIVE_MODULES_FILENAME);
+    fs22.writeFileSync(manifestPath, buildHostNativeModulesManifestJson(androidNames), "utf8");
     console.log(`\u2705 Wrote ${TAMER_HOST_NATIVE_MODULES_FILENAME} (native module ids for dev-client checks)`);
-    const pbxprojPath = path21.join(iosProjectPath, `${appFolder}.xcodeproj`, "project.pbxproj");
-    if (fs21.existsSync(pbxprojPath)) {
+    const pbxprojPath = path22.join(iosProjectPath, `${appFolder}.xcodeproj`, "project.pbxproj");
+    if (fs22.existsSync(pbxprojPath)) {
       addResourceToXcodeProject(pbxprojPath, appFolder, TAMER_HOST_NATIVE_MODULES_FILENAME);
     }
   }
@@ -6742,9 +8561,22 @@ $1`
 var autolink_default2 = autolink2;
 
 // src/ios/bundle.ts
-import fs22 from "fs";
-import path22 from "path";
-import { execSync as execSync8 } from "child_process";
+import fs23 from "fs";
+import path23 from "path";
+import { execSync as execSync9 } from "child_process";
+function buildEnvWithOfficialAppMetadata2(projectRoot) {
+  if (!isDevAppProject(projectRoot)) return process.env;
+  const officialAppJsonPath = path23.join(projectRoot, "official-app.json");
+  if (!fs23.existsSync(officialAppJsonPath)) return process.env;
+  try {
+    const metadata = fs23.readFileSync(officialAppJsonPath, "utf8");
+    JSON.parse(metadata);
+    return { ...process.env, TAMER_DEV_CLIENT_OFFICIAL_APP_METADATA_JSON: metadata };
+  } catch {
+    console.warn("\u26A0 Could not read official-app.json; building without official app metadata.");
+    return process.env;
+  }
+}
 function bundleAndDeploy2(opts = {}) {
   const release = opts.release === true || opts.production === true;
   let resolved;
@@ -6759,26 +8591,31 @@ function bundleAndDeploy2(opts = {}) {
   }
   const devClientPkg = findDevClientPackage(resolved.projectRoot);
   const includeDevClient = !release && !!devClientPkg;
-  const appName = resolved.config.ios.appName;
+  let appName = resolved.config.ios.appName;
   const { lynxProjectDir, lynxBundleFiles, lynxBundleRootRel } = resolved;
   const sourceBundlePath = resolved.lynxBundlePath;
-  const destinationDir = path22.join(resolved.iosDir, appName);
-  const destinationBundlePath = path22.join(destinationDir, resolved.lynxBundleFile);
+  if (fs23.existsSync(resolved.iosDir)) {
+    const xcodeproj = fs23.readdirSync(resolved.iosDir).find((f) => f.endsWith(".xcodeproj"));
+    if (xcodeproj) appName = path23.basename(xcodeproj, ".xcodeproj");
+  }
+  const destinationDir = path23.join(resolved.iosDir, appName);
+  const destinationBundlePath = path23.join(destinationDir, resolved.lynxBundleFile);
   autolink_default2({ release, includeDevClient });
   const iconPaths = resolveIconPaths(resolved.projectRoot, resolved.config);
   if (iconPaths) {
-    const appIconDir = path22.join(destinationDir, "Assets.xcassets", "AppIcon.appiconset");
+    const appIconDir = path23.join(destinationDir, "Assets.xcassets", "AppIcon.appiconset");
     if (applyIosAppIconAssets(appIconDir, iconPaths)) {
       console.log("\u2705 Synced iOS AppIcon from tamer.config.json");
     }
   }
   try {
-    const lynxTsconfig = path22.join(resolved.lynxProjectDir, "tsconfig.json");
-    if (fs22.existsSync(lynxTsconfig)) {
+    const lynxTsconfig = path23.join(resolved.lynxProjectDir, "tsconfig.json");
+    if (fs23.existsSync(lynxTsconfig)) {
       fixTsconfigReferencesForBuild(lynxTsconfig);
     }
     console.log("\u{1F4E6} Building Lynx bundle...");
-    execSync8("npm run build", { stdio: "inherit", cwd: resolved.lynxProjectDir });
+    const buildEnv = buildEnvWithOfficialAppMetadata2(resolved.projectRoot);
+    execSync9("npm run build", { stdio: "inherit", cwd: resolved.lynxProjectDir, env: buildEnv });
     console.log("\u2705 Build completed successfully.");
   } catch (error) {
     console.error("\u274C Build process failed. Please check the errors above.");
@@ -6786,46 +8623,51 @@ function bundleAndDeploy2(opts = {}) {
   }
   try {
     for (const name of lynxBundleFiles) {
-      const p = path22.join(lynxProjectDir, lynxBundleRootRel, name);
-      if (!fs22.existsSync(p)) {
+      const p = path23.join(lynxProjectDir, lynxBundleRootRel, name);
+      if (!fs23.existsSync(p)) {
         console.error(`\u274C Build output not found at: ${p}`);
         process.exit(1);
       }
     }
-    if (!fs22.existsSync(destinationDir)) {
+    if (!fs23.existsSync(destinationDir)) {
       console.error(`Destination directory not found at: ${destinationDir}`);
       process.exit(1);
     }
-    const distDir = path22.dirname(sourceBundlePath);
+    const distDir = path23.dirname(sourceBundlePath);
     console.log(`\u{1F69A} Copying bundle and assets to iOS project...`);
     copyDistAssets(distDir, destinationDir, resolved.lynxBundleFile);
     console.log(`\u2728 Successfully copied bundle to: ${destinationBundlePath}`);
-    const pbxprojPath = path22.join(resolved.iosDir, `${appName}.xcodeproj`, "project.pbxproj");
-    if (fs22.existsSync(pbxprojPath)) {
+    const pbxprojPath = path23.join(resolved.iosDir, `${appName}.xcodeproj`, "project.pbxproj");
+    if (fs23.existsSync(pbxprojPath)) {
       const skip = /* @__PURE__ */ new Set([".rspeedy", "stats.json"]);
-      for (const entry of fs22.readdirSync(distDir)) {
-        if (skip.has(entry) || fs22.statSync(path22.join(distDir, entry)).isDirectory()) continue;
-        addResourceToXcodeProject(pbxprojPath, appName, entry);
+      for (const entry of fs23.readdirSync(distDir)) {
+        if (skip.has(entry)) continue;
+        const entryPath = path23.join(distDir, entry);
+        if (fs23.statSync(entryPath).isDirectory()) {
+          addResourceFolderToXcodeProject(pbxprojPath, appName, entry);
+        } else {
+          addResourceToXcodeProject(pbxprojPath, appName, entry);
+        }
       }
     }
     if (includeDevClient && devClientPkg) {
       console.log("\u{1F4E6} Building dev-client bundle...");
       try {
-        execSync8("npm run build", { stdio: "inherit", cwd: devClientPkg });
+        execSync9("npm run build", { stdio: "inherit", cwd: devClientPkg });
       } catch {
         console.warn("\u26A0\uFE0F  dev-client build failed; skipping dev-client bundle");
       }
-      const pbxprojPath2 = path22.join(resolved.iosDir, `${appName}.xcodeproj`, "project.pbxproj");
+      const pbxprojPath2 = path23.join(resolved.iosDir, `${appName}.xcodeproj`, "project.pbxproj");
       for (const bundleName of resolved.devClientBundleFiles ?? ["dev-client.lynx.bundle"]) {
-        const builtBundle = path22.join(devClientPkg, "dist", bundleName);
-        const destinationBundle = path22.join(destinationDir, bundleName);
-        if (!fs22.existsSync(builtBundle)) {
+        const builtBundle = path23.join(devClientPkg, "dist", bundleName);
+        const destinationBundle = path23.join(destinationDir, bundleName);
+        if (!fs23.existsSync(builtBundle)) {
           console.warn(`\u26A0\uFE0F  ${bundleName} build output missing; skipping`);
           continue;
         }
-        fs22.copyFileSync(builtBundle, destinationBundle);
+        fs23.copyFileSync(builtBundle, destinationBundle);
         console.log(`\u2728 Copied ${bundleName} to iOS project`);
-        if (fs22.existsSync(pbxprojPath2)) {
+        if (fs23.existsSync(pbxprojPath2)) {
           addResourceToXcodeProject(pbxprojPath2, appName, bundleName);
         }
       }
@@ -6839,17 +8681,17 @@ function bundleAndDeploy2(opts = {}) {
 var bundle_default2 = bundleAndDeploy2;
 
 // src/ios/build.ts
-import fs26 from "fs";
-import path26 from "path";
+import fs27 from "fs";
+import path27 from "path";
 import os6 from "os";
-import { randomBytes as randomBytes2 } from "crypto";
-import { execSync as execSync11 } from "child_process";
+import { randomBytes as randomBytes3 } from "crypto";
+import { execSync as execSync12 } from "child_process";
 
 // src/ios/codesign.ts
-import fs23 from "fs";
-import path23 from "path";
+import fs24 from "fs";
+import path24 from "path";
 import os4 from "os";
-import { execSync as execSync9 } from "child_process";
+import { execSync as execSync10 } from "child_process";
 var SIGNABLE_EXTENSIONS = /* @__PURE__ */ new Set([
   ".app",
   ".framework",
@@ -6858,7 +8700,7 @@ var SIGNABLE_EXTENSIONS = /* @__PURE__ */ new Set([
   ".so"
 ]);
 function run2(cmd, opts = {}) {
-  return execSync9(cmd, {
+  return execSync10(cmd, {
     encoding: "utf8",
     stdio: ["pipe", "pipe", "pipe"],
     ...opts
@@ -6867,10 +8709,10 @@ function run2(cmd, opts = {}) {
 function extractEntitlementsPlist(profilePath) {
   try {
     const xml = run2(`security cms -D -i "${profilePath}"`);
-    const tmp = path23.join(os4.tmpdir(), `t4l-ent-${Date.now()}.plist`);
-    fs23.writeFileSync(tmp, xml, "utf8");
+    const tmp = path24.join(os4.tmpdir(), `t4l-ent-${Date.now()}.plist`);
+    fs24.writeFileSync(tmp, xml, "utf8");
     const json = run2(`plutil -convert json -o - "${tmp}"`);
-    fs23.unlinkSync(tmp);
+    fs24.unlinkSync(tmp);
     const plist = JSON.parse(json);
     const ent = plist.Entitlements;
     if (!ent) return null;
@@ -6899,17 +8741,17 @@ function extractEntitlementsPlist(profilePath) {
   }
 }
 function resolveSigningBinary(itemPath) {
-  const ext = path23.extname(itemPath);
+  const ext = path24.extname(itemPath);
   if (ext === ".framework") {
-    const name = path23.basename(itemPath, ".framework");
-    return path23.join(itemPath, name);
+    const name = path24.basename(itemPath, ".framework");
+    return path24.join(itemPath, name);
   }
   if (ext === ".app" || ext === ".appex") {
-    const infoPlist = path23.join(itemPath, "Info.plist");
-    if (fs23.existsSync(infoPlist)) {
+    const infoPlist = path24.join(itemPath, "Info.plist");
+    if (fs24.existsSync(infoPlist)) {
       try {
         const exe = run2(`/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "${infoPlist}"`);
-        if (exe) return path23.join(itemPath, exe);
+        if (exe) return path24.join(itemPath, exe);
       } catch {
       }
     }
@@ -6917,31 +8759,31 @@ function resolveSigningBinary(itemPath) {
   return itemPath;
 }
 function signPath(itemPath, identity, entitlementsFile, profilePath) {
-  const stat = fs23.statSync(itemPath);
+  const stat = fs24.statSync(itemPath);
   if (stat.isDirectory()) {
-    const children = fs23.readdirSync(itemPath).map((c) => path23.join(itemPath, c));
+    const children = fs24.readdirSync(itemPath).map((c) => path24.join(itemPath, c));
     for (const child of children) {
-      if (fs23.statSync(child).isDirectory()) {
+      if (fs24.statSync(child).isDirectory()) {
         signPath(child, identity, entitlementsFile, profilePath);
       }
     }
   }
-  const ext = path23.extname(itemPath);
+  const ext = path24.extname(itemPath);
   if (!SIGNABLE_EXTENSIONS.has(ext)) return;
   if ((ext === ".app" || ext === ".appex") && profilePath) {
-    const dest = path23.join(itemPath, "embedded.mobileprovision");
+    const dest = path24.join(itemPath, "embedded.mobileprovision");
     try {
-      fs23.unlinkSync(dest);
+      fs24.unlinkSync(dest);
     } catch {
     }
-    fs23.copyFileSync(profilePath, dest);
+    fs24.copyFileSync(profilePath, dest);
   }
   const target = resolveSigningBinary(itemPath);
-  if (!fs23.existsSync(target)) return;
+  if (!fs24.existsSync(target)) return;
   const useEntitlements = (ext === ".app" || ext === ".appex") && entitlementsFile;
   const entFlag = useEntitlements ? ` --entitlements "${entitlementsFile}"` : "";
   const cmd = `codesign -f -s "${identity}" --generate-entitlement-der${entFlag} "${itemPath}"`;
-  execSync9(cmd, { stdio: "inherit" });
+  execSync10(cmd, { stdio: "inherit" });
 }
 function findMatchingProfile(bundleId, teamId) {
   if (!bundleId) return null;
@@ -6962,7 +8804,7 @@ function resolveIdentitySha1(configuredIdentity) {
   return dev?.sha1 ?? identities[0].sha1;
 }
 function codesignApp(appPath, opts) {
-  if (!fs23.existsSync(appPath)) {
+  if (!fs24.existsSync(appPath)) {
     throw new Error(`App bundle not found: ${appPath}`);
   }
   let entFile = null;
@@ -6972,13 +8814,13 @@ function codesignApp(appPath, opts) {
   } else if (opts.profilePath) {
     const xml = extractEntitlementsPlist(opts.profilePath);
     if (xml) {
-      tmpEntFile = path23.join(os4.tmpdir(), `t4l-entitlements-${Date.now()}.plist`);
-      fs23.writeFileSync(tmpEntFile, xml, "utf8");
+      tmpEntFile = path24.join(os4.tmpdir(), `t4l-entitlements-${Date.now()}.plist`);
+      fs24.writeFileSync(tmpEntFile, xml, "utf8");
       entFile = tmpEntFile;
     }
   }
   try {
-    console.log(`\u{1F50F} Signing ${path23.basename(appPath)}...`);
+    console.log(`\u{1F50F} Signing ${path24.basename(appPath)}...`);
     signPath(appPath, opts.identity, entFile, opts.profilePath ?? null);
     try {
       run2(`codesign -v "${appPath}"`);
@@ -6987,21 +8829,21 @@ function codesignApp(appPath, opts) {
       console.warn(`\u26A0\uFE0F Signature verification warning: ${e.message}`);
     }
   } finally {
-    if (tmpEntFile && fs23.existsSync(tmpEntFile)) fs23.unlinkSync(tmpEntFile);
+    if (tmpEntFile && fs24.existsSync(tmpEntFile)) fs24.unlinkSync(tmpEntFile);
   }
 }
 
 // src/ios/macIosRun.ts
-import fs24 from "fs";
-import path24 from "path";
+import fs25 from "fs";
+import path25 from "path";
 import os5 from "os";
-import { execSync as execSync10 } from "child_process";
+import { execSync as execSync11 } from "child_process";
 var MH_MAGIC_64 = 4277009103;
 var MH_CIGAM_64 = 3489328638;
 var FAT_MAGIC = 3405691582;
 var FAT_MAGIC_64 = 3405691583;
 function run3(cmd) {
-  return execSync10(cmd, {
+  return execSync11(cmd, {
     encoding: "utf8",
     stdio: ["pipe", "pipe", "pipe"]
   }).trim();
@@ -7028,12 +8870,12 @@ function isMachOMagic(buf) {
 }
 function isMachOFile(filePath) {
   try {
-    const st = fs24.statSync(filePath);
+    const st = fs25.statSync(filePath);
     if (!st.isFile() || st.size < 4) return false;
-    const fd = fs24.openSync(filePath, "r");
+    const fd = fs25.openSync(filePath, "r");
     const buf = Buffer.alloc(4);
-    fs24.readSync(fd, buf, 0, 4, 0);
-    fs24.closeSync(fd);
+    fs25.readSync(fd, buf, 0, 4, 0);
+    fs25.closeSync(fd);
     return isMachOMagic(buf);
   } catch {
     return false;
@@ -7044,23 +8886,23 @@ function collectMachOBinaries(root) {
   function walk(dir) {
     let names;
     try {
-      names = fs24.readdirSync(dir);
+      names = fs25.readdirSync(dir);
     } catch {
       return;
     }
     for (const name of names) {
       if (name === "_CodeSignature") continue;
-      const p = path24.join(dir, name);
+      const p = path25.join(dir, name);
       let st;
       try {
-        st = fs24.statSync(p);
+        st = fs25.statSync(p);
       } catch {
         continue;
       }
       if (st.isDirectory()) {
         walk(p);
       } else if (st.isFile() && st.size > 4) {
-        const ext = path24.extname(name);
+        const ext = path25.extname(name);
         if (ext && ext !== ".dylib" && ext !== ".so") continue;
         if (isMachOFile(p)) out.push(p);
       }
@@ -7073,7 +8915,7 @@ function parseVtoolBuild(binaryPath) {
   const vt = vtoolBin();
   let out;
   try {
-    out = execSync10(`"${vt}" -show-build "${binaryPath}"`, {
+    out = execSync11(`"${vt}" -show-build "${binaryPath}"`, {
       encoding: "utf8",
       stdio: ["pipe", "pipe", "pipe"]
     });
@@ -7089,7 +8931,7 @@ function thinArm64IfNeeded(binaryPath) {
   const lip = lipoBin();
   let info;
   try {
-    info = execSync10(`"${lip}" -info "${binaryPath}"`, {
+    info = execSync11(`"${lip}" -info "${binaryPath}"`, {
       encoding: "utf8",
       stdio: ["pipe", "pipe", "pipe"]
     });
@@ -7102,14 +8944,14 @@ function thinArm64IfNeeded(binaryPath) {
     );
   }
   if (/Non-fat file/i.test(info)) return;
-  const tmp = path24.join(os5.tmpdir(), `t4l-lipo-${Date.now()}-${path24.basename(binaryPath)}`);
-  execSync10(`"${lip}" -thin arm64 "${binaryPath}" -output "${tmp}"`, { stdio: "inherit" });
-  fs24.renameSync(tmp, binaryPath);
+  const tmp = path25.join(os5.tmpdir(), `t4l-lipo-${Date.now()}-${path25.basename(binaryPath)}`);
+  execSync11(`"${lip}" -thin arm64 "${binaryPath}" -output "${tmp}"`, { stdio: "inherit" });
+  fs25.renameSync(tmp, binaryPath);
 }
 function patchSwiftUIKitIfNeeded(binaryPath) {
   let otool;
   try {
-    otool = execSync10(`otool -L "${binaryPath}"`, {
+    otool = execSync11(`otool -L "${binaryPath}"`, {
       encoding: "utf8",
       stdio: ["pipe", "pipe", "pipe"]
     });
@@ -7119,39 +8961,39 @@ function patchSwiftUIKitIfNeeded(binaryPath) {
   const from = "@rpath/libswiftUIKit.dylib";
   const to = "/System/iOSSupport/usr/lib/swift/libswiftUIKit.dylib";
   if (!otool.includes(from)) return;
-  execSync10(`install_name_tool -change "${from}" "${to}" "${binaryPath}"`, { stdio: "inherit" });
+  execSync11(`install_name_tool -change "${from}" "${to}" "${binaryPath}"`, { stdio: "inherit" });
 }
 function convertToMacCatalyst(binaryPath, minos, sdk) {
   const vt = vtoolBin();
   const tmp = `${binaryPath}.vtool-tmp`;
-  execSync10(
+  execSync11(
     `"${vt}" -set-build-version maccatalyst ${minos} ${sdk} -replace -output "${tmp}" "${binaryPath}"`,
     { stdio: "inherit" }
   );
-  fs24.renameSync(tmp, binaryPath);
+  fs25.renameSync(tmp, binaryPath);
 }
 function adhocSignMachO(binaryPath) {
-  execSync10(`codesign -f -s - "${binaryPath}"`, { stdio: "inherit" });
+  execSync11(`codesign -f -s - "${binaryPath}"`, { stdio: "inherit" });
 }
 function prepareMacIosBundleLikePlayCover(appPath) {
   if (process.platform !== "darwin" || process.arch !== "arm64") {
     throw new Error("prepareMacIosBundleLikePlayCover requires Apple Silicon macOS");
   }
-  const mainPlist = path24.join(appPath, "Info.plist");
-  if (!fs24.existsSync(mainPlist)) {
+  const mainPlist = path25.join(appPath, "Info.plist");
+  if (!fs25.existsSync(mainPlist)) {
     throw new Error(`Missing Info.plist in ${appPath}`);
   }
   let mainExeName;
   try {
-    mainExeName = execSync10(`/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "${mainPlist}"`, {
+    mainExeName = execSync11(`/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "${mainPlist}"`, {
       encoding: "utf8",
       stdio: ["pipe", "pipe", "pipe"]
     }).trim();
   } catch {
     throw new Error("Could not read CFBundleExecutable from Info.plist");
   }
-  const mainExe = path24.join(appPath, mainExeName);
-  if (!fs24.existsSync(mainExe)) {
+  const mainExe = path25.join(appPath, mainExeName);
+  if (!fs25.existsSync(mainExe)) {
     throw new Error(`Main executable not found: ${mainExe}`);
   }
   const ver = parseVtoolBuild(mainExe);
@@ -7160,10 +9002,10 @@ function prepareMacIosBundleLikePlayCover(appPath) {
       `Could not read Mach-O build version from ${mainExe}. Is this an iphoneos binary?`
     );
   }
-  const mp = path24.join(appPath, "embedded.mobileprovision");
-  if (fs24.existsSync(mp)) {
+  const mp = path25.join(appPath, "embedded.mobileprovision");
+  if (fs25.existsSync(mp)) {
     try {
-      fs24.unlinkSync(mp);
+      fs25.unlinkSync(mp);
     } catch {
     }
   }
@@ -7180,14 +9022,14 @@ function prepareMacIosBundleLikePlayCover(appPath) {
     adhocSignMachO(bin);
   }
   try {
-    execSync10(`xattr -cr "${appPath}"`, { stdio: "inherit" });
+    execSync11(`xattr -cr "${appPath}"`, { stdio: "inherit" });
   } catch {
   }
 }
 
 // src/ios/appStoreConnect.ts
-import fs25 from "fs";
-import path25 from "path";
+import fs26 from "fs";
+import path26 from "path";
 var DEFAULT_APP_STORE_CONNECT_API_KEY_PATH_ENV = "APP_STORE_CONNECT_API_KEY_PATH";
 var DEFAULT_APP_STORE_CONNECT_API_KEY_ID_ENV = "APP_STORE_CONNECT_API_KEY_ID";
 var DEFAULT_APP_STORE_CONNECT_ISSUER_ID_ENV = "APP_STORE_CONNECT_ISSUER_ID";
@@ -7207,8 +9049,8 @@ function resolveAppStoreConnectForIpa(config, projectRoot) {
       `App Store Connect API: set all of ${pathEnv}, ${idEnv}, ${issuerEnv} (or unset all to use the legacy IPA zip).`
     );
   }
-  const keyPath = path25.isAbsolute(keyPathRaw) ? keyPathRaw : path25.join(projectRoot, keyPathRaw);
-  if (!fs25.existsSync(keyPath)) {
+  const keyPath = path26.isAbsolute(keyPathRaw) ? keyPathRaw : path26.join(projectRoot, keyPathRaw);
+  if (!fs26.existsSync(keyPath)) {
     throw new Error(`App Store Connect API key file not found: ${keyPath} (${pathEnv})`);
   }
   return { keyPath, keyId, issuerId };
@@ -7235,13 +9077,13 @@ function writeAppStoreExportOptionsPlist(outPath, teamId) {
 </dict>
 </plist>
 `;
-  fs25.writeFileSync(outPath, plist, "utf8");
+  fs26.writeFileSync(outPath, plist, "utf8");
 }
 function findExportedIpa(exportDir) {
-  if (!fs25.existsSync(exportDir)) return null;
-  const entries = fs25.readdirSync(exportDir);
+  if (!fs26.existsSync(exportDir)) return null;
+  const entries = fs26.readdirSync(exportDir);
   const ipa = entries.find((f) => f.endsWith(".ipa"));
-  return ipa ? path25.join(exportDir, ipa) : null;
+  return ipa ? path26.join(exportDir, ipa) : null;
 }
 
 // src/ios/build.ts
@@ -7305,7 +9147,7 @@ function iosSigningXcodeFlagsAppStoreArchive(config) {
 }
 function findBootedSimulator() {
   try {
-    const out = execSync11("xcrun simctl list devices --json", { encoding: "utf8" });
+    const out = execSync12("xcrun simctl list devices --json", { encoding: "utf8" });
     const json = JSON.parse(out);
     for (const runtimes of Object.values(json.devices)) {
       for (const device of runtimes) {
@@ -7317,14 +9159,14 @@ function findBootedSimulator() {
   return null;
 }
 function listPhysicalIosDevices() {
-  const jsonPath = path26.join(os6.tmpdir(), `t4l-devicectl-${randomBytes2(8).toString("hex")}.json`);
+  const jsonPath = path27.join(os6.tmpdir(), `t4l-devicectl-${randomBytes3(8).toString("hex")}.json`);
   try {
-    execSync11(`xcrun devicectl list devices --json-output "${jsonPath}"`, {
+    execSync12(`xcrun devicectl list devices --json-output "${jsonPath}"`, {
       stdio: ["pipe", "pipe", "pipe"]
     });
-    if (!fs26.existsSync(jsonPath)) return [];
-    const raw = fs26.readFileSync(jsonPath, "utf8");
-    fs26.unlinkSync(jsonPath);
+    if (!fs27.existsSync(jsonPath)) return [];
+    const raw = fs27.readFileSync(jsonPath, "utf8");
+    fs27.unlinkSync(jsonPath);
     const data = JSON.parse(raw);
     const devices = data.result?.devices ?? [];
     const out = [];
@@ -7337,7 +9179,7 @@ function listPhysicalIosDevices() {
     return out;
   } catch {
     try {
-      if (fs26.existsSync(jsonPath)) fs26.unlinkSync(jsonPath);
+      if (fs27.existsSync(jsonPath)) fs27.unlinkSync(jsonPath);
     } catch {
     }
   }
@@ -7348,18 +9190,26 @@ async function buildIpa(opts = {}) {
   if (!resolved.config.ios?.appName) {
     throw new Error('"ios.appName" must be defined in tamer.config.json');
   }
-  const appName = resolved.config.ios.appName;
+  let appName = resolved.config.ios.appName;
   const bundleId = resolved.config.ios.bundleId;
   const iosDir = resolved.iosDir;
   const release = opts.release === true || opts.production === true;
   const configuration = release ? "Release" : "Debug";
   bundle_default2({ release, production: opts.production });
+  if (fs27.existsSync(iosDir)) {
+    const xcworkspace = fs27.readdirSync(iosDir).find((f) => f.endsWith(".xcworkspace"));
+    if (xcworkspace) appName = path27.basename(xcworkspace, ".xcworkspace");
+    else {
+      const xcodeproj = fs27.readdirSync(iosDir).find((f) => f.endsWith(".xcodeproj"));
+      if (xcodeproj) appName = path27.basename(xcodeproj, ".xcodeproj");
+    }
+  }
   const scheme = appName;
-  const workspacePath = path26.join(iosDir, `${appName}.xcworkspace`);
-  const projectPath = path26.join(iosDir, `${appName}.xcodeproj`);
-  const xcproject = fs26.existsSync(workspacePath) ? workspacePath : projectPath;
+  const workspacePath = path27.join(iosDir, `${appName}.xcworkspace`);
+  const projectPath = path27.join(iosDir, `${appName}.xcodeproj`);
+  const xcproject = fs27.existsSync(workspacePath) ? workspacePath : projectPath;
   const flag = xcproject.endsWith(".xcworkspace") ? "-workspace" : "-project";
-  const derivedDataPath = path26.join(iosDir, "build");
+  const derivedDataPath = path27.join(iosDir, "build");
   const signing2 = iosSigningXcodeFlags(resolved.config);
   const signingFlags = signing2.xcodebuildArgs;
   const allowProvisioningUpdates = signing2.allowProvisioningUpdates ? " -allowProvisioningUpdates" : "";
@@ -7378,9 +9228,9 @@ async function buildIpa(opts = {}) {
     "CLANG_ENABLE_EXPLICIT_MODULES=NO",
     ...configuration === "Debug" ? ["COMPILER_INDEX_STORE_ENABLE=NO"] : []
   ].join(" ");
-  const archivePath = path26.join(derivedDataPath, `${appName}.xcarchive`);
-  const exportDir = path26.join(derivedDataPath, "ipa-export");
-  const exportPlist = path26.join(derivedDataPath, "ExportOptions.plist");
+  const archivePath = path27.join(derivedDataPath, `${appName}.xcarchive`);
+  const exportDir = path27.join(derivedDataPath, "ipa-export");
+  const exportPlist = path27.join(derivedDataPath, "ExportOptions.plist");
   const productsSubdir = `${configuration}-iphoneos`;
   let productionInstallPath;
   if (production) {
@@ -7408,22 +9258,22 @@ async function buildIpa(opts = {}) {
         process.exit(1);
       }
       const authFlags = xcodeAppStoreConnectAuthFlags(ascAuth);
-      const ddBuild = path26.join(derivedDataPath, "Build");
-      if (fs26.existsSync(ddBuild)) fs26.rmSync(ddBuild, { recursive: true, force: true });
-      if (fs26.existsSync(archivePath)) fs26.rmSync(archivePath, { recursive: true, force: true });
-      if (fs26.existsSync(exportDir)) fs26.rmSync(exportDir, { recursive: true, force: true });
-      fs26.mkdirSync(exportDir, { recursive: true });
+      const ddBuild = path27.join(derivedDataPath, "Build");
+      if (fs27.existsSync(ddBuild)) fs27.rmSync(ddBuild, { recursive: true, force: true });
+      if (fs27.existsSync(archivePath)) fs27.rmSync(archivePath, { recursive: true, force: true });
+      if (fs27.existsSync(exportDir)) fs27.rmSync(exportDir, { recursive: true, force: true });
+      fs27.mkdirSync(exportDir, { recursive: true });
       writeAppStoreExportOptionsPlist(exportPlist, teamIdAsc);
       console.log(`
 \u{1F4E6} Archiving for App Store (App Store Connect API key)\u2026`);
-      execSync11(
+      execSync12(
         `xcodebuild archive ${flag} "${xcproject}" -scheme "${scheme}" -configuration ${configuration} -destination "generic/platform=iOS" -archivePath "${archivePath}" -derivedDataPath "${derivedDataPath}" ${extraSettings}${signingAsc.xcodebuildArgs}${authFlags}`,
         { stdio: "inherit", cwd: iosDir }
       );
       console.log("\u2705 Archive completed.");
       console.log(`
 \u{1F4E4} Exporting App Store IPA\u2026`);
-      execSync11(
+      execSync12(
         `xcodebuild -exportArchive -archivePath "${archivePath}" -exportPath "${exportDir}" -exportOptionsPlist "${exportPlist}"${authFlags}`,
         { stdio: "inherit", cwd: iosDir }
       );
@@ -7438,12 +9288,12 @@ async function buildIpa(opts = {}) {
       const target = mac ? "iphoneos (then Mac Catalyst / PlayCover-style vtool)" : "iphoneos";
       console.log(`
 \u{1F528} Building ${configuration} (${target}) without signing...`);
-      execSync11(
+      execSync12(
         `xcodebuild ${flag} "${xcproject}" -scheme "${scheme}" -configuration ${configuration} ${sdkOrDest} -derivedDataPath "${derivedDataPath}" ${extraSettings} CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO`,
         { stdio: "inherit", cwd: iosDir }
       );
       console.log("\u2705 Build completed (unsigned).");
-      const appInProductsInner = path26.join(
+      const appInProductsInner = path27.join(
         derivedDataPath,
         "Build",
         "Products",
@@ -7484,14 +9334,14 @@ async function buildIpa(opts = {}) {
       });
       productionInstallPath = appInProductsInner;
       if (wantIpa) {
-        if (fs26.existsSync(exportDir)) fs26.rmSync(exportDir, { recursive: true, force: true });
-        fs26.mkdirSync(exportDir, { recursive: true });
-        const ipaPath = path26.join(exportDir, `${appName}.ipa`);
-        const payloadDir = path26.join(exportDir, "Payload");
-        fs26.mkdirSync(payloadDir, { recursive: true });
-        fs26.cpSync(appInProductsInner, path26.join(payloadDir, `${appName}.app`), { recursive: true });
-        execSync11(`cd "${exportDir}" && zip -r -q "${ipaPath}" Payload`, { stdio: "inherit" });
-        fs26.rmSync(payloadDir, { recursive: true, force: true });
+        if (fs27.existsSync(exportDir)) fs27.rmSync(exportDir, { recursive: true, force: true });
+        fs27.mkdirSync(exportDir, { recursive: true });
+        const ipaPath = path27.join(exportDir, `${appName}.ipa`);
+        const payloadDir = path27.join(exportDir, "Payload");
+        fs27.mkdirSync(payloadDir, { recursive: true });
+        fs27.cpSync(appInProductsInner, path27.join(payloadDir, `${appName}.app`), { recursive: true });
+        execSync12(`cd "${exportDir}" && zip -r -q "${ipaPath}" Payload`, { stdio: "inherit" });
+        fs27.rmSync(payloadDir, { recursive: true, force: true });
         console.log(`\u2705 IPA exported to: ${ipaPath}`);
       }
     }
@@ -7500,22 +9350,22 @@ async function buildIpa(opts = {}) {
     const debugTarget = mac ? "iphoneos (unsigned, then Mac Catalyst / PlayCover-style)" : sdk;
     console.log(`
 \u{1F528} Building ${configuration} (${debugTarget})...`);
-    execSync11(
+    execSync12(
       `xcodebuild ${flag} "${xcproject}" -scheme "${scheme}" -configuration ${configuration} ${sdkOrDest} ${archFlag}-derivedDataPath "${derivedDataPath}" ${extraSettings}${signingArgs}${signingFlags}${allowProvisioningUpdates}`,
       { stdio: "inherit", cwd: iosDir }
     );
     console.log(`\u2705 Build completed.`);
-    const appDbg = path26.join(
+    const appDbg = path27.join(
       derivedDataPath,
       "Build",
       "Products",
       `${configuration}-iphoneos`,
       `${appName}.app`
     );
-    if (mac && fs26.existsSync(appDbg)) {
+    if (mac && fs27.existsSync(appDbg)) {
       try {
         prepareMacIosBundleLikePlayCover(appDbg);
-        execSync11(`codesign --force --sign - --deep "${appDbg}"`, { stdio: "inherit" });
+        execSync12(`codesign --force --sign - --deep "${appDbg}"`, { stdio: "inherit" });
       } catch (e) {
         console.error(`\u274C Mac run preparation failed: ${e instanceof Error ? e.message : e}`);
         process.exit(1);
@@ -7523,7 +9373,7 @@ async function buildIpa(opts = {}) {
     }
   }
   const debugProductsSubdir = `${configuration}-${sdk === "iphonesimulator" ? "iphonesimulator" : "iphoneos"}`;
-  const appInProducts = path26.join(
+  const appInProducts = path27.join(
     derivedDataPath,
     "Build",
     "Products",
@@ -7533,13 +9383,13 @@ async function buildIpa(opts = {}) {
   if (opts.install) {
     if (production) {
       const appPath = productionInstallPath ?? appInProducts;
-      if (!fs26.existsSync(appPath)) {
+      if (!fs27.existsSync(appPath)) {
         console.error(`\u274C Built app not found at: ${appPath}`);
         process.exit(1);
       }
       if (mac) {
         console.log("\u{1F4F2} Launching on Mac (Mac Catalyst / PlayCover-style Mach-O conversion)...");
-        execSync11(`open "${appPath}"`, { stdio: "inherit" });
+        execSync12(`open "${appPath}"`, { stdio: "inherit" });
         console.log("\u2705 App launched.");
       } else {
         const physicalDevices = listPhysicalIosDevices();
@@ -7562,13 +9412,13 @@ async function buildIpa(opts = {}) {
           );
         }
         console.log(`\u{1F4F2} Installing on physical device ${udid}...`);
-        execSync11(`xcrun devicectl device install app --device "${udid}" "${appPath}"`, {
+        execSync12(`xcrun devicectl device install app --device "${udid}" "${appPath}"`, {
           stdio: "inherit"
         });
         if (bundleId) {
           console.log(`\u{1F680} Launching ${bundleId}...`);
           try {
-            execSync11(
+            execSync12(
               `xcrun devicectl device process launch --device "${udid}" "${bundleId}"`,
               { stdio: "inherit" }
             );
@@ -7581,22 +9431,22 @@ async function buildIpa(opts = {}) {
         }
       }
     } else if (mac) {
-      if (!fs26.existsSync(appInProducts)) {
+      if (!fs27.existsSync(appInProducts)) {
         console.error(`\u274C Built app not found at: ${appInProducts}`);
         process.exit(1);
       }
       console.log("\u{1F4F2} Launching on Mac (Mac Catalyst / PlayCover-style)...");
-      execSync11(`open "${appInProducts}"`, { stdio: "inherit" });
+      execSync12(`open "${appInProducts}"`, { stdio: "inherit" });
       console.log("\u2705 App launched.");
     } else {
-      const simProducts = path26.join(
+      const simProducts = path27.join(
         derivedDataPath,
         "Build",
         "Products",
         `${configuration}-iphonesimulator`,
         `${appName}.app`
       );
-      if (!fs26.existsSync(simProducts)) {
+      if (!fs27.existsSync(simProducts)) {
         console.error(`\u274C Built app not found at: ${simProducts}`);
         process.exit(1);
       }
@@ -7606,10 +9456,10 @@ async function buildIpa(opts = {}) {
         process.exit(1);
       }
       console.log(`\u{1F4F2} Installing on simulator ${udid}...`);
-      execSync11(`xcrun simctl install "${udid}" "${simProducts}"`, { stdio: "inherit" });
+      execSync12(`xcrun simctl install "${udid}" "${simProducts}"`, { stdio: "inherit" });
       if (bundleId) {
         console.log(`\u{1F680} Launching ${bundleId}...`);
-        execSync11(`xcrun simctl launch "${udid}" "${bundleId}"`, { stdio: "inherit" });
+        execSync12(`xcrun simctl launch "${udid}" "${bundleId}"`, { stdio: "inherit" });
         console.log("\u2705 App launched.");
       } else {
         console.log('\u2705 App installed. (Set "ios.bundleId" in tamer.config.json to auto-launch.)');
@@ -7620,15 +9470,15 @@ async function buildIpa(opts = {}) {
 var build_default2 = buildIpa;
 
 // src/common/init.tsx
-import fs28 from "fs";
-import path28 from "path";
+import fs29 from "fs";
+import path29 from "path";
 import { spawnSync } from "child_process";
 import { useState as useState5, useEffect as useEffect2, useCallback as useCallback3 } from "react";
 
 // src/common/add.ts
-import fs27 from "fs";
-import path27 from "path";
-import { execFile, execSync as execSync12 } from "child_process";
+import fs28 from "fs";
+import path28 from "path";
+import { execFile, execSync as execSync13 } from "child_process";
 import { promisify } from "util";
 import semver from "semver";
 var execFileAsync = promisify(execFile);
@@ -7671,14 +9521,14 @@ function isNonRegistryTamerDep(versionSpec) {
   return v.startsWith("file:") || v.startsWith("link:") || v.startsWith("portal:") || v.includes("workspace:");
 }
 function collectTamerPackagesFromPackageJson(cwd) {
-  const pkgPath = path27.join(cwd, "package.json");
-  if (!fs27.existsSync(pkgPath)) {
+  const pkgPath = path28.join(cwd, "package.json");
+  if (!fs28.existsSync(pkgPath)) {
     console.warn(`\u26A0\uFE0F  No package.json at ${pkgPath}`);
     return [];
   }
   let pkg;
   try {
-    pkg = JSON.parse(fs27.readFileSync(pkgPath, "utf8"));
+    pkg = JSON.parse(fs28.readFileSync(pkgPath, "utf8"));
   } catch {
     console.warn(`\u26A0\uFE0F  Could not parse ${pkgPath}`);
     return [];
@@ -7707,12 +9557,12 @@ function workspaceMatches(workspace, rel) {
   return false;
 }
 function workspaceIncludes(root, projectDir) {
-  const pkgPath = path27.join(root, "package.json");
-  if (!fs27.existsSync(pkgPath)) return false;
-  const rel = path27.relative(root, projectDir).split(path27.sep).join("/");
+  const pkgPath = path28.join(root, "package.json");
+  if (!fs28.existsSync(pkgPath)) return false;
+  const rel = path28.relative(root, projectDir).split(path28.sep).join("/");
   if (!rel || rel.startsWith("..")) return false;
   try {
-    const pkg = JSON.parse(fs27.readFileSync(pkgPath, "utf8"));
+    const pkg = JSON.parse(fs28.readFileSync(pkgPath, "utf8"));
     const workspaces = Array.isArray(pkg.workspaces) ? pkg.workspaces : pkg.workspaces?.packages;
     return Array.isArray(workspaces) && workspaces.some((workspace) => workspaceMatches(workspace, rel));
   } catch {
@@ -7759,13 +9609,13 @@ async function normalizeTamerInstallSpec(pkg) {
   return null;
 }
 function detectPackageManager(cwd) {
-  const dir = path27.resolve(cwd);
-  if (fs27.existsSync(path27.join(dir, "pnpm-lock.yaml"))) return "pnpm";
-  if (fs27.existsSync(path27.join(dir, "bun.lockb")) || fs27.existsSync(path27.join(dir, "bun.lock"))) return "bun";
-  const pkgPath = path27.join(dir, "package.json");
-  if (fs27.existsSync(pkgPath)) {
+  const dir = path28.resolve(cwd);
+  if (fs28.existsSync(path28.join(dir, "pnpm-lock.yaml"))) return "pnpm";
+  if (fs28.existsSync(path28.join(dir, "bun.lockb")) || fs28.existsSync(path28.join(dir, "bun.lock"))) return "bun";
+  const pkgPath = path28.join(dir, "package.json");
+  if (fs28.existsSync(pkgPath)) {
     try {
-      const pkg = JSON.parse(fs27.readFileSync(pkgPath, "utf8"));
+      const pkg = JSON.parse(fs28.readFileSync(pkgPath, "utf8"));
       if (pkg.packageManager?.startsWith("pnpm@")) return "pnpm";
       if (pkg.packageManager?.startsWith("bun@")) return "bun";
       if (pkg.packageManager?.startsWith("npm@")) return "npm";
@@ -7776,20 +9626,20 @@ function detectPackageManager(cwd) {
 }
 function runPackageManagerInstall(cwd, pm) {
   if (pm === "npm") {
-    execSync12("npm install --legacy-peer-deps", { stdio: "inherit", cwd });
+    execSync13("npm install --legacy-peer-deps", { stdio: "inherit", cwd });
     return;
   }
-  execSync12(`${pm} install`, { stdio: "inherit", cwd });
+  execSync13(`${pm} install`, { stdio: "inherit", cwd });
 }
 function runInstall(cwd, packages, pm) {
   if (packages.length === 0) return;
   if (pm === "npm") {
-    execSync12(`npm install --legacy-peer-deps ${packages.join(" ")}`, { stdio: "inherit", cwd });
+    execSync13(`npm install --legacy-peer-deps ${packages.join(" ")}`, { stdio: "inherit", cwd });
     return;
   }
   const args = ["add", ...packages];
   const cmd = pm === "pnpm" ? "pnpm" : "bun";
-  execSync12(`${cmd} ${args.join(" ")}`, { stdio: "inherit", cwd });
+  execSync13(`${cmd} ${args.join(" ")}`, { stdio: "inherit", cwd });
 }
 async function installTamerStack(stack, opts = {}) {
   const cwd = opts.cwd ?? resolveTamerInstallDir();
@@ -7869,22 +9719,22 @@ function resolveSdkInput(raw) {
   return { resolved: androidSdk };
 }
 function readJson(filePath) {
-  if (!fs28.existsSync(filePath)) return null;
+  if (!fs29.existsSync(filePath)) return null;
   try {
-    return JSON.parse(fs28.readFileSync(filePath, "utf8"));
+    return JSON.parse(fs29.readFileSync(filePath, "utf8"));
   } catch {
     return null;
   }
 }
 function writeJson(filePath, value) {
-  fs28.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}
+  fs29.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}
 `);
 }
 function hasLynxConfig(dir) {
-  return LYNX_CONFIG_FILES2.some((name) => fs28.existsSync(path28.join(dir, name)));
+  return LYNX_CONFIG_FILES2.some((name) => fs29.existsSync(path29.join(dir, name)));
 }
 function hasRspeedy2(dir) {
-  const pkg = readJson(path28.join(dir, "package.json"));
+  const pkg = readJson(path29.join(dir, "package.json"));
   const deps = {
     ...pkg?.dependencies ?? {},
     ...pkg?.devDependencies ?? {}
@@ -7895,19 +9745,19 @@ function isLynxProject(dir) {
   return hasLynxConfig(dir) || hasRspeedy2(dir);
 }
 function isEffectivelyEmpty(dir) {
-  if (!fs28.existsSync(dir)) return true;
-  return fs28.readdirSync(dir).filter((name) => ![".git", ".DS_Store"].includes(name)).length === 0;
+  if (!fs29.existsSync(dir)) return true;
+  return fs29.readdirSync(dir).filter((name) => ![".git", ".DS_Store"].includes(name)).length === 0;
 }
 function findNestedLynxProjects(root) {
   const out = [];
   const ignored = /* @__PURE__ */ new Set([".git", "node_modules", "dist", "android", "ios", ".tamer"]);
   function visit(dir, depth) {
-    if (depth > 2 || !fs28.existsSync(dir)) return;
-    for (const entry of fs28.readdirSync(dir, { withFileTypes: true })) {
+    if (depth > 2 || !fs29.existsSync(dir)) return;
+    for (const entry of fs29.readdirSync(dir, { withFileTypes: true })) {
       if (!entry.isDirectory() || ignored.has(entry.name)) continue;
-      const abs = path28.join(dir, entry.name);
+      const abs = path29.join(dir, entry.name);
       if (isLynxProject(abs)) {
-        const rel = path28.relative(root, abs).split(path28.sep).join("/");
+        const rel = path29.relative(root, abs).split(path29.sep).join("/");
         out.push({ dir: abs, rel, nested: true, source: "nested" });
         continue;
       }
@@ -7920,12 +9770,12 @@ function findNestedLynxProjects(root) {
 function detectLynxProject(root, dirOverride) {
   if (dirOverride?.trim()) {
     const rel = dirOverride.trim();
-    const abs = path28.resolve(root, rel);
+    const abs = path29.resolve(root, rel);
     return {
       dir: abs,
-      rel: rel === "." ? "" : rel.split(path28.sep).join("/"),
+      rel: rel === "." ? "" : rel.split(path29.sep).join("/"),
       nested: rel !== ".",
-      source: fs28.existsSync(abs) && isLynxProject(abs) ? rel === "." ? "root" : "nested" : "none"
+      source: fs29.existsSync(abs) && isLynxProject(abs) ? rel === "." ? "root" : "nested" : "none"
     };
   }
   if (isLynxProject(root)) {
@@ -7936,15 +9786,15 @@ function detectLynxProject(root, dirOverride) {
   return { dir: root, rel: "", nested: false, source: "none" };
 }
 function defaultAppName(root) {
-  const base = path28.basename(root).replace(/[^a-zA-Z0-9]+/g, " ").trim() || "TamerApp";
+  const base = path29.basename(root).replace(/[^a-zA-Z0-9]+/g, " ").trim() || "TamerApp";
   return base.replace(/\b\w/g, (m) => m.toUpperCase()).replace(/\s+/g, "");
 }
 function defaultProjectName(root) {
-  const base = path28.basename(root).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const base = path29.basename(root).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   return base || "app";
 }
 function defaultPackageSegment(root) {
-  const base = path28.basename(root).toLowerCase().replace(/[^a-z0-9_]+/g, "");
+  const base = path29.basename(root).toLowerCase().replace(/[^a-z0-9_]+/g, "");
   if (!base) return "app";
   return /^[a-z]/.test(base) ? base : `app${base}`;
 }
@@ -7963,7 +9813,7 @@ function resolveScaffoldDir(root, opts, detected) {
 }
 function mergeWorkspace(root, workspaceRel) {
   if (!workspaceRel || workspaceRel === ".") return null;
-  const pkgPath = path28.join(root, "package.json");
+  const pkgPath = path29.join(root, "package.json");
   const pkg = readJson(pkgPath) ?? {
     name: defaultProjectName(root),
     version: "0.0.0"
@@ -8001,11 +9851,11 @@ function buildInitialPlan(opts) {
   const root = process.cwd();
   const detected = detectLynxProject(root, opts.dir);
   const scaffoldDir = resolveScaffoldDir(root, opts, detected);
-  const scaffoldAbs = path28.resolve(root, scaffoldDir);
+  const scaffoldAbs = path29.resolve(root, scaffoldDir);
   const shouldScaffold = detected.source === "none" && !isLynxProject(scaffoldAbs);
   const lynxProject = shouldScaffold ? {
     dir: scaffoldAbs,
-    rel: scaffoldDir === "." ? "" : scaffoldDir.split(path28.sep).join("/"),
+    rel: scaffoldDir === "." ? "" : scaffoldDir.split(path29.sep).join("/"),
     nested: scaffoldDir !== ".",
     source: scaffoldDir === "." ? "root" : "nested"
   } : detected;
@@ -8035,15 +9885,15 @@ function writeConfigAndTsconfig(plan, values) {
     syncTamerComponentTypes: true
   };
   if (plan.lynxProject.rel) config.lynxProject = plan.lynxProject.rel;
-  const configPath = path28.join(plan.root, "tamer.config.json");
+  const configPath = path29.join(plan.root, "tamer.config.json");
   writeJson(configPath, config);
   const lines = [`Generated tamer.config.json at ${configPath}`];
-  const tsconfigCandidates = plan.lynxProject.rel ? [path28.join(plan.root, plan.lynxProject.rel, "tsconfig.json"), path28.join(plan.root, "tsconfig.json")] : [path28.join(plan.root, "tsconfig.json")];
+  const tsconfigCandidates = plan.lynxProject.rel ? [path29.join(plan.root, plan.lynxProject.rel, "tsconfig.json"), path29.join(plan.root, "tsconfig.json")] : [path29.join(plan.root, "tsconfig.json")];
   for (const tsconfigPath of tsconfigCandidates) {
-    if (!fs28.existsSync(tsconfigPath)) continue;
+    if (!fs29.existsSync(tsconfigPath)) continue;
     try {
       if (fixTsconfigReferencesForBuild(tsconfigPath)) {
-        lines.push(`Flattened ${path28.relative(plan.root, tsconfigPath)} (fixed TS6310)`);
+        lines.push(`Flattened ${path29.relative(plan.root, tsconfigPath)} (fixed TS6310)`);
       }
       break;
     } catch (e) {
@@ -8060,13 +9910,13 @@ function writeConfigAndTsconfig(plan, values) {
 }
 function findLynxConfigFile(lynxDir) {
   for (const name of LYNX_CONFIG_FILES2) {
-    const filePath = path28.join(lynxDir, name);
-    if (fs28.existsSync(filePath)) return filePath;
+    const filePath = path29.join(lynxDir, name);
+    if (fs29.existsSync(filePath)) return filePath;
   }
   return null;
 }
 function packageHasDependency(root, packageName) {
-  const pkg = readJson(path28.join(root, "package.json"));
+  const pkg = readJson(path29.join(root, "package.json"));
   const deps = {
     ...pkg?.dependencies ?? {},
     ...pkg?.devDependencies ?? {}
@@ -8080,7 +9930,7 @@ function injectPluginTamerIntoLynxConfig(plan) {
   if (!shouldInjectTamerPlugin(plan)) return null;
   const configPath = findLynxConfigFile(plan.lynxProject.dir);
   if (!configPath) return null;
-  let source = fs28.readFileSync(configPath, "utf8");
+  let source = fs29.readFileSync(configPath, "utf8");
   if (source.includes("@tamer4lynx/tamer-plugin") || source.includes("pluginTamer(")) {
     return null;
   }
@@ -8105,8 +9955,8 @@ ${source}`;
   } else {
     return null;
   }
-  fs28.writeFileSync(configPath, source);
-  return `Injected pluginTamer() into ${path28.relative(plan.root, configPath)}`;
+  fs29.writeFileSync(configPath, source);
+  return `Injected pluginTamer() into ${path29.relative(plan.root, configPath)}`;
 }
 async function executePlan(plan, values) {
   const lines = [];
@@ -8117,7 +9967,7 @@ async function executePlan(plan, values) {
   }
   const workspaceLine = mergeWorkspace(plan.root, plan.lynxProject.rel);
   if (workspaceLine) lines.push(workspaceLine);
-  if (fs28.existsSync(path28.join(plan.root, "package.json"))) {
+  if (fs29.existsSync(path29.join(plan.root, "package.json"))) {
     lines.push(`Installing workspace dependencies with ${plan.pm}`);
     runPackageManagerInstall(plan.root, plan.pm);
   }
@@ -8213,12 +10063,12 @@ function InitWizard({ opts }) {
         emptySubmitValue: plan.scaffoldDir,
         onSubmitValue: (v) => {
           const dir = v.trim() || plan.scaffoldDir;
-          const rel = dir === "." ? "" : dir.split(path28.sep).join("/");
+          const rel = dir === "." ? "" : dir.split(path29.sep).join("/");
           setPlan((p) => ({
             ...p,
             scaffoldDir: dir,
             lynxProject: {
-              dir: path28.resolve(p.root, dir),
+              dir: path29.resolve(p.root, dir),
               rel,
               nested: dir !== ".",
               source: dir === "." ? "root" : "nested"
@@ -8425,8 +10275,8 @@ async function init(opts = {}) {
 }
 
 // src/common/create.ts
-import fs29 from "fs";
-import path29 from "path";
+import fs30 from "fs";
+import path30 from "path";
 import readline from "readline";
 var rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: false });
 function ask(question) {
@@ -8488,13 +10338,13 @@ async function create3(opts) {
   const simpleModuleName = extName.split("-").map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join("") + "Module";
   const fullModuleClassName = `${packageName}.${simpleModuleName}`;
   const cwd = process.cwd();
-  const root = path29.join(cwd, extName);
-  if (fs29.existsSync(root)) {
+  const root = path30.join(cwd, extName);
+  if (fs30.existsSync(root)) {
     console.error(`\u274C Directory ${extName} already exists.`);
     rl.close();
     process.exit(1);
   }
-  fs29.mkdirSync(root, { recursive: true });
+  fs30.mkdirSync(root, { recursive: true });
   const lynxExt = {
     platforms: {
       android: {
@@ -8509,7 +10359,7 @@ async function create3(opts) {
       web: {}
     }
   };
-  fs29.writeFileSync(path29.join(root, "lynx.ext.json"), JSON.stringify(lynxExt, null, 2));
+  fs30.writeFileSync(path30.join(root, "lynx.ext.json"), JSON.stringify(lynxExt, null, 2));
   const pkg = {
     name: extName,
     version: "0.0.1",
@@ -8522,20 +10372,20 @@ async function create3(opts) {
     engines: { node: ">=18" }
   };
   if (includeModule) pkg.types = "src/index.d.ts";
-  fs29.writeFileSync(path29.join(root, "package.json"), JSON.stringify(pkg, null, 2));
+  fs30.writeFileSync(path30.join(root, "package.json"), JSON.stringify(pkg, null, 2));
   const pkgPath = packageName.replace(/\./g, "/");
   const hasSrc = includeModule || includeElement || includeService;
   if (hasSrc) {
-    fs29.mkdirSync(path29.join(root, "src"), { recursive: true });
+    fs30.mkdirSync(path30.join(root, "src"), { recursive: true });
   }
   if (includeModule) {
-    fs29.writeFileSync(path29.join(root, "src", "index.d.ts"), `/** @lynxmodule */
+    fs30.writeFileSync(path30.join(root, "src", "index.d.ts"), `/** @lynxmodule */
 export declare class ${simpleModuleName} {
   // Add your module methods here
 }
 `);
-    fs29.mkdirSync(path29.join(root, "android", "src", "main", "kotlin", pkgPath), { recursive: true });
-    fs29.writeFileSync(path29.join(root, "android", "build.gradle.kts"), `plugins {
+    fs30.mkdirSync(path30.join(root, "android", "src", "main", "kotlin", pkgPath), { recursive: true });
+    fs30.writeFileSync(path30.join(root, "android", "build.gradle.kts"), `plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
 }
@@ -8556,7 +10406,7 @@ dependencies {
     implementation(libs.lynx.jssdk)
 }
 `);
-    fs29.writeFileSync(path29.join(root, "android", "src", "main", "AndroidManifest.xml"), `<?xml version="1.0" encoding="utf-8"?>
+    fs30.writeFileSync(path30.join(root, "android", "src", "main", "AndroidManifest.xml"), `<?xml version="1.0" encoding="utf-8"?>
 <manifest />
 `);
     const ktContent = `package ${packageName}
@@ -8573,8 +10423,8 @@ class ${simpleModuleName}(context: Context) : LynxModule(context) {
     }
 }
 `;
-    fs29.writeFileSync(path29.join(root, "android", "src", "main", "kotlin", pkgPath, `${simpleModuleName}.kt`), ktContent);
-    fs29.mkdirSync(path29.join(root, "ios", extName, extName, "Classes"), { recursive: true });
+    fs30.writeFileSync(path30.join(root, "android", "src", "main", "kotlin", pkgPath, `${simpleModuleName}.kt`), ktContent);
+    fs30.mkdirSync(path30.join(root, "ios", extName, extName, "Classes"), { recursive: true });
     const podspec = `Pod::Spec.new do |s|
   s.name             = '${extName}'
   s.version          = '0.0.1'
@@ -8588,7 +10438,7 @@ class ${simpleModuleName}(context: Context) : LynxModule(context) {
   s.dependency       'Lynx'
 end
 `;
-    fs29.writeFileSync(path29.join(root, "ios", extName, `${extName}.podspec`), podspec);
+    fs30.writeFileSync(path30.join(root, "ios", extName, `${extName}.podspec`), podspec);
     const swiftContent = `import Foundation
 
 @objc public class ${simpleModuleName}: NSObject {
@@ -8597,18 +10447,18 @@ end
     }
 }
 `;
-    fs29.writeFileSync(path29.join(root, "ios", extName, extName, "Classes", `${simpleModuleName}.swift`), swiftContent);
+    fs30.writeFileSync(path30.join(root, "ios", extName, extName, "Classes", `${simpleModuleName}.swift`), swiftContent);
   }
   if (includeElement && !includeModule) {
     const elementName = extName.split("-").map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join("");
-    fs29.writeFileSync(path29.join(root, "src", "index.tsx"), `import type { FC } from '@lynx-js/react';
+    fs30.writeFileSync(path30.join(root, "src", "index.tsx"), `import type { FC } from '@lynx-js/react';
 
 export const ${elementName}: FC = () => {
   return null;
 };
 `);
   }
-  fs29.writeFileSync(path29.join(root, "index.js"), `'use strict';
+  fs30.writeFileSync(path30.join(root, "index.js"), `'use strict';
 module.exports = {};
 `);
   const tsconfigCompiler = {
@@ -8621,11 +10471,11 @@ module.exports = {};
     tsconfigCompiler.jsx = "preserve";
     tsconfigCompiler.jsxImportSource = "@lynx-js/react";
   }
-  fs29.writeFileSync(path29.join(root, "tsconfig.json"), JSON.stringify({
+  fs30.writeFileSync(path30.join(root, "tsconfig.json"), JSON.stringify({
     compilerOptions: tsconfigCompiler,
     include: includeElement ? ["src", "src/**/*.tsx"] : ["src"]
   }, null, 2));
-  fs29.writeFileSync(path29.join(root, "README.md"), `# ${extName}
+  fs30.writeFileSync(path30.join(root, "README.md"), `# ${extName}
 
 Lynx extension for ${extName}.
 
@@ -8650,8 +10500,8 @@ This package uses \`lynx.ext.json\` (RFC-compliant) for autolinking.
 var create_default3 = create3;
 
 // src/common/codegen.ts
-import fs30 from "fs";
-import path30 from "path";
+import fs31 from "fs";
+import path31 from "path";
 function codegen() {
   const cwd = process.cwd();
   const config = loadExtensionConfig(cwd);
@@ -8659,9 +10509,9 @@ function codegen() {
     console.error("\u274C No lynx.ext.json or tamer.json found. Run from an extension package root.");
     process.exit(1);
   }
-  const srcDir = path30.join(cwd, "src");
-  const generatedDir = path30.join(cwd, "generated");
-  fs30.mkdirSync(generatedDir, { recursive: true });
+  const srcDir = path31.join(cwd, "src");
+  const generatedDir = path31.join(cwd, "generated");
+  fs31.mkdirSync(generatedDir, { recursive: true });
   const dtsFiles = findDtsFiles(srcDir);
   const modules = extractLynxModules(dtsFiles);
   if (modules.length === 0) {
@@ -8671,28 +10521,28 @@ function codegen() {
   for (const mod of modules) {
     const tsContent = `export type { ${mod} } from '../src/index.js';
 `;
-    const outPath = path30.join(generatedDir, `${mod}.ts`);
-    fs30.writeFileSync(outPath, tsContent);
+    const outPath = path31.join(generatedDir, `${mod}.ts`);
+    fs31.writeFileSync(outPath, tsContent);
     console.log(`\u2705 Generated ${outPath}`);
   }
   if (config.android) {
-    const androidGenerated = path30.join(cwd, "android", "src", "main", "kotlin", config.android.moduleClassName.replace(/\./g, "/").replace(/[^/]+$/, ""), "generated");
-    fs30.mkdirSync(androidGenerated, { recursive: true });
+    const androidGenerated = path31.join(cwd, "android", "src", "main", "kotlin", config.android.moduleClassName.replace(/\./g, "/").replace(/[^/]+$/, ""), "generated");
+    fs31.mkdirSync(androidGenerated, { recursive: true });
     console.log(`\u2139\uFE0F Android generated dir: ${androidGenerated} (spec generation coming soon)`);
   }
   if (config.ios) {
-    const iosGenerated = path30.join(cwd, "ios", "generated");
-    fs30.mkdirSync(iosGenerated, { recursive: true });
+    const iosGenerated = path31.join(cwd, "ios", "generated");
+    fs31.mkdirSync(iosGenerated, { recursive: true });
     console.log(`\u2139\uFE0F iOS generated dir: ${iosGenerated} (spec generation coming soon)`);
   }
   console.log("\u2728 Codegen complete.");
 }
 function findDtsFiles(dir) {
   const result = [];
-  if (!fs30.existsSync(dir)) return result;
-  const entries = fs30.readdirSync(dir, { withFileTypes: true });
+  if (!fs31.existsSync(dir)) return result;
+  const entries = fs31.readdirSync(dir, { withFileTypes: true });
   for (const e of entries) {
-    const full = path30.join(dir, e.name);
+    const full = path31.join(dir, e.name);
     if (e.isDirectory()) result.push(...findDtsFiles(full));
     else if (e.name.endsWith(".d.ts")) result.push(full);
   }
@@ -8702,7 +10552,7 @@ function extractLynxModules(files) {
   const modules = [];
   const seen = /* @__PURE__ */ new Set();
   for (const file of files) {
-    const content = fs30.readFileSync(file, "utf8");
+    const content = fs31.readFileSync(file, "utf8");
     const regex = /\/\*\*\s*@lynxmodule\s*\*\/\s*export\s+declare\s+class\s+(\w+)/g;
     let m;
     while ((m = regex.exec(content)) !== null) {
@@ -8719,10 +10569,10 @@ var codegen_default = codegen;
 // src/common/devServer.tsx
 import { useState as useState6, useEffect as useEffect3, useRef, useCallback as useCallback4 } from "react";
 import { spawn } from "child_process";
-import fs31 from "fs";
+import fs32 from "fs";
 import http from "http";
 import os7 from "os";
-import path31 from "path";
+import path32 from "path";
 import { render as render3, useInput as useInput2, useApp, useStdin } from "ink";
 import { WebSocket, WebSocketServer } from "ws";
 
@@ -8764,16 +10614,51 @@ var STATIC_MIME = {
   ".svg": "image/svg+xml",
   ".pdf": "application/pdf"
 };
-function sendFileFromDisk(res, absPath) {
-  fs31.readFile(absPath, (err, data) => {
-    if (err) {
+function contentTypeForDevPath(filePath) {
+  const ext = path32.extname(filePath).toLowerCase();
+  if (ext === ".bundle") return "application/octet-stream";
+  if (ext === ".js" || ext === ".mjs") return "application/javascript";
+  if (ext === ".json") return "application/json";
+  if (ext === ".css") return "text/css";
+  if (ext === ".html") return "text/html; charset=utf-8";
+  return STATIC_MIME[ext] ?? "application/octet-stream";
+}
+function sendFileFromDisk(res, absPath, req) {
+  fs32.stat(absPath, (statErr, stats) => {
+    if (statErr) {
       res.writeHead(404);
       res.end("Not found");
       return;
     }
-    const ext = path31.extname(absPath).toLowerCase();
-    setDevHeaders(res, STATIC_MIME[ext] ?? "application/octet-stream");
-    res.end(data);
+    const mtime = stats.mtime;
+    const etag = `"${stats.mtimeMs.toString(16)}-${stats.size.toString(16)}"`;
+    const lastModified = mtime.toUTCString();
+    if (req) {
+      const ifNoneMatch = req.headers["if-none-match"];
+      const ifModifiedSince = req.headers["if-modified-since"];
+      if (ifNoneMatch && ifNoneMatch === etag) {
+        res.writeHead(304);
+        res.end();
+        return;
+      }
+      if (!ifNoneMatch && ifModifiedSince) {
+        const clientDate = new Date(ifModifiedSince);
+        if (!isNaN(clientDate.getTime()) && mtime <= clientDate) {
+          res.writeHead(304);
+          res.end();
+          return;
+        }
+      }
+    }
+    fs32.readFile(absPath, (err, data) => {
+      if (err) {
+        res.writeHead(404);
+        res.end("Not found");
+        return;
+      }
+      setAssetHeaders(res, contentTypeForDevPath(absPath), etag, lastModified);
+      res.end(data);
+    });
   });
 }
 function setDevHeaders(res, contentType) {
@@ -8782,6 +10667,13 @@ function setDevHeaders(res, contentType) {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
+}
+function setAssetHeaders(res, contentType, etag, lastModified) {
+  res.setHeader("Content-Type", contentType);
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("ETag", etag);
+  res.setHeader("Last-Modified", lastModified);
+  res.setHeader("Cache-Control", "no-cache");
 }
 function listenOnPort(server, port) {
   return new Promise((resolve, reject) => {
@@ -8830,9 +10722,9 @@ function getLanIp() {
   return "localhost";
 }
 function detectPackageManager2(cwd) {
-  const dir = path31.resolve(cwd);
-  if (fs31.existsSync(path31.join(dir, "pnpm-lock.yaml"))) return { cmd: "pnpm", args: ["run", "build"] };
-  if (fs31.existsSync(path31.join(dir, "bun.lockb")) || fs31.existsSync(path31.join(dir, "bun.lock")))
+  const dir = path32.resolve(cwd);
+  if (fs32.existsSync(path32.join(dir, "pnpm-lock.yaml"))) return { cmd: "pnpm", args: ["run", "build"] };
+  if (fs32.existsSync(path32.join(dir, "bun.lockb")) || fs32.existsSync(path32.join(dir, "bun.lock")))
     return { cmd: "bun", args: ["run", "build"] };
   return { cmd: "npm", args: ["run", "build"] };
 }
@@ -8915,8 +10807,7 @@ function DevServerApp({ verbose }) {
   const handleQuit = useCallback4(() => {
     if (quitOnceRef.current) return;
     quitOnceRef.current = true;
-    void cleanupRef.current?.();
-    exit();
+    void (cleanupRef.current?.() ?? Promise.resolve()).then(() => exit(), () => exit());
   }, [exit]);
   useEffect3(() => {
     const onSig = () => {
@@ -8938,26 +10829,26 @@ function DevServerApp({ verbose }) {
       try {
         const resolved = resolveHostPaths();
         const { projectRoot, lynxProjectDir, lynxBundlePath, lynxBundleFile, config } = resolved;
-        const distDir = path31.dirname(lynxBundlePath);
-        const projectName = path31.basename(lynxProjectDir);
+        const distDir = path32.dirname(lynxBundlePath);
+        const projectName = path32.basename(lynxProjectDir);
         const basePath = `/${projectName}`;
         setUi((s) => ({ ...s, projectName, lynxBundleFile }));
         const preferredPort = config.devServer?.port ?? config.devServer?.httpPort ?? DEFAULT_PORT;
         let port = preferredPort;
         const iconPaths = resolveIconPaths(projectRoot, config);
         let iconFilePath = null;
-        if (iconPaths?.source && fs31.statSync(iconPaths.source).isFile()) {
+        if (iconPaths?.source && fs32.statSync(iconPaths.source).isFile()) {
           iconFilePath = iconPaths.source;
-        } else if (iconPaths?.androidAdaptiveForeground && fs31.statSync(iconPaths.androidAdaptiveForeground).isFile()) {
+        } else if (iconPaths?.androidAdaptiveForeground && fs32.statSync(iconPaths.androidAdaptiveForeground).isFile()) {
           iconFilePath = iconPaths.androidAdaptiveForeground;
         } else if (iconPaths?.android) {
-          const androidIcon = path31.join(iconPaths.android, "mipmap-xxxhdpi", "ic_launcher.png");
-          if (fs31.existsSync(androidIcon)) iconFilePath = androidIcon;
+          const androidIcon = path32.join(iconPaths.android, "mipmap-xxxhdpi", "ic_launcher.png");
+          if (fs32.existsSync(androidIcon)) iconFilePath = androidIcon;
         } else if (iconPaths?.ios) {
-          const iosIcon = path31.join(iconPaths.ios, "Icon-1024.png");
-          if (fs31.existsSync(iosIcon)) iconFilePath = iosIcon;
+          const iosIcon = path32.join(iconPaths.ios, "Icon-1024.png");
+          if (fs32.existsSync(iosIcon)) iconFilePath = iosIcon;
         }
-        const iconExt = iconFilePath ? path31.extname(iconFilePath) || ".png" : "";
+        const iconExt = iconFilePath ? path32.extname(iconFilePath) || ".png" : "";
         const runBuild = () => {
           return new Promise((resolve, reject) => {
             const { cmd, args } = detectPackageManager2(lynxProjectDir);
@@ -9043,7 +10934,7 @@ function DevServerApp({ verbose }) {
             return;
           }
           if (iconFilePath && (reqPath === `${basePath}/icon` || reqPath === `${basePath}/icon${iconExt}`)) {
-            fs31.readFile(iconFilePath, (err, data) => {
+            fs32.readFile(iconFilePath, (err, data) => {
               if (err) {
                 res.writeHead(404);
                 res.end();
@@ -9068,25 +10959,25 @@ function DevServerApp({ verbose }) {
               res.end();
               return;
             }
-            const safe = path31.normalize(rel).replace(/^(\.\.(\/|\\|$))+/, "");
-            if (path31.isAbsolute(safe) || safe.startsWith("..")) {
+            const safe = path32.normalize(rel).replace(/^(\.\.(\/|\\|$))+/, "");
+            if (path32.isAbsolute(safe) || safe.startsWith("..")) {
               res.writeHead(403);
               res.end();
               return;
             }
-            const allowedRoot = path31.resolve(lynxProjectDir, rootSub);
-            const abs = path31.resolve(allowedRoot, safe);
-            if (!abs.startsWith(allowedRoot + path31.sep) && abs !== allowedRoot) {
+            const allowedRoot = path32.resolve(lynxProjectDir, rootSub);
+            const abs = path32.resolve(allowedRoot, safe);
+            if (!abs.startsWith(allowedRoot + path32.sep) && abs !== allowedRoot) {
               res.writeHead(403);
               res.end();
               return;
             }
-            if (!fs31.existsSync(abs) || !fs31.statSync(abs).isFile()) {
+            if (!fs32.existsSync(abs) || !fs32.statSync(abs).isFile()) {
               res.writeHead(404);
               res.end("Not found");
               return;
             }
-            sendFileFromDisk(res, abs);
+            sendFileFromDisk(res, abs, req);
             return;
           }
           if (reqPath === "/" || reqPath === basePath || reqPath === `${basePath}/`) {
@@ -9095,20 +10986,20 @@ function DevServerApp({ verbose }) {
             reqPath = basePath + (reqPath.startsWith("/") ? reqPath : "/" + reqPath);
           }
           const relPath = reqPath.replace(basePath, "").replace(/^\//, "") || lynxBundleFile;
-          const filePath = path31.resolve(distDir, relPath);
-          const distResolved = path31.resolve(distDir);
-          if (!filePath.startsWith(distResolved + path31.sep) && filePath !== distResolved) {
+          const filePath = path32.resolve(distDir, relPath);
+          const distResolved = path32.resolve(distDir);
+          if (!filePath.startsWith(distResolved + path32.sep) && filePath !== distResolved) {
             res.writeHead(403);
             res.end();
             return;
           }
-          fs31.readFile(filePath, (err, data) => {
+          fs32.readFile(filePath, (err, data) => {
             if (err) {
               res.writeHead(404);
               res.end("Not found");
               return;
             }
-            setDevHeaders(res, reqPath.endsWith(".bundle") ? "application/octet-stream" : "application/javascript");
+            setDevHeaders(res, contentTypeForDevPath(filePath));
             res.end(data);
           });
         });
@@ -9177,10 +11068,10 @@ function DevServerApp({ verbose }) {
         }
         if (chokidar) {
           const watchPaths = [
-            path31.join(lynxProjectDir, "src"),
-            path31.join(lynxProjectDir, "lynx.config.ts"),
-            path31.join(lynxProjectDir, "lynx.config.js")
-          ].filter((p) => fs31.existsSync(p));
+            path32.join(lynxProjectDir, "src"),
+            path32.join(lynxProjectDir, "lynx.config.ts"),
+            path32.join(lynxProjectDir, "lynx.config.js")
+          ].filter((p) => fs32.existsSync(p));
           if (watchPaths.length > 0) {
             const w = chokidar.watch(watchPaths, {
               ignoreInitial: true,
@@ -9318,10 +11209,10 @@ async function start(opts) {
 var start_default = start;
 
 // src/common/injectHost.ts
-import fs32 from "fs";
-import path32 from "path";
+import fs33 from "fs";
+import path33 from "path";
 function readAndSubstitute(templatePath, vars) {
-  const raw = fs32.readFileSync(templatePath, "utf-8");
+  const raw = fs33.readFileSync(templatePath, "utf-8");
   return Object.entries(vars).reduce(
     (s, [k, v]) => s.replace(new RegExp(`\\{\\{${k}\\}\\}`, "g"), v),
     raw
@@ -9342,32 +11233,32 @@ async function injectHostAndroid(opts) {
     process.exit(1);
   }
   const androidDir = config.paths?.androidDir ?? "android";
-  const rootDir = path32.join(projectRoot, androidDir);
+  const rootDir = path33.join(projectRoot, androidDir);
   const packagePath = packageName.replace(/\./g, "/");
-  const javaDir = path32.join(rootDir, "app", "src", "main", "java", packagePath);
-  const kotlinDir = path32.join(rootDir, "app", "src", "main", "kotlin", packagePath);
-  if (!fs32.existsSync(javaDir) || !fs32.existsSync(kotlinDir)) {
+  const javaDir = path33.join(rootDir, "app", "src", "main", "java", packagePath);
+  const kotlinDir = path33.join(rootDir, "app", "src", "main", "kotlin", packagePath);
+  if (!fs33.existsSync(javaDir) || !fs33.existsSync(kotlinDir)) {
     console.error("\u274C Android project not found. Run `t4l android create` first or ensure android/ exists.");
     process.exit(1);
   }
-  const templateDir = path32.join(hostPkg, "android", "templates");
+  const templateDir = path33.join(hostPkg, "android", "templates");
   const vars = { PACKAGE_NAME: packageName, APP_NAME: appName };
   const files = [
-    { src: "App.java", dst: path32.join(javaDir, "App.java") },
-    { src: "TemplateProvider.java", dst: path32.join(javaDir, "TemplateProvider.java") },
-    { src: "MainActivity.kt", dst: path32.join(kotlinDir, "MainActivity.kt") }
+    { src: "App.java", dst: path33.join(javaDir, "App.java") },
+    { src: "TemplateProvider.java", dst: path33.join(javaDir, "TemplateProvider.java") },
+    { src: "MainActivity.kt", dst: path33.join(kotlinDir, "MainActivity.kt") }
   ];
   for (const { src, dst } of files) {
-    const srcPath = path32.join(templateDir, src);
-    if (!fs32.existsSync(srcPath)) continue;
-    if (fs32.existsSync(dst) && !opts?.force) {
-      console.log(`\u23ED\uFE0F  Skipping ${path32.basename(dst)} (use --force to overwrite)`);
+    const srcPath = path33.join(templateDir, src);
+    if (!fs33.existsSync(srcPath)) continue;
+    if (fs33.existsSync(dst) && !opts?.force) {
+      console.log(`\u23ED\uFE0F  Skipping ${path33.basename(dst)} (use --force to overwrite)`);
       continue;
     }
     const content = readAndSubstitute(srcPath, vars);
-    fs32.mkdirSync(path32.dirname(dst), { recursive: true });
-    fs32.writeFileSync(dst, content);
-    console.log(`\u2705 Injected ${path32.basename(dst)}`);
+    fs33.mkdirSync(path33.dirname(dst), { recursive: true });
+    fs33.writeFileSync(dst, content);
+    console.log(`\u2705 Injected ${path33.basename(dst)}`);
   }
 }
 async function injectHostIos(opts) {
@@ -9385,13 +11276,13 @@ async function injectHostIos(opts) {
     process.exit(1);
   }
   const iosDir = config.paths?.iosDir ?? "ios";
-  const rootDir = path32.join(projectRoot, iosDir);
-  const projectDir = path32.join(rootDir, appName);
-  if (!fs32.existsSync(projectDir)) {
+  const rootDir = path33.join(projectRoot, iosDir);
+  const projectDir = path33.join(rootDir, appName);
+  if (!fs33.existsSync(projectDir)) {
     console.error("\u274C iOS project not found. Run `t4l ios create` first or ensure ios/ exists.");
     process.exit(1);
   }
-  const templateDir = path32.join(hostPkg, "ios", "templates");
+  const templateDir = path33.join(hostPkg, "ios", "templates");
   const vars = { PACKAGE_NAME: bundleId, APP_NAME: appName, BUNDLE_ID: bundleId };
   const files = [
     "AppDelegate.swift",
@@ -9401,23 +11292,23 @@ async function injectHostIos(opts) {
     "LynxInitProcessor.swift"
   ];
   for (const f of files) {
-    const srcPath = path32.join(templateDir, f);
-    const dstPath = path32.join(projectDir, f);
-    if (!fs32.existsSync(srcPath)) continue;
-    if (fs32.existsSync(dstPath) && !opts?.force) {
+    const srcPath = path33.join(templateDir, f);
+    const dstPath = path33.join(projectDir, f);
+    if (!fs33.existsSync(srcPath)) continue;
+    if (fs33.existsSync(dstPath) && !opts?.force) {
       console.log(`\u23ED\uFE0F  Skipping ${f} (use --force to overwrite)`);
       continue;
     }
     const content = readAndSubstitute(srcPath, vars);
-    fs32.writeFileSync(dstPath, content);
+    fs33.writeFileSync(dstPath, content);
     console.log(`\u2705 Injected ${f}`);
   }
 }
 
 // src/common/buildEmbeddable.ts
-import fs33 from "fs";
-import path33 from "path";
-import { execSync as execSync13 } from "child_process";
+import fs34 from "fs";
+import path34 from "path";
+import { execSync as execSync14 } from "child_process";
 var EMBEDDABLE_DIR = "embeddable";
 var LIB_PACKAGE = "com.tamer.embeddable";
 var GRADLE_VERSION = "8.14.2";
@@ -9493,14 +11384,14 @@ object LynxEmbeddable {
 }
 `;
 function generateAndroidLibrary(outDir, androidDir, projectRoot, lynxBundleFile, distDir, modules, abiFilters, hostConfig) {
-  const libDir = path33.join(androidDir, "lib");
-  const libSrcMain = path33.join(libDir, "src", "main");
-  const assetsDir = path33.join(libSrcMain, "assets");
-  const kotlinDir = path33.join(libSrcMain, "kotlin", LIB_PACKAGE.replace(/\./g, "/"));
-  const generatedDir = path33.join(kotlinDir, "generated");
-  fs33.mkdirSync(path33.join(androidDir, "gradle"), { recursive: true });
-  fs33.mkdirSync(generatedDir, { recursive: true });
-  fs33.mkdirSync(assetsDir, { recursive: true });
+  const libDir = path34.join(androidDir, "lib");
+  const libSrcMain = path34.join(libDir, "src", "main");
+  const assetsDir = path34.join(libSrcMain, "assets");
+  const kotlinDir = path34.join(libSrcMain, "kotlin", LIB_PACKAGE.replace(/\./g, "/"));
+  const generatedDir = path34.join(kotlinDir, "generated");
+  fs34.mkdirSync(path34.join(androidDir, "gradle"), { recursive: true });
+  fs34.mkdirSync(generatedDir, { recursive: true });
+  fs34.mkdirSync(assetsDir, { recursive: true });
   const androidModules = modules.filter((m) => m.config.android);
   const abiList = abiFilters.map((a) => `"${a}"`).join(", ");
   const settingsContent = `pluginManagement {
@@ -9520,7 +11411,7 @@ include(":lib")
 ${androidModules.map((p) => {
     const gradleName = p.name.replace(/^@/, "").replace(/\//g, "_");
     const sourceDir = p.config.android?.sourceDir || "android";
-    const absPath = path33.join(p.packagePath, sourceDir).replace(/\\/g, "/");
+    const absPath = path34.join(p.packagePath, sourceDir).replace(/\\/g, "/");
     return `include(":${gradleName}")
 project(":${gradleName}").projectDir = file("${absPath}")`;
   }).join("\n")}
@@ -9569,10 +11460,10 @@ dependencies {
 ${libDeps}
 }
 `;
-  fs33.writeFileSync(path33.join(androidDir, "gradle", "libs.versions.toml"), LIBS_VERSIONS_TOML);
-  fs33.writeFileSync(path33.join(androidDir, "settings.gradle.kts"), settingsContent);
-  fs33.writeFileSync(
-    path33.join(androidDir, "build.gradle.kts"),
+  fs34.writeFileSync(path34.join(androidDir, "gradle", "libs.versions.toml"), LIBS_VERSIONS_TOML);
+  fs34.writeFileSync(path34.join(androidDir, "settings.gradle.kts"), settingsContent);
+  fs34.writeFileSync(
+    path34.join(androidDir, "build.gradle.kts"),
     `plugins {
     alias(libs.plugins.android.library) apply false
     alias(libs.plugins.kotlin.android) apply false
@@ -9580,26 +11471,26 @@ ${libDeps}
 }
 `
   );
-  fs33.writeFileSync(
-    path33.join(androidDir, "gradle.properties"),
+  fs34.writeFileSync(
+    path34.join(androidDir, "gradle.properties"),
     `org.gradle.jvmargs=-Xmx2048m
 android.useAndroidX=true
 kotlin.code.style=official
 `
   );
-  fs33.writeFileSync(path33.join(libDir, "build.gradle.kts"), libBuildContent);
-  fs33.writeFileSync(
-    path33.join(libSrcMain, "AndroidManifest.xml"),
+  fs34.writeFileSync(path34.join(libDir, "build.gradle.kts"), libBuildContent);
+  fs34.writeFileSync(
+    path34.join(libSrcMain, "AndroidManifest.xml"),
     '<?xml version="1.0" encoding="utf-8"?>\n<manifest />'
   );
   copyDistAssets(distDir, assetsDir, lynxBundleFile);
-  fs33.writeFileSync(path33.join(kotlinDir, "LynxEmbeddable.kt"), LYNX_EMBEDDABLE_KT);
-  fs33.writeFileSync(
-    path33.join(generatedDir, "GeneratedLynxExtensions.kt"),
+  fs34.writeFileSync(path34.join(kotlinDir, "LynxEmbeddable.kt"), LYNX_EMBEDDABLE_KT);
+  fs34.writeFileSync(
+    path34.join(generatedDir, "GeneratedLynxExtensions.kt"),
     generateLynxExtensionsKotlin(modules, LIB_PACKAGE, { devToolBootstrap: resolveDevToolBootstrap(hostConfig) })
   );
-  fs33.writeFileSync(
-    path33.join(generatedDir, "GeneratedActivityLifecycle.kt"),
+  fs34.writeFileSync(
+    path34.join(generatedDir, "GeneratedActivityLifecycle.kt"),
     generateActivityLifecycleKotlin(modules, LIB_PACKAGE)
   );
 }
@@ -9607,42 +11498,42 @@ async function buildEmbeddable(opts = {}) {
   const resolved = resolveHostPaths();
   const { lynxProjectDir, lynxBundlePath, lynxBundleFile, lynxBundleFiles, lynxBundleRootRel, projectRoot, config } = resolved;
   console.log("\u{1F4E6} Building Lynx project (release)...");
-  execSync13("npm run build", { stdio: "inherit", cwd: lynxProjectDir });
+  execSync14("npm run build", { stdio: "inherit", cwd: lynxProjectDir });
   for (const name of lynxBundleFiles) {
-    const p = path33.join(lynxProjectDir, lynxBundleRootRel, name);
-    if (!fs33.existsSync(p)) {
+    const p = path34.join(lynxProjectDir, lynxBundleRootRel, name);
+    if (!fs34.existsSync(p)) {
       console.error(`\u274C Bundle not found at ${p}`);
       process.exit(1);
     }
   }
-  const outDir = path33.join(projectRoot, EMBEDDABLE_DIR);
-  fs33.mkdirSync(outDir, { recursive: true });
-  const distDir = path33.dirname(lynxBundlePath);
+  const outDir = path34.join(projectRoot, EMBEDDABLE_DIR);
+  fs34.mkdirSync(outDir, { recursive: true });
+  const distDir = path34.dirname(lynxBundlePath);
   copyDistAssets(distDir, outDir, lynxBundleFile);
   const modules = discoverModules(projectRoot);
   const androidModules = modules.filter((m) => m.config.android);
   const abiFilters = resolveAbiFilters(config);
-  const androidDir = path33.join(outDir, "android");
-  if (fs33.existsSync(androidDir)) fs33.rmSync(androidDir, { recursive: true });
-  fs33.mkdirSync(androidDir, { recursive: true });
+  const androidDir = path34.join(outDir, "android");
+  if (fs34.existsSync(androidDir)) fs34.rmSync(androidDir, { recursive: true });
+  fs34.mkdirSync(androidDir, { recursive: true });
   generateAndroidLibrary(outDir, androidDir, projectRoot, lynxBundleFile, distDir, modules, abiFilters, config);
-  const gradlewPath = path33.join(androidDir, "gradlew");
+  const gradlewPath = path34.join(androidDir, "gradlew");
   const devAppDir = findDevAppPackage(projectRoot);
   const existingGradleDirs = [
-    path33.join(projectRoot, "android"),
-    devAppDir ? path33.join(devAppDir, "android") : null
+    path34.join(projectRoot, "android"),
+    devAppDir ? path34.join(devAppDir, "android") : null
   ].filter(Boolean);
   let hasWrapper = false;
   for (const d of existingGradleDirs) {
-    if (fs33.existsSync(path33.join(d, "gradlew"))) {
+    if (fs34.existsSync(path34.join(d, "gradlew"))) {
       for (const name of ["gradlew", "gradlew.bat", "gradle"]) {
-        const src = path33.join(d, name);
-        if (fs33.existsSync(src)) {
-          const dest = path33.join(androidDir, name);
-          if (fs33.statSync(src).isDirectory()) {
-            fs33.cpSync(src, dest, { recursive: true });
+        const src = path34.join(d, name);
+        if (fs34.existsSync(src)) {
+          const dest = path34.join(androidDir, name);
+          if (fs34.statSync(src).isDirectory()) {
+            fs34.cpSync(src, dest, { recursive: true });
           } else {
-            fs33.copyFileSync(src, dest);
+            fs34.copyFileSync(src, dest);
           }
         }
       }
@@ -9656,15 +11547,15 @@ async function buildEmbeddable(opts = {}) {
   }
   try {
     console.log("\u{1F4E6} Building Android AAR...");
-    execSync13("./gradlew :lib:assembleRelease", { cwd: androidDir, stdio: "inherit" });
+    execSync14("./gradlew :lib:assembleRelease", { cwd: androidDir, stdio: "inherit" });
   } catch (e) {
     console.error("\u274C Android AAR build failed. Run manually: cd embeddable/android && ./gradlew :lib:assembleRelease");
     throw e;
   }
-  const aarSrc = path33.join(androidDir, "lib", "build", "outputs", "aar", "lib-release.aar");
-  const aarDest = path33.join(outDir, "tamer-embeddable.aar");
-  if (fs33.existsSync(aarSrc)) {
-    fs33.copyFileSync(aarSrc, aarDest);
+  const aarSrc = path34.join(androidDir, "lib", "build", "outputs", "aar", "lib-release.aar");
+  const aarDest = path34.join(outDir, "tamer-embeddable.aar");
+  if (fs34.existsSync(aarSrc)) {
+    fs34.copyFileSync(aarSrc, aarDest);
     console.log(`   - tamer-embeddable.aar`);
   }
   const snippetAndroid = `// Add to your app's build.gradle:
@@ -9675,7 +11566,7 @@ async function buildEmbeddable(opts = {}) {
 // LynxEmbeddable.init(applicationContext)
 // val lynxView = LynxEmbeddable.buildLynxView(containerViewGroup)
 `;
-  fs33.writeFileSync(path33.join(outDir, "snippet-android.kt"), snippetAndroid);
+  fs34.writeFileSync(path34.join(outDir, "snippet-android.kt"), snippetAndroid);
   generateIosPod(outDir, projectRoot, lynxBundleFile, distDir, modules);
   const readme = `# Embeddable Lynx Bundle
 
@@ -9706,7 +11597,7 @@ Add the \`Podfile.snippet\` entries to your Podfile (inside your app target), th
 
 - [Embedding LynxView](https://lynxjs.org/guide/embed-lynx-to-native)
 `;
-  fs33.writeFileSync(path33.join(outDir, "README.md"), readme);
+  fs34.writeFileSync(path34.join(outDir, "README.md"), readme);
   console.log(`
 \u2705 Embeddable output at ${outDir}/`);
   console.log("   - main.lynx.bundle");
@@ -9718,20 +11609,20 @@ Add the \`Podfile.snippet\` entries to your Podfile (inside your app target), th
   console.log("   - README.md");
 }
 function generateIosPod(outDir, projectRoot, lynxBundleFile, distDir, modules) {
-  const iosDir = path33.join(outDir, "ios");
-  const podDir = path33.join(iosDir, "TamerEmbeddable");
-  const resourcesDir = path33.join(podDir, "Resources");
-  fs33.mkdirSync(resourcesDir, { recursive: true });
+  const iosDir = path34.join(outDir, "ios");
+  const podDir = path34.join(iosDir, "TamerEmbeddable");
+  const resourcesDir = path34.join(podDir, "Resources");
+  fs34.mkdirSync(resourcesDir, { recursive: true });
   copyDistAssets(distDir, resourcesDir, lynxBundleFile);
   const iosModules = modules.filter((m) => m.config.ios);
   const podDeps = iosModules.map((p) => {
     const podspecPath = p.config.ios?.podspecPath || ".";
-    const podspecDir = path33.join(p.packagePath, podspecPath);
-    if (!fs33.existsSync(podspecDir)) return null;
-    const files = fs33.readdirSync(podspecDir);
+    const podspecDir = path34.join(p.packagePath, podspecPath);
+    if (!fs34.existsSync(podspecDir)) return null;
+    const files = fs34.readdirSync(podspecDir);
     const podspecFile = files.find((f) => f.endsWith(".podspec"));
     const podName = podspecFile ? podspecFile.replace(".podspec", "") : p.name.split("/").pop().replace(/-/g, "");
-    const absPath = path33.resolve(podspecDir);
+    const absPath = path34.resolve(podspecDir);
     return { podName, absPath };
   }).filter(Boolean);
   const podDepLines = podDeps.map((d) => `  s.dependency '${d.podName}'`).join("\n");
@@ -9771,9 +11662,9 @@ end
   });
   const swiftImports = iosModules.map((p) => {
     const podspecPath = p.config.ios?.podspecPath || ".";
-    const podspecDir = path33.join(p.packagePath, podspecPath);
-    if (!fs33.existsSync(podspecDir)) return null;
-    const files = fs33.readdirSync(podspecDir);
+    const podspecDir = path34.join(p.packagePath, podspecPath);
+    if (!fs34.existsSync(podspecDir)) return null;
+    const files = fs34.readdirSync(podspecDir);
     const podspecFile = files.find((f) => f.endsWith(".podspec"));
     return podspecFile ? podspecFile.replace(".podspec", "") : null;
   }).filter(Boolean);
@@ -9792,17 +11683,17 @@ ${regBlock}
     }
 }
 `;
-  fs33.writeFileSync(path33.join(iosDir, "TamerEmbeddable.podspec"), podspecContent);
-  fs33.writeFileSync(path33.join(podDir, "LynxEmbeddable.swift"), lynxEmbeddableSwift);
-  const absIosDir = path33.resolve(iosDir);
+  fs34.writeFileSync(path34.join(iosDir, "TamerEmbeddable.podspec"), podspecContent);
+  fs34.writeFileSync(path34.join(podDir, "LynxEmbeddable.swift"), lynxEmbeddableSwift);
+  const absIosDir = path34.resolve(iosDir);
   const podfileSnippet = `# Paste into your app target in Podfile:
 
 pod 'TamerEmbeddable', :path => '${absIosDir}'
 ${podDeps.map((d) => `pod '${d.podName}', :path => '${d.absPath}'`).join("\n")}
 `;
-  fs33.writeFileSync(path33.join(iosDir, "Podfile.snippet"), podfileSnippet);
-  fs33.writeFileSync(
-    path33.join(outDir, "snippet-ios.swift"),
+  fs34.writeFileSync(path34.join(iosDir, "Podfile.snippet"), podfileSnippet);
+  fs34.writeFileSync(
+    path34.join(outDir, "snippet-ios.swift"),
     `// Add LynxEmbeddable.initEnvironment() in your AppDelegate/SceneDelegate before presenting LynxView.
 // Then create LynxView with your bundle URL (main.lynx.bundle is in the pod resources).
 `
@@ -9812,13 +11703,13 @@ ${podDeps.map((d) => `pod '${d.podName}', :path => '${d.absPath}'`).join("\n")}
 // src/common/signing.tsx
 import { useState as useState7, useEffect as useEffect4, useRef as useRef2, useMemo } from "react";
 import { render as render4, Text as Text11, Box as Box10 } from "ink";
-import fs36 from "fs";
-import path36 from "path";
+import fs37 from "fs";
+import path37 from "path";
 
 // src/common/androidKeystore.ts
 import { execFileSync as execFileSync2 } from "child_process";
-import fs34 from "fs";
-import path34 from "path";
+import fs35 from "fs";
+import path35 from "path";
 function normalizeJavaHome(raw) {
   if (!raw) return void 0;
   const t = raw.trim().replace(/^["']|["']$/g, "");
@@ -9831,7 +11722,7 @@ function discoverJavaHomeMacOs() {
       encoding: "utf8",
       stdio: ["pipe", "pipe", "pipe"]
     }).trim().split("\n")[0]?.trim();
-    if (out && fs34.existsSync(path34.join(out, "bin", "keytool"))) return out;
+    if (out && fs35.existsSync(path35.join(out, "bin", "keytool"))) return out;
   } catch {
   }
   return void 0;
@@ -9841,13 +11732,13 @@ function resolveKeytoolPath() {
   const win = process.platform === "win32";
   const keytoolName = win ? "keytool.exe" : "keytool";
   if (jh) {
-    const p = path34.join(jh, "bin", keytoolName);
-    if (fs34.existsSync(p)) return p;
+    const p = path35.join(jh, "bin", keytoolName);
+    if (fs35.existsSync(p)) return p;
   }
   const mac = discoverJavaHomeMacOs();
   if (mac) {
-    const p = path34.join(mac, "bin", keytoolName);
-    if (fs34.existsSync(p)) return p;
+    const p = path35.join(mac, "bin", keytoolName);
+    if (fs35.existsSync(p)) return p;
   }
   return "keytool";
 }
@@ -9862,16 +11753,16 @@ function keytoolAvailable() {
   };
   if (tryRun("keytool")) return true;
   const fromJavaHome = resolveKeytoolPath();
-  if (fromJavaHome !== "keytool" && fs34.existsSync(fromJavaHome)) {
+  if (fromJavaHome !== "keytool" && fs35.existsSync(fromJavaHome)) {
     return tryRun(fromJavaHome);
   }
   return false;
 }
 function generateReleaseKeystore(opts) {
   const keytool = resolveKeytoolPath();
-  const dir = path34.dirname(opts.keystoreAbsPath);
-  fs34.mkdirSync(dir, { recursive: true });
-  if (fs34.existsSync(opts.keystoreAbsPath)) {
+  const dir = path35.dirname(opts.keystoreAbsPath);
+  fs35.mkdirSync(dir, { recursive: true });
+  if (fs35.existsSync(opts.keystoreAbsPath)) {
     throw new Error(`Keystore already exists: ${opts.keystoreAbsPath}`);
   }
   if (!opts.storePassword || !opts.keyPassword) {
@@ -9909,13 +11800,13 @@ function generateReleaseKeystore(opts) {
 }
 
 // src/common/appendEnvFile.ts
-import fs35 from "fs";
-import path35 from "path";
+import fs36 from "fs";
+import path36 from "path";
 import { parse as parse2 } from "dotenv";
 function keysDefinedInFile(filePath) {
-  if (!fs35.existsSync(filePath)) return /* @__PURE__ */ new Set();
+  if (!fs36.existsSync(filePath)) return /* @__PURE__ */ new Set();
   try {
-    return new Set(Object.keys(parse2(fs35.readFileSync(filePath, "utf8"))));
+    return new Set(Object.keys(parse2(fs36.readFileSync(filePath, "utf8"))));
   } catch {
     return /* @__PURE__ */ new Set();
   }
@@ -9930,11 +11821,11 @@ function formatEnvLine(key, value) {
 function appendEnvVarsIfMissing(projectRoot, vars) {
   const entries = Object.entries(vars).filter(([, v]) => v !== void 0 && v !== "");
   if (entries.length === 0) return null;
-  const envLocal = path35.join(projectRoot, ".env.local");
-  const envDefault = path35.join(projectRoot, ".env");
+  const envLocal = path36.join(projectRoot, ".env.local");
+  const envDefault = path36.join(projectRoot, ".env");
   let target;
-  if (fs35.existsSync(envLocal)) target = envLocal;
-  else if (fs35.existsSync(envDefault)) target = envDefault;
+  if (fs36.existsSync(envLocal)) target = envLocal;
+  else if (fs36.existsSync(envDefault)) target = envDefault;
   else target = envLocal;
   const existing = keysDefinedInFile(target);
   const lines = [];
@@ -9946,20 +11837,20 @@ function appendEnvVarsIfMissing(projectRoot, vars) {
   }
   if (lines.length === 0) {
     return {
-      file: path35.basename(target),
+      file: path36.basename(target),
       keys: [],
       skippedAll: entries.length > 0
     };
   }
   let prefix = "";
-  if (fs35.existsSync(target)) {
-    const cur = fs35.readFileSync(target, "utf8");
+  if (fs36.existsSync(target)) {
+    const cur = fs36.readFileSync(target, "utf8");
     prefix = cur.length === 0 ? "" : cur.endsWith("\n") ? cur : `${cur}
 `;
   }
   const block = lines.join("\n") + "\n";
-  fs35.writeFileSync(target, prefix + block, "utf8");
-  return { file: path35.basename(target), keys: appendedKeys };
+  fs36.writeFileSync(target, prefix + block, "utf8");
+  return { file: path36.basename(target), keys: appendedKeys };
 }
 
 // src/common/signing.tsx
@@ -10183,7 +12074,7 @@ function SigningWizard({ platform: initialPlatform }) {
       try {
         const resolved = resolveHostPaths();
         const rel = state.android.genKeystorePath.trim() || "android/release.keystore";
-        abs = path36.isAbsolute(rel) ? rel : path36.join(resolved.projectRoot, rel);
+        abs = path37.isAbsolute(rel) ? rel : path37.join(resolved.projectRoot, rel);
         const alias = state.android.keyAlias.trim() || "release";
         const pw = state.android.genPassword;
         const pkg = resolved.config.android?.packageName ?? "com.example.app";
@@ -10210,7 +12101,7 @@ function SigningWizard({ platform: initialPlatform }) {
         }));
       } catch (e) {
         const msg = e.message;
-        if (abs && fs36.existsSync(abs) && (msg.includes("already exists") || msg.includes("Keystore already exists"))) {
+        if (abs && fs37.existsSync(abs) && (msg.includes("already exists") || msg.includes("Keystore already exists"))) {
           if (cancelled || runId !== generateRunId.current) return;
           const rel = state.android.genKeystorePath.trim() || "android/release.keystore";
           const alias = state.android.keyAlias.trim() || "release";
@@ -10250,11 +12141,11 @@ function SigningWizard({ platform: initialPlatform }) {
   const saveConfig = async () => {
     try {
       const resolved = resolveHostPaths();
-      const configPath = path36.join(resolved.projectRoot, "tamer.config.json");
+      const configPath = path37.join(resolved.projectRoot, "tamer.config.json");
       let config = {};
       let androidEnvAppend = null;
-      if (fs36.existsSync(configPath)) {
-        config = JSON.parse(fs36.readFileSync(configPath, "utf8"));
+      if (fs37.existsSync(configPath)) {
+        config = JSON.parse(fs37.readFileSync(configPath, "utf8"));
       }
       if (state.platform === "android" || state.platform === "both") {
         config.android = config.android || {};
@@ -10286,10 +12177,10 @@ function SigningWizard({ platform: initialPlatform }) {
           }
         };
       }
-      fs36.writeFileSync(configPath, JSON.stringify(config, null, 2));
-      const gitignorePath = path36.join(resolved.projectRoot, ".gitignore");
-      if (fs36.existsSync(gitignorePath)) {
-        let gitignore = fs36.readFileSync(gitignorePath, "utf8");
+      fs37.writeFileSync(configPath, JSON.stringify(config, null, 2));
+      const gitignorePath = path37.join(resolved.projectRoot, ".gitignore");
+      if (fs37.existsSync(gitignorePath)) {
+        let gitignore = fs37.readFileSync(gitignorePath, "utf8");
         const additions = [
           ".env.local",
           "*.jks",
@@ -10302,7 +12193,7 @@ ${addition}
 `;
           }
         }
-        fs36.writeFileSync(gitignorePath, gitignore);
+        fs37.writeFileSync(gitignorePath, gitignore);
       }
       setState((s) => ({
         ...s,
@@ -10576,13 +12467,13 @@ async function signing(platform) {
 }
 
 // src/common/productionSigning.ts
-import fs37 from "fs";
-import path37 from "path";
+import fs38 from "fs";
+import path38 from "path";
 function isAndroidSigningConfigured(resolved) {
   const signing2 = resolved.config.android?.signing;
   const hasConfig = Boolean(signing2?.keystoreFile?.trim() && signing2?.keyAlias?.trim());
-  const signingProps = path37.join(resolved.androidDir, "signing.properties");
-  const hasProps = fs37.existsSync(signingProps);
+  const signingProps = path38.join(resolved.androidDir, "signing.properties");
+  const hasProps = fs38.existsSync(signingProps);
   return hasConfig || hasProps;
 }
 function isIosSigningConfigured(resolved) {
@@ -10766,13 +12657,18 @@ program.command("inject <platform>").description("Inject host templates into an 
   console.error(`Invalid inject platform: ${platform}. Use ios | android`);
   process.exit(1);
 });
-program.command("sync [platform]").description("Sync dev client. Platform: android (default)").action(async (platform) => {
-  const p = (platform ?? "android").toLowerCase();
-  if (p !== "android") {
-    console.error("sync only supports android.");
+program.command("sync [platform]").description("Sync dev client. Platform: android | ios | both (default: android)").action(async (platform) => {
+  const p = parsePlatform(platform ?? "android");
+  if (!p) {
+    console.error("Invalid sync platform. Use: android | ios | both");
     process.exit(1);
   }
-  await syncDevClient_default();
+  if (p === "android" || p === "all") {
+    await syncDevClient_default();
+  }
+  if (p === "ios" || p === "all") {
+    await syncDevClient_default2();
+  }
 });
 program.command("start").option("-v, --verbose", "Show all logs (native + JS); default shows JS only").description("Start dev server with HMR and WebSocket support (Expo-like)").action(async (opts) => {
   await start_default({ verbose: opts.verbose });
@@ -10866,6 +12762,10 @@ program.command("ios <subcommand>").description("iOS: create | link | bundle | b
     autolink_default2();
     return;
   }
+  if (sub === "sync") {
+    await syncDevClient_default2();
+    return;
+  }
   if (sub === "bundle") {
     validateBuildMode(opts.debug, opts.release, opts.production);
     const release = opts.release === true || opts.production === true;
@@ -10901,14 +12801,14 @@ program.command("ios <subcommand>").description("iOS: create | link | bundle | b
     await injectHostIos({ force: opts.force });
     return;
   }
-  console.error(`Unknown ios subcommand: ${subcommand}. Use: create | link | bundle | build | inject`);
+  console.error(`Unknown ios subcommand: ${subcommand}. Use: create | link | bundle | build | sync | inject`);
   process.exit(1);
 });
 program.command("autolink-toggle").alias("autolink").description("Toggle autolink on/off in tamer.config.json (controls postinstall linking)").action(async () => {
-  const configPath = path38.join(process.cwd(), "tamer.config.json");
+  const configPath = path39.join(process.cwd(), "tamer.config.json");
   let config = {};
-  if (fs38.existsSync(configPath)) {
-    config = JSON.parse(fs38.readFileSync(configPath, "utf8"));
+  if (fs39.existsSync(configPath)) {
+    config = JSON.parse(fs39.readFileSync(configPath, "utf8"));
   }
   if (config.autolink) {
     delete config.autolink;
@@ -10917,7 +12817,7 @@ program.command("autolink-toggle").alias("autolink").description("Toggle autolin
     config.autolink = true;
     console.log("Autolink enabled in tamer.config.json");
   }
-  fs38.writeFileSync(configPath, JSON.stringify(config, null, 2));
+  fs39.writeFileSync(configPath, JSON.stringify(config, null, 2));
   console.log(`Updated ${configPath}`);
 });
 if (process.argv.length <= 2 || process.argv.length === 3 && process.argv[2] === "init") {

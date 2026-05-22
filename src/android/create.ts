@@ -8,6 +8,7 @@ import {
   fetchAndPatchApplication,
   fetchAndPatchTemplateProvider,
   getDevClientManager,
+  getPortraitCaptureActivity,
   getProjectActivity,
   getStandaloneMainActivity,
   getTamerDevAppProjectActivity,
@@ -335,19 +336,20 @@ dependencies {
     );
 
     const devMode = resolveDevMode(config);
-    const hasDevLauncher = devMode === "embedded";
+    const hasDevLauncher = devMode === "embedded" || opts.target === "dev-app";
     const manifestActivities = hasDevLauncher
       ? `
-        <activity android:name=".MainActivity" android:exported="true" android:windowSoftInputMode="adjustResize">
+        <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask" android:taskAffinity="${packageName}.launcher" android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".ProjectActivity" android:exported="true" android:taskAffinity="" android:launchMode="singleTask" android:documentLaunchMode="always" android:windowSoftInputMode="adjustResize">
+        <activity android:name=".ProjectActivity" android:exported="true" android:taskAffinity="${packageName}.project" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize">
         <!-- GENERATED DEEP LINKS START -->
         <!-- GENERATED DEEP LINKS END -->
         </activity>
+        <activity android:name=".PortraitCaptureActivity" android:screenOrientation="portrait" android:stateNotNeeded="true" android:theme="@style/zxing_CaptureTheme" android:windowSoftInputMode="stateAlwaysHidden" />
 `
       : `
         <activity android:name=".MainActivity" android:exported="true" android:windowSoftInputMode="adjustResize">
@@ -408,7 +410,13 @@ object GeneratedLynxExtensions {
         }
       : undefined;
     const resolved = resolveHostPaths(process.cwd());
-    const vars = { packageName, appName, devMode, devServer, projectRoot: resolved.lynxProjectDir };
+    const vars = {
+      packageName,
+      appName,
+      devMode: opts.target === "dev-app" ? "embedded" as const : devMode,
+      devServer,
+      projectRoot: resolved.lynxProjectDir,
+    };
     const templateVars = { PACKAGE_NAME: packageName, APP_NAME: appName };
     const hostPkg = findTamerHostPackage(process.cwd());
     const devClientPkg = findDevClientPackage(process.cwd());
@@ -426,12 +434,29 @@ object GeneratedLynxExtensions {
         }
       }
     } else {
-      const [applicationSource, templateProviderSource] = await Promise.all([
-        fetchAndPatchApplication(vars),
-        fetchAndPatchTemplateProvider(vars),
-      ]);
+      const applicationSource = await fetchAndPatchApplication(vars);
       writeFile(path.join(javaDir, "App.java"), applicationSource);
-      writeFile(path.join(javaDir, "TemplateProvider.java"), templateProviderSource);
+      const projectSegment = vars.projectRoot
+        ? vars.projectRoot.replace(/\\/g, "/").split("/").filter(Boolean).pop() ?? ""
+        : "";
+      const repoRoot = findRepoRoot(process.cwd());
+      const templateCandidates = [
+        devClientPkg ? path.join(devClientPkg, "android", "templates", "TemplateProvider.java") : "",
+        repoRoot ? path.join(repoRoot, "packages", "tamer-dev-client", "android", "templates", "TemplateProvider.java") : "",
+      ].filter(Boolean);
+      const localTemplatePath = templateCandidates.find((p) => fs.existsSync(p)) ?? "";
+      if (hasDevLauncher && localTemplatePath) {
+        writeFile(
+          path.join(javaDir, "TemplateProvider.java"),
+          readAndSubstituteTemplate(localTemplatePath, {
+            PACKAGE_NAME: packageName,
+            APP_NAME: appName,
+            PROJECT_BUNDLE_SEGMENT: projectSegment,
+          })
+        );
+      } else {
+        writeFile(path.join(javaDir, "TemplateProvider.java"), await fetchAndPatchTemplateProvider(vars));
+      }
       writeFile(path.join(kotlinDir, "TamerNavLynxRuntime.kt"), getTamerNavLynxRuntime(vars));
       writeFile(path.join(kotlinDir, "MainActivity.kt"), getStandaloneMainActivity(vars));
       if (hasDevLauncher) {
@@ -449,6 +474,7 @@ object GeneratedLynxExtensions {
           }
           if (opts.target === "dev-app") {
             writeFile(path.join(kotlinDir, "ProjectActivity.kt"), getTamerDevAppProjectActivity(packageName));
+            writeFile(path.join(kotlinDir, "PortraitCaptureActivity.kt"), getPortraitCaptureActivity(vars));
           } else {
             const paSrc = path.join(templateDir, "ProjectActivity.kt");
             if (fs.existsSync(paSrc)) {

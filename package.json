@@ -1,6 +1,6 @@
 {
   "name": "@tamer4lynx/cli",
-  "version": "0.0.28",
+  "version": "0.0.30",
   "module": "index.ts",
   "type": "module",
   "description": "A CLI tool for managing LynxJS native modules.",
@@ -23,6 +23,7 @@
     "access": "public"
   },
   "workspaces": [
+    "packages/tamer-asset",
     "packages/docs",
     "packages/example",
     "packages/vue-lynx-example",
@@ -31,7 +32,6 @@
     "packages/tamer-linking",
     "packages/tamer-local-storage",
     "packages/jiggle",
-    "packages/lynxwebsockets",
     "packages/tamer-transports",
     "packages/tamer-biometric",
     "packages/tamer-secure-store",

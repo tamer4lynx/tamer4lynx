@@ -43,17 +43,20 @@ export async function setupCocoaPods(rootDir: string): Promise<void> {
             throw new Error(`Podfile not found at ${podfilePath}`);
         }
 
+        const podEnv = { ...process.env, LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' };
         console.log(`🚀 Executing pod install in: ${rootDir}`);
         try {
             execSync('pod install', {
                 cwd: rootDir,
                 stdio: 'inherit',
+                env: podEnv,
             });
         } catch {
             console.log('ℹ️ Retrying CocoaPods install with repo update...');
             execSync('pod install --repo-update', {
                 cwd: rootDir,
                 stdio: 'inherit',
+                env: podEnv,
             });
         }
 

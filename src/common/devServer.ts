@@ -22,6 +22,16 @@ const STATIC_MIME: Record<string, string> = {
   '.pdf': 'application/pdf',
 };
 
+function contentTypeForDevPath(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === '.bundle') return 'application/octet-stream';
+  if (ext === '.js' || ext === '.mjs') return 'application/javascript';
+  if (ext === '.json') return 'application/json';
+  if (ext === '.css') return 'text/css';
+  if (ext === '.html') return 'text/html; charset=utf-8';
+  return STATIC_MIME[ext] ?? 'application/octet-stream';
+}
+
 function sendFileFromDisk(res: http.ServerResponse, absPath: string) {
   fs.readFile(absPath, (err, data) => {
     if (err) {
@@ -29,8 +39,7 @@ function sendFileFromDisk(res: http.ServerResponse, absPath: string) {
       res.end('Not found');
       return;
     }
-    const ext = path.extname(absPath).toLowerCase();
-    setDevHeaders(res, STATIC_MIME[ext] ?? 'application/octet-stream');
+    setDevHeaders(res, contentTypeForDevPath(absPath));
     res.end(data);
   });
 }
@@ -289,7 +298,7 @@ async function startDevServer(opts?: { verbose?: boolean }) {
         res.end('Not found');
         return;
       }
-      setDevHeaders(res, reqPath.endsWith('.bundle') ? 'application/octet-stream' : 'application/javascript');
+      setDevHeaders(res, contentTypeForDevPath(filePath));
       res.end(data);
     });
   });

@@ -1,0 +1,81 @@
+{
+  "name": "@tamer4lynx/tamer-asset",
+  "version": "0.0.2",
+  "publishConfig": {
+    "access": "public",
+    "tag": "prerelease"
+  },
+  "type": "module",
+  "description": "Expo-style asset loading for Tamer/Lynx — JS runtime, React hooks, and native cache layer.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./hooks": {
+      "types": "./dist/hooks/index.d.ts",
+      "import": "./dist/hooks/index.js",
+      "default": "./dist/hooks/index.js"
+    },
+    "./plugin": {
+      "types": "./dist/plugin/index.d.ts",
+      "import": "./dist/plugin/index.js",
+      "default": "./dist/plugin/index.js"
+    },
+    "./loader": {
+      "types": "./dist/plugin/useAssetsLoader.d.ts",
+      "import": "./dist/plugin/useAssetsLoader.js",
+      "default": "./dist/plugin/useAssetsLoader.js"
+    },
+    "./tamer.config": {
+      "types": "./dist/tamer.config.d.ts",
+      "import": "./dist/tamer.config.js",
+      "default": "./dist/tamer.config.js"
+    }
+  },
+  "files": [
+    "dist",
+    "ios",
+    "android",
+    "tamerasset.podspec"
+  ],
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "image-size": "^2.0.1"
+  },
+  "peerDependencies": {
+    "@lynx-js/react": ">=0.112.0",
+    "@rsbuild/core": "^1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@lynx-js/react": {
+      "optional": true
+    },
+    "@rsbuild/core": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@rsbuild/core": "^1.3.0",
+    "typescript": "~5.8.0"
+  },
+  "lynxSdk": "3.6.0",
+  "lynx": {
+    "ios": {
+      "podspec": "tamerasset.podspec"
+    },
+    "android": {
+      "package": "com.tamer4lynx.tamerasset"
+    }
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "author": "Nanofuxion",
+  "license": "MIT"
+}

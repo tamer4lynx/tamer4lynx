@@ -202,12 +202,35 @@ export function applyIosAppIconAssets(appIconDir: string, iconPaths: ResolvedIco
     if (iconPaths.source) {
         const icon1024 = 'Icon-1024.png';
         const outputPath = path.join(appIconDir, icon1024);
-        try {
-            execFileSync('sips', ['-s', 'format', 'png', '-z', '1024', '1024', iconPaths.source, '--out', outputPath], {
-                stdio: 'ignore',
-            });
-        } catch {
-            fs.copyFileSync(iconPaths.source, outputPath);
+        const bg = iconPaths.iosBackgroundColor;
+        let composited = false;
+        if (bg && /^#[0-9a-fA-F]{6}$/.test(bg)) {
+            const r = parseInt(bg.slice(1, 3), 16);
+            const g = parseInt(bg.slice(3, 5), 16);
+            const b = parseInt(bg.slice(5, 7), 16);
+            const script = [
+                'from PIL import Image',
+                `src = Image.open(${JSON.stringify(iconPaths.source)}).convert("RGBA")`,
+                `src = src.resize((1024, 1024), Image.LANCZOS)`,
+                `bg = Image.new("RGBA", (1024, 1024), (${r}, ${g}, ${b}, 255))`,
+                `bg.paste(src, (0, 0), src)`,
+                `bg.convert("RGB").save(${JSON.stringify(outputPath)}, "PNG")`,
+            ].join('\n');
+            try {
+                execFileSync('python3', ['-c', script], { stdio: 'ignore' });
+                composited = true;
+            } catch {
+                // fall through to sips
+            }
+        }
+        if (!composited) {
+            try {
+                execFileSync('sips', ['-s', 'format', 'png', '-z', '1024', '1024', iconPaths.source, '--out', outputPath], {
+                    stdio: 'ignore',
+                });
+            } catch {
+                fs.copyFileSync(iconPaths.source, outputPath);
+            }
         }
         fs.writeFileSync(
             path.join(appIconDir, 'Contents.json'),

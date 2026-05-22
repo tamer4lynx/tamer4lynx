@@ -204,6 +204,39 @@ export function addResourceToXcodeProject(pbxprojPath: string, appName: string, 
     console.log(`✅ Registered ${filename} in Xcode project resources`);
 }
 
+export function addResourceFolderToXcodeProject(pbxprojPath: string, appName: string, folderName: string): void {
+    let content = fs.readFileSync(pbxprojPath, 'utf8');
+
+    const escaped = folderName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (new RegExp(`path = "?${escaped}"?;`).test(content)) return;
+
+    const fileRefUUID = deterministicUUID(`folderRef:${appName}:${folderName}`);
+    const buildFileUUID = deterministicUUID(`folderBuildFile:${appName}:${folderName}`);
+
+    content = content.replace(
+        '/* End PBXFileReference section */',
+        `\t\t${fileRefUUID} /* ${folderName} */ = {isa = PBXFileReference; lastKnownFileType = folder; path = ${folderName}; sourceTree = "<group>"; };\n/* End PBXFileReference section */`
+    );
+
+    content = content.replace(
+        '/* End PBXBuildFile section */',
+        `\t\t${buildFileUUID} /* ${folderName} in Resources */ = {isa = PBXBuildFile; fileRef = ${fileRefUUID} /* ${folderName} */; };\n/* End PBXBuildFile section */`
+    );
+
+    content = content.replace(
+        /(isa = PBXResourcesBuildPhase;[\s\S]*?files = \()/,
+        `$1\n\t\t\t\t${buildFileUUID} /* ${folderName} in Resources */,`
+    );
+
+    const groupPattern = new RegExp(
+        `(\\/\\* ${appName} \\*\\/ = \\{[\\s\\S]*?isa = PBXGroup;[\\s\\S]*?children = \\()`
+    );
+    content = content.replace(groupPattern, `$1\n\t\t\t\t${fileRefUUID} /* ${folderName} */,`);
+
+    fs.writeFileSync(pbxprojPath, content, 'utf8');
+    console.log(`✅ Registered ${folderName} folder in Xcode project resources`);
+}
+
 function writeFile(filePath: string, content: string): void {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(filePath, content, 'utf8');
@@ -500,14 +533,54 @@ class LynxProvider: NSObject, LynxTemplateProvider, LynxTemplateResourceFetcher,
     }
 
     private func loadData(url: String?) -> (data: Data?, error: NSError?) {
-        guard let url = url,
-              let bundleUrl = Bundle.main.url(forResource: url, withExtension: nil),
-              let data = try? Data(contentsOf: bundleUrl) else {
+        guard let normalized = normalizeBundlePath(url),
+              let resourcePath = Bundle.main.resourcePath else {
             let err = NSError(domain: "LynxProvider", code: 404,
                               userInfo: [NSLocalizedDescriptionKey: "Bundle not found: \\(url ?? "nil")"])
             return (nil, err)
         }
+        let abs = (resourcePath as NSString).appendingPathComponent(normalized)
+        guard FileManager.default.fileExists(atPath: abs),
+              let data = try? Data(contentsOf: URL(fileURLWithPath: abs)) else {
+            let err = NSError(domain: "LynxProvider", code: 404,
+                              userInfo: [NSLocalizedDescriptionKey: "Bundle not found: \\(normalized)"])
+            return (nil, err)
+        }
         return (data, nil)
+    }
+
+    private func normalizeBundlePath(_ url: String?) -> String? {
+        guard var s = url?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else { return nil }
+        if let fragment = s.firstIndex(of: "#") {
+            s = String(s[..<fragment])
+        }
+        if let query = s.firstIndex(of: "?") {
+            s = String(s[..<query])
+        }
+        if let parsed = URL(string: s), parsed.scheme != nil, !parsed.path.isEmpty {
+            s = parsed.path
+        }
+        s = s.replacingOccurrences(of: "\\\\", with: "/")
+        while s.hasPrefix("/") {
+            s.removeFirst()
+        }
+        s = stripBeforeMarker(s, marker: ".lynx.bundle/")
+        s = stripBeforeMarker(s, marker: ".web.bundle/")
+        s = stripBeforeMarker(s, marker: "static/")
+        s = stripBeforeMarker(s, marker: "assets/")
+        s = stripBeforeMarker(s, marker: "tamer-assets.json")
+        let normalized = (s as NSString).standardizingPath
+        if normalized == ".." || normalized.hasPrefix("../") { return nil }
+        return normalized
+    }
+
+    private func stripBeforeMarker(_ value: String, marker: String) -> String {
+        guard let range = value.range(of: marker) else { return value }
+        if range.lowerBound == value.startIndex { return value }
+        if marker.hasSuffix("/") {
+            return String(value[range.upperBound...])
+        }
+        return String(value[range.lowerBound...])
     }
 }
 `;
@@ -534,7 +607,13 @@ function readTemplateOrFallback(
 
 function syncHostIos(opts?: { release?: boolean; includeDevClient?: boolean }): void {
     const resolved = resolveHostPaths();
-    const appName = resolved.config.ios?.appName;
+    const configuredAppName = resolved.config.ios?.appName;
+    const appName =
+        configuredAppName && fs.existsSync(path.join(resolved.iosDir, configuredAppName))
+            ? configuredAppName
+            : fs.existsSync(path.join(resolved.iosDir, 'TamerDevApp'))
+                ? 'TamerDevApp'
+                : configuredAppName;
     const release = opts?.release === true;
     const devClientPkg = findDevClientPackage(resolved.projectRoot);
     const useDevClient = opts?.includeDevClient ?? (!release && !!devClientPkg);
@@ -622,6 +701,7 @@ function syncHostIos(opts?: { release?: boolean; includeDevClient?: boolean }): 
 
         // ViewController = DevLauncherViewController (loads dev-client, wires DevClientModule)
         writeFile(path.join(projectDir, 'ViewController.swift'), getDevViewControllerSwift(devClientPkg));
+        addSwiftSourceToXcodeProject(pbxprojPath, appName, 'ViewController.swift');
 
         // Keep LynxProvider.swift as simple provider (unused by DevTemplateProvider, but registered in Xcode)
         writeFile(path.join(projectDir, 'LynxProvider.swift'), getSimpleLynxProviderSwift());

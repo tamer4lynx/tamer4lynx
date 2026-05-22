@@ -28,16 +28,55 @@ const STATIC_MIME: Record<string, string> = {
   '.pdf': 'application/pdf',
 };
 
-function sendFileFromDisk(res: http.ServerResponse, absPath: string) {
-  fs.readFile(absPath, (err, data) => {
-    if (err) {
+function contentTypeForDevPath(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === '.bundle') return 'application/octet-stream';
+  if (ext === '.js' || ext === '.mjs') return 'application/javascript';
+  if (ext === '.json') return 'application/json';
+  if (ext === '.css') return 'text/css';
+  if (ext === '.html') return 'text/html; charset=utf-8';
+  return STATIC_MIME[ext] ?? 'application/octet-stream';
+}
+
+function sendFileFromDisk(res: http.ServerResponse, absPath: string, req?: http.IncomingMessage) {
+  fs.stat(absPath, (statErr, stats) => {
+    if (statErr) {
       res.writeHead(404);
       res.end('Not found');
       return;
     }
-    const ext = path.extname(absPath).toLowerCase();
-    setDevHeaders(res, STATIC_MIME[ext] ?? 'application/octet-stream');
-    res.end(data);
+    const mtime = stats.mtime;
+    const etag = `"${stats.mtimeMs.toString(16)}-${stats.size.toString(16)}"`;
+    const lastModified = mtime.toUTCString();
+
+    // Conditional GET support for asset caching (used by TamerAssetsModule)
+    if (req) {
+      const ifNoneMatch = req.headers['if-none-match'];
+      const ifModifiedSince = req.headers['if-modified-since'];
+      if (ifNoneMatch && ifNoneMatch === etag) {
+        res.writeHead(304);
+        res.end();
+        return;
+      }
+      if (!ifNoneMatch && ifModifiedSince) {
+        const clientDate = new Date(ifModifiedSince);
+        if (!isNaN(clientDate.getTime()) && mtime <= clientDate) {
+          res.writeHead(304);
+          res.end();
+          return;
+        }
+      }
+    }
+
+    fs.readFile(absPath, (err, data) => {
+      if (err) {
+        res.writeHead(404);
+        res.end('Not found');
+        return;
+      }
+      setAssetHeaders(res, contentTypeForDevPath(absPath), etag, lastModified);
+      res.end(data);
+    });
   });
 }
 
@@ -47,6 +86,15 @@ function setDevHeaders(res: http.ServerResponse, contentType?: string) {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
+}
+
+function setAssetHeaders(res: http.ServerResponse, contentType: string, etag: string, lastModified: string) {
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('ETag', etag);
+  res.setHeader('Last-Modified', lastModified);
+  // Allow conditional GETs but revalidate every time (no stale serving without server check)
+  res.setHeader('Cache-Control', 'no-cache');
 }
 
 function listenOnPort(server: http.Server, port: number): Promise<void> {
@@ -216,8 +264,7 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
   const handleQuit = useCallback(() => {
     if (quitOnceRef.current) return;
     quitOnceRef.current = true;
-    void cleanupRef.current?.();
-    exit();
+    void (cleanupRef.current?.() ?? Promise.resolve()).then(() => exit(), () => exit());
   }, [exit]);
 
   useEffect(() => {
@@ -396,7 +443,7 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
               res.end('Not found');
               return;
             }
-            sendFileFromDisk(res, abs);
+            sendFileFromDisk(res, abs, req);
             return;
           }
           if (reqPath === '/' || reqPath === basePath || reqPath === `${basePath}/`) {
@@ -418,7 +465,7 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
               res.end('Not found');
               return;
             }
-            setDevHeaders(res, reqPath.endsWith('.bundle') ? 'application/octet-stream' : 'application/javascript');
+            setDevHeaders(res, contentTypeForDevPath(filePath));
             res.end(data);
           });
         });

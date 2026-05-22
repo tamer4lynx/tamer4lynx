@@ -1,0 +1,13 @@
+{
+  "platforms": {
+    "android": {
+      "packageName": "com.tamer4lynx.tamerasset",
+      "moduleClassName": "com.tamer4lynx.tamerasset.TamerAssetModule",
+      "sourceDir": "android"
+    },
+    "ios": {
+      "podspecPath": "ios/tamerasset",
+      "moduleClassName": "TamerAssetsModule"
+    }
+  }
+}

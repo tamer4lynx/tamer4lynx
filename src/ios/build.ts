@@ -158,13 +158,23 @@ async function buildIpa(
         throw new Error('"ios.appName" must be defined in tamer.config.json');
     }
 
-    const appName = resolved.config.ios.appName;
+    let appName = resolved.config.ios.appName;
     const bundleId = resolved.config.ios.bundleId;
     const iosDir = resolved.iosDir;
     const release = opts.release === true || opts.production === true;
     const configuration = release ? 'Release' : 'Debug';
 
     ios_bundle({ release, production: opts.production });
+
+    // Discover actual project name — may differ from display appName (e.g. "Tamer App" vs "TamerDevApp")
+    if (fs.existsSync(iosDir)) {
+        const xcworkspace = fs.readdirSync(iosDir).find(f => f.endsWith('.xcworkspace'));
+        if (xcworkspace) appName = path.basename(xcworkspace, '.xcworkspace');
+        else {
+            const xcodeproj = fs.readdirSync(iosDir).find(f => f.endsWith('.xcodeproj'));
+            if (xcodeproj) appName = path.basename(xcodeproj, '.xcodeproj');
+        }
+    }
 
     const scheme = appName;
     const workspacePath = path.join(iosDir, `${appName}.xcworkspace`);

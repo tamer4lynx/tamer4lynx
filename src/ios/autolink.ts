@@ -28,6 +28,13 @@ const autolink = (syncHostOpts?: IosAutolinkSyncOpts) => {
     const projectRoot = resolved.projectRoot;
     const iosProjectPath = resolved.iosDir;
 
+    function resolveIosAppFolderName(): string | undefined {
+        const configured = resolved.config.ios?.appName;
+        if (configured && fs.existsSync(path.join(iosProjectPath, configured))) return configured;
+        if (fs.existsSync(path.join(iosProjectPath, 'TamerDevApp'))) return 'TamerDevApp';
+        return configured;
+    }
+
     // --- Core Logic ---
 
     function updateGeneratedSection(filePath: string, newContent: string, startMarker: string, endMarker: string): void {
@@ -318,7 +325,7 @@ const autolink = (syncHostOpts?: IosAutolinkSyncOpts) => {
     }
 
     function ensurePbxprojBuildSpeed(): void {
-        const appName = resolved.config.ios?.appName;
+        const appName = resolveIosAppFolderName();
         if (!appName) return;
         const pbxPath = path.join(iosProjectPath, `${appName}.xcodeproj`, 'project.pbxproj');
         if (patchPbxprojProjectDebugBuildSpeed(pbxPath)) {
@@ -334,7 +341,11 @@ const autolink = (syncHostOpts?: IosAutolinkSyncOpts) => {
     function updateLynxInitProcessor(packages: DiscoveredModule[]): void {
         const appNameFromConfig = resolved.config.ios?.appName;
         const candidatePaths: string[] = [];
-        if (appNameFromConfig) {
+        const appFolder = resolveIosAppFolderName();
+        if (appFolder) {
+            candidatePaths.push(path.join(iosProjectPath, appFolder, 'LynxInitProcessor.swift'));
+        }
+        if (appNameFromConfig && appNameFromConfig !== appFolder) {
             candidatePaths.push(path.join(iosProjectPath, appNameFromConfig, 'LynxInitProcessor.swift'));
         }
         candidatePaths.push(path.join(iosProjectPath, 'LynxInitProcessor.swift'));
@@ -476,7 +487,11 @@ const autolink = (syncHostOpts?: IosAutolinkSyncOpts) => {
 
     function findInfoPlist(): string | null {
         const appNameFromConfig = resolved.config.ios?.appName;
+        const appFolder = resolveIosAppFolderName();
         const candidates: string[] = [];
+        if (appFolder) {
+            candidates.push(path.join(iosProjectPath, appFolder, 'Info.plist'));
+        }
         if (appNameFromConfig) {
             candidates.push(path.join(iosProjectPath, appNameFromConfig, 'Info.plist'));
         }
@@ -585,13 +600,14 @@ ${schemesXml}
         }
 
         const cwd = path.dirname(podfilePath);
+        const podEnv = { ...process.env, LANG: 'en_US.UTF-8', LC_ALL: 'en_US.UTF-8' };
         try {
             console.log(`ℹ️ Running ` + '`pod install`' + ` in ${cwd}...`);
             try {
-                execSync('pod install', { cwd, stdio: 'inherit' });
+                execSync('pod install', { cwd, stdio: 'inherit', env: podEnv });
             } catch {
                 console.log('ℹ️ Retrying `pod install` with repo update...');
-                execSync('pod install --repo-update', { cwd, stdio: 'inherit' });
+                execSync('pod install --repo-update', { cwd, stdio: 'inherit', env: podEnv });
             }
             console.log('✅ `pod install` completed successfully.');
         } catch (e: any) {
@@ -611,7 +627,12 @@ ${schemesXml}
             console.log('ℹ️ No Tamer4Lynx native packages found.');
         }
 
-        syncHostIos(syncHostOpts);
+        try {
+            syncHostIos(syncHostOpts);
+        } catch (error: any) {
+            console.error(`❌ Failed to sync iOS host files: ${error?.message ?? error}`);
+            process.exit(1);
+        }
         updatePodfile(packages);
         ensureXElementPod();
         ensureLynxDevToolPods(discoverModules(projectRoot));
@@ -626,8 +647,9 @@ ${schemesXml}
         syncInfoPlistUrlSchemes();
 
         const appNameFromConfig = resolved.config.ios?.appName;
-        if (appNameFromConfig) {
-            const appPodfile = path.join(iosProjectPath, appNameFromConfig, 'Podfile');
+        const appFolder = resolveIosAppFolderName();
+        if (appFolder) {
+            const appPodfile = path.join(iosProjectPath, appFolder, 'Podfile');
             if (fs.existsSync(appPodfile)) {
                 runPodInstall(appPodfile);
                 console.log('✨ Autolinking complete for iOS.');
@@ -644,7 +666,7 @@ ${schemesXml}
     function writeHostNativeModulesManifest(): void {
         const allPkgs = discoverModules(projectRoot);
         const hasDevClient = allPkgs.some((p) => p.name === '@tamer4lynx/tamer-dev-client');
-        const appFolder = resolved.config.ios?.appName;
+        const appFolder = resolveIosAppFolderName();
         if (!hasDevClient || !appFolder) return;
         const androidNames = getDedupedAndroidModuleClassNames(allPkgs);
         const appDir = path.join(iosProjectPath, appFolder);
