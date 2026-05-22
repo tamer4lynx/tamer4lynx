@@ -15,7 +15,7 @@ const TAMER_DEV_CLIENT_FALLBACK: DiscoveredModule = {
         android: {
             moduleClassName: 'com.nanofuxion.tamerdevclient.DevClientModule',
             sourceDir: 'android',
-            permissions: ['CAMERA', 'ACCESS_NETWORK_STATE', 'ACCESS_WIFI_STATE'],
+            permissions: ['CAMERA', 'ACCESS_NETWORK_STATE', 'ACCESS_WIFI_STATE', 'CHANGE_WIFI_MULTICAST_STATE', 'INTERNET'],
         },
     } as NormalizedExtensionConfig,
 };
