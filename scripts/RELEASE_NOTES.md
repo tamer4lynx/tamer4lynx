@@ -1,73 +1,78 @@
-# Tamer Dev App Initial Release
+# Tamer App v0.0.20 — First Release
 
-Expo Go-style dev client for [Tamer4Lynx](https://github.com/tamer4lynx/tamer4lynx) / Lynx. Scan a QR from the Tamer CLI dev server, attach to your project, hot-reload Lynx bundles without building native code.
+Expo Go-style dev client for [Tamer4Lynx](https://github.com/tamer4lynx/tamer4lynx) / Lynx. Scan a QR or enter a URL from the Tamer CLI dev server (`t4l start`), attach to your project, and hot-reload Lynx bundles without rebuilding native code. Also connects directly to plain `rspeedy dev` servers.
 
 ## What's in this release
 
-This is the first public binary release of Tamer Dev App. It includes prebuilt Android and iOS app artifacts built from the `packages/tamer-dev-app` workspace at the version in this tag.
+First public binary release of Tamer App. Prebuilt Android and iOS artifacts from `packages/tamer-dev-app@0.0.20`. Builds use debug-capable native config so Lynx DevTool, shake/long-press menus, and embedded dev-client features all work.
 
-The builds intentionally use debug-capable native configurations so Lynx DevTool gates, shake/long-press developer actions, and the embedded dev-client workflow stay available.
+## What's new
+
+- **iOS support** — simulator and unsigned device builds
+- **Tamer icon** — white logo on black background, matching Android
+- **App name** — shows as "Tamer App" on both platforms
+- **Rspeedy compat** — scan or enter a `rspeedy dev` URL; bundle loads directly without `t4l start`
+- **mDNS discovery** — auto-discovers `t4l start` servers on LAN (physical device only)
+- **Recent servers** — with live status dots and swipe-to-delete
+- **Native module compat checks** — alerts when project requires modules not in this build
 
 ## Artifacts
 
 | File | Target | Notes |
 | --- | --- | --- |
-| `TamerDevApp-<version>.apk` | Android device | Debug-capable APK for `arm64-v8a` and `armeabi-v7a`. |
-| `TamerDevApp-Simulator-<version>.zip` | iOS Simulator (arm64 + x86_64) | Unzip and `xcrun simctl install booted ./TamerDevApp.app`. |
-| `TamerDevApp-Device-Unsigned-<version>.zip` | iOS device (arm64) | Unsigned `.app`. You sign with your own Apple identity — see `SIGN-AND-INSTALL.txt` inside the zip. |
+| `TamerDevApp-0.0.20.apk` | Android device/emulator | Debug-capable APK (`arm64-v8a`, `armeabi-v7a`) |
+| `TamerDevApp-Simulator-0.0.20.zip` | iOS Simulator (arm64 + x86_64) | Unzip → `xcrun simctl install booted TamerDevApp.app` |
+| `TamerDevApp-Device-Unsigned-0.0.20.zip` | iOS device (arm64) | Unsigned `.app` — sign with your Apple identity, see `SIGN-AND-INSTALL.txt` |
 
 ## Install
 
-### Android emulator
+### Android
 ```sh
-adb install TamerDevApp-<version>.apk
+adb install TamerDevApp-0.0.20.apk
 adb shell am start -n com.nanofuxion.tamerdevapp/.MainActivity
 ```
 
-### iOS simulator
+### iOS Simulator
 ```sh
-unzip TamerDevApp-Simulator-<version>.zip
-xcrun simctl install booted ./TamerDevApp.app
+unzip TamerDevApp-Simulator-0.0.20.zip
+xcrun simctl install booted TamerDevApp.app
 xcrun simctl launch booted com.nanofuxion.tamerdevapp
 ```
 
-### iOS device
-The device build ships unsigned to keep the release portable. Re-sign with your own developer identity, embed a provisioning profile that matches `com.nanofuxion.tamerdevapp` (or rewrite the bundle id), wrap as IPA, install. Step-by-step in the bundled `SIGN-AND-INSTALL.txt`.
+### iOS Device
+Ships unsigned for portability. Sign with your own Apple Developer identity, embed a provisioning profile for `com.nanofuxion.tamerdevapp`, wrap as IPA, and install. Full steps in `SIGN-AND-INSTALL.txt` inside the zip.
 
-## Using the dev app
+## Using the app
 
-1. In your Lynx project run `tamer start`.
-2. Open Tamer Dev App on the simulator/emulator/device.
-3. Scan the QR shown in the CLI, or pick a recently seen server.
-4. Edit your Lynx code — bundles hot-reload over the dev server.
+1. Run `t4l start` in your Lynx project (or start `rspeedy dev`)
+2. Open Tamer App on your device/simulator
+3. Scan the QR or enter the server URL
+4. Edit Lynx code — bundles hot-reload instantly
 
-The About page inside the app shows the embedded dev-client version, the native app version, the running Lynx SDK version, and a Created-by card linking to GitHub / Discord / email.
+The About tab shows embedded dev-client version, app version, and Lynx SDK version.
 
-## Published npm packages
-
-- `@tamer4lynx/cli`
-- `@tamer4lynx/tamer-dev-app`
-- `@tamer4lynx/tamer-dev-client`
-- `@tamer4lynx/tamer-app-shell`
-- `@tamer4lynx/tamer-system-ui`
-- `@tamer4lynx/tamer-screen`
-- `@tamer4lynx/tamer-linking`
-- `@tamer4lynx/jiggle`
-
-## Bundle id / package name
+## Bundle ID / Package Name
 
 - iOS: `com.nanofuxion.tamerdevapp`
 - Android: `com.nanofuxion.tamerdevapp`
 
-## Source / framework
+## Source
 
 - Framework + CLI: https://github.com/tamer4lynx/tamer4lynx
-- Dev client (Lynx UI bundled into this app): `@tamer4lynx/tamer-dev-client` on npm
-- Dev app (this binary's source): `packages/tamer-dev-app/` in the framework repo
+- Dev client (Lynx UI): `@tamer4lynx/tamer-dev-client` on npm
+- Dev app source: `packages/tamer-dev-app/` in the framework repo
+
+## Build from source
+
+```sh
+git clone https://github.com/tamer4lynx/tamer4lynx
+cd tamer4lynx && npm install && npm run build
+node scripts/release-binaries.mjs
+```
 
 ## Created by
 
-Nanofuxion — Jordan Miller.
+Nanofuxion — Jordan Miller
 GitHub: https://github.com/tamer4lynx/tamer4lynx
 Discord: https://discord.com/users/235301625659392001
 Email: ramnadroj@gmail.com
