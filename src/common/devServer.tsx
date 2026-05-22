@@ -578,18 +578,19 @@ function DevServerApp({ verbose }: { verbose: boolean }) {
 
         if (!alive) return;
 
-        void import('dnssd-advertise')
-          .then(({ advertise }) => {
-            stopBonjour = advertise({
+        void import('bonjour-service')
+          .then(({ Bonjour }) => {
+            const bonjour = new Bonjour();
+            bonjour.publish({
               name: projectName,
               type: 'tamer',
-              protocol: 'tcp',
               port,
               txt: {
                 name: projectName.slice(0, 255),
                 path: basePath.slice(0, 255),
               },
             });
+            stopBonjour = async () => { bonjour.destroy(); };
             setUi((s) => ({ ...s, bonjour: true }));
           })
           .catch(() => {});

@@ -3140,7 +3140,7 @@ var TAMER_DEV_CLIENT_FALLBACK = {
     android: {
       moduleClassName: "com.nanofuxion.tamerdevclient.DevClientModule",
       sourceDir: "android",
-      permissions: ["CAMERA", "ACCESS_NETWORK_STATE", "ACCESS_WIFI_STATE"]
+      permissions: ["CAMERA", "ACCESS_NETWORK_STATE", "ACCESS_WIFI_STATE", "CHANGE_WIFI_MULTICAST_STATE", "INTERNET"]
     }
   }
 };
@@ -4188,31 +4188,13 @@ function ServerDashboard({
               port,
               " for this session."
             ] }) : null,
-            /* @__PURE__ */ jsx9(Text9, { dimColor: true, wrap: "truncate-end", children: bundlePath }),
-            /* @__PURE__ */ jsxs9(Text9, { dimColor: true, wrap: "truncate-end", children: [
-              devUrl,
-              "/meta.json"
-            ] }),
-            /* @__PURE__ */ jsx9(Text9, { dimColor: true, wrap: "truncate-end", children: wsUrl }),
-            bonjour ? /* @__PURE__ */ jsx9(Text9, { dimColor: true, children: "mDNS: _tamer._tcp" }) : null,
             /* @__PURE__ */ jsxs9(Box8, { marginTop: 1, flexDirection: "column", children: [
               /* @__PURE__ */ jsx9(Text9, { bold: true, children: "Build" }),
               buildPhase === "building" ? /* @__PURE__ */ jsx9(TuiSpinner, { label: "building\u2026" }) : buildPhase === "error" ? /* @__PURE__ */ jsx9(Text9, { color: "red", children: buildError ?? "Build failed" }) : buildPhase === "success" ? /* @__PURE__ */ jsx9(Text9, { color: "green", children: "Lynx bundle ready" }) : /* @__PURE__ */ jsx9(Text9, { dimColor: true, children: "\u2014" })
             ] }),
             /* @__PURE__ */ jsxs9(Box8, { marginTop: 1, flexDirection: "column", children: [
               /* @__PURE__ */ jsx9(Text9, { bold: true, children: "Connections" }),
-              /* @__PURE__ */ jsxs9(Text9, { dimColor: true, children: [
-                "WebSocket clients: ",
-                wsConnections
-              ] }),
-              /* @__PURE__ */ jsxs9(Text9, { dimColor: true, children: [
-                "Status probes: ",
-                statusProbeCount
-              ] }),
-              /* @__PURE__ */ jsxs9(Text9, { dimColor: true, children: [
-                "Meta probes: ",
-                metaProbeCount
-              ] })
+              /* @__PURE__ */ jsx9(Text9, { dimColor: true, children: wsConnections })
             ] })
           ]
         }
@@ -11097,17 +11079,20 @@ function DevServerApp({ verbose }) {
           appendLog(`Port ${preferredPort} was unavailable; using ${port} for this session.`);
         }
         if (!alive) return;
-        void import("dnssd-advertise").then(({ advertise }) => {
-          stopBonjour = advertise({
+        void import("bonjour-service").then(({ Bonjour }) => {
+          const bonjour = new Bonjour();
+          bonjour.publish({
             name: projectName,
             type: "tamer",
-            protocol: "tcp",
             port,
             txt: {
               name: projectName.slice(0, 255),
               path: basePath.slice(0, 255)
             }
           });
+          stopBonjour = async () => {
+            bonjour.destroy();
+          };
           setUi((s) => ({ ...s, bonjour: true }));
         }).catch(() => {
         });

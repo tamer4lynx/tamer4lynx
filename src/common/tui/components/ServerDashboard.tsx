@@ -110,16 +110,6 @@ export function ServerDashboard({
               Configured/default port {preferredPort} was unavailable; using {port} for this session.
             </Text>
           ) : null}
-          <Text dimColor wrap="truncate-end">
-            {bundlePath}
-          </Text>
-          <Text dimColor wrap="truncate-end">
-            {devUrl}/meta.json
-          </Text>
-          <Text dimColor wrap="truncate-end">
-            {wsUrl}
-          </Text>
-          {bonjour ? <Text dimColor>mDNS: _tamer._tcp</Text> : null}
           <Box marginTop={1} flexDirection="column">
             <Text bold>Build</Text>
             {buildPhase === 'building' ? (
@@ -134,9 +124,7 @@ export function ServerDashboard({
           </Box>
           <Box marginTop={1} flexDirection="column">
             <Text bold>Connections</Text>
-            <Text dimColor>WebSocket clients: {wsConnections}</Text>
-            <Text dimColor>Status probes: {statusProbeCount}</Text>
-            <Text dimColor>Meta probes: {metaProbeCount}</Text>
+            <Text dimColor>{wsConnections}</Text>
           </Box>
         </Box>
       </Box>
